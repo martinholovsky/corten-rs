@@ -275,19 +275,21 @@ All five members accepted only with reservations, and their amendments are part 
 
 **P0 — the claims are not shippable until these are done**
 
-- [ ] **Regenerate the classification from a machine-readable ledger** (A, C, F). One row per CWE: bucket, enforcing mechanism, TCB assumption, and whether the claim holds only for prelude APIs. Recompute totals from it; do not quote "E 186" until then.
-- [ ] **Narrow E to what is truly inexpressible** (A). E must hold for every broker-free program, not idiomatic use. Programmer-defined interpreters, ignored non-`Result` status values and choosing an insecure capability are not E.
-- [ ] **State the TCB explicitly and fail closed** (A, C). Compiler, runtime, capability monitor, kernel path primitives, broker protocol, Wasm runtime, crypto provider, manifest verifier and relevant hardware. Prelude bugs, broker kernels and the manifest signer are outside E. A target that cannot provide a required primitive refuses the operation.
-- [ ] **Make platform-dependent E conditional** (F). If safety depends on `openat2`-class kernel support or broker enforcement, the id is C unless the unsafe call is inexpressible in the language itself.
+Done items (Phase 0, 2026-10-26) point to where the work lives: the ledger and `corten-ledger` for the classification, [`docs/tcb.md`](tcb.md) for the TCB and implementation-defined behaviour, [`docs/pathseg.md`](pathseg.md) for the grammar. Operator precedence was left C (CWE-783); the must-use scope is "every non-unit return value", so CWE-252 is E but unverified until that lint exists.
+
+- [x] **Regenerate the classification from a machine-readable ledger** (A, C, F). One row per CWE: bucket, enforcing mechanism, TCB assumption, and whether the claim holds only for prelude APIs. Recompute totals from it; do not quote "E 186" until then.
+- [x] **Narrow E to what is truly inexpressible** (A). E must hold for every broker-free program, not idiomatic use. Programmer-defined interpreters, ignored non-`Result` status values and choosing an insecure capability are not E.
+- [x] **State the TCB explicitly and fail closed** (A, C). Compiler, runtime, capability monitor, kernel path primitives, broker protocol, Wasm runtime, crypto provider, manifest verifier and relevant hardware. Prelude bugs, broker kernels and the manifest signer are outside E. A target that cannot provide a required primitive refuses the operation.
+- [x] **Make platform-dependent E conditional** (F). If safety depends on `openat2`-class kernel support or broker enforcement, the id is C unless the unsafe call is inexpressible in the language itself.
 
 **P1 — specifications that E claims depend on**
 
-- [ ] **Publish a normative `PathSeg` grammar** (A, C). One Unicode-normalized segment; reject empty, `.`, `..`, separators, wildcards, trailing space or dot, device names, alternate data streams and non-canonical forms; define case handling, Windows 8.3 names, mount and junction behaviour. Root choice, hard links and pre-existing names stay C (CWE-62, 65, 73).
+- [x] **Publish a normative `PathSeg` grammar** (A, C). One Unicode-normalized segment; reject empty, `.`, `..`, separators, wildcards, trailing space or dot, device names, alternate data streams and non-canonical forms; define case handling, Windows 8.3 names, mount and junction behaviour. Root choice, hard links and pre-existing names stay C (CWE-62, 65, 73).
 - [ ] **Encoders are audited TCB** (C). E for prelude sinks (SQL, HTML, argv, headers, logs, CSV, templates, XPath/XQuery) holds only with an audited encoder and no `Html::raw` or `Sql::raw` in the profile.
-- [ ] **Operator precedence** (C, F). Either reject mixed-precedence expressions without parentheses, making CWE-783 E, or leave it C.
-- [ ] **Implementation-defined behaviour** (C). Replace "no implementation-defined behaviour" with "no UB; implementation-defined behaviour is enumerated and typed" (endianness, width, FP rounding, OS error codes). CWE-758 cannot be E on LLVM.
-- [ ] **Must-use scope** (A). State whether every non-unit return value is linear and must-use; otherwise CWE-252 is not E. A component panic is still an unhandled exceptional condition for availability.
-- [ ] **Separate execution from read** (C). `ExecCap` is never inferred from `fs` plus `process`, and `dynamic_code` is never inferred. CWE-94 stays C.
+- [x] **Operator precedence** (C, F). Either reject mixed-precedence expressions without parentheses, making CWE-783 E, or leave it C.
+- [x] **Implementation-defined behaviour** (C). Replace "no implementation-defined behaviour" with "no UB; implementation-defined behaviour is enumerated and typed" (endianness, width, FP rounding, OS error codes). CWE-758 cannot be E on LLVM.
+- [x] **Must-use scope** (A). State whether every non-unit return value is linear and must-use; otherwise CWE-252 is not E. A component panic is still an unhandled exceptional condition for availability.
+- [x] **Separate execution from read** (C). `ExecCap` is never inferred from `fs` plus `process`, and `dynamic_code` is never inferred. CWE-94 stays C.
 
 **P1 — safer defaults (they keep C but remove easy bypasses)**
 
@@ -307,6 +309,10 @@ All five members accepted only with reservations, and their amendments are part 
 **Classification** (A, F): intrinsically hardware-design entries (RTL FSMs, fabric bridges, register reset, NoC) should be N unless a Corten-HDL profile is added. Transient-execution entries (CWE-1342, 1420–1423) stay C only with a note that the microarchitectural root cause needs hardware or firmware controls.
 
 ## 6. CWE coverage
+
+**Current ledger (after Phase 0, regenerated by `corten-ledger totals`):** E 175 / C 721 / O 26 / N 22 across all 944 ids; restricted to the 853 that apply to Rust, E 157 / C 670 / O 26. Eleven drafted E ids moved to C: the nine doubly disputed ids CWE-41, 58, 94, 96, 248, 377, 379, 783, 826; CWE-88, because an argv vector does not stop an option-valued argument; and CWE-758, per the implementation-defined-behaviour amendment. Five doubly disputed ids stayed E: CWE-22, 59, 252, 363, 403. Each move and each kept dispute has its reason in the ledger's `bucket_reason` column. Every E row now names a mechanism, a TCB assumption, the phase that delivers it, a proof kind and a planned compile-fail test; `corten-ledger check` enforces that and runs in CI. No E row is verified yet.
+
+The rest of this section describes the drafted classification, as ratified.
 
 The drafted classification puts 186 of the 922 applicable weaknesses in E (20.2%), 710 in C (77.0%) and 26 in O (2.8%), with 22 more marked N. Treat 186 as a ceiling: only 108 E ids went undisputed in ratification.
 
@@ -363,19 +369,19 @@ Corten can enforce a wrong policy perfectly; mechanical enforcement is not evide
 
 ## 8. Open design decisions
 
-Nine questions split the panel and need an owner decision; each one moves ids between buckets. The spec took the position in the middle column. Record the decision in the last column (Open / Keep panel position / Take alternative).
+Nine questions split the panel and needed an owner decision; each one moves ids between buckets. The spec took the position in the middle column. On 2026-10-26 the owner kept the panel position on all nine. The 14 doubly disputed ids were then decided id by id in the ledger's `bucket_reason` column (section 6).
 
 | # | Question | Joint-spec position | Alternative (who) | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | Do mandatory runtime checks count as E? | No: C, per the task definition (B) | E, since memory corruption cannot occur (A, C, D, F in earlier rounds) | Open |
-| 2 | Is path traversal under a `DirCap` E? | Yes for escape; root and hard-link policy C | Whole path family C (F; D and F in ratification) | Open |
-| 3 | How far does injection E reach? | Prelude-owned sinks E; custom grammars C | Broader E (B, D) | Open |
-| 4 | Is an explicit observable wipe E for zeroization? | No: C, sensitivity cannot be inferred | E for any explicit wipe (C) | Open |
-| 5 | Is CWE-502 deserialization E? | No: C, schema and limits are policy | Broader E (earlier readings of A, B) | Open |
-| 6 | How big should O be? | Small: enforceable policy stays C | Broader O (B, C, D, F) | Open |
-| 7 | Hardware and transient execution | N only where no code is the defect | N for transient leakage itself (C, F); N for all hardware-design entries (A) | Open |
-| 8 | Legacy-framework absence (J2EE, Struts, PHP, ActiveX) | By underlying property | E by inexpressibility (A, C); O for product configuration (B, D, F) | Open |
-| 9 | Any in-process `unsafe`? | None in application crates | `unsafe_trusted` with a Kani/Creusot proof or audited exception (B) | Open |
+| 1 | Do mandatory runtime checks count as E? | No: C, per the task definition (B) | E, since memory corruption cannot occur (A, C, D, F in earlier rounds) | Keep panel position (owner, 2026-10-26) |
+| 2 | Is path traversal under a `DirCap` E? | Yes for escape; root and hard-link policy C | Whole path family C (F; D and F in ratification) | Keep panel position (owner, 2026-10-26) |
+| 3 | How far does injection E reach? | Prelude-owned sinks E; custom grammars C | Broader E (B, D) | Keep panel position (owner, 2026-10-26) |
+| 4 | Is an explicit observable wipe E for zeroization? | No: C, sensitivity cannot be inferred | E for any explicit wipe (C) | Keep panel position (owner, 2026-10-26) |
+| 5 | Is CWE-502 deserialization E? | No: C, schema and limits are policy | Broader E (earlier readings of A, B) | Keep panel position (owner, 2026-10-26) |
+| 6 | How big should O be? | Small: enforceable policy stays C | Broader O (B, C, D, F) | Keep panel position (owner, 2026-10-26) |
+| 7 | Hardware and transient execution | N only where no code is the defect | N for transient leakage itself (C, F); N for all hardware-design entries (A) | Keep panel position (owner, 2026-10-26) |
+| 8 | Legacy-framework absence (J2EE, Struts, PHP, ActiveX) | By underlying property | E by inexpressibility (A, C); O for product configuration (B, D, F) | Keep panel position (owner, 2026-10-26) |
+| 9 | Any in-process `unsafe`? | None in application crates | `unsafe_trusted` with a Kani/Creusot proof or audited exception (B) | Keep panel position (owner, 2026-10-26) |
 
 ## 9. Roadmap: making the claims true
 
@@ -402,11 +408,13 @@ Phases 0 to 3 make up the MVP; nothing moves to the next phase until its gate's 
 
 ### Phase 0 — ledger and specification
 
-- [ ] Turn the 944-id classification into a ledger: id, bucket, mechanism, TCB assumption, prelude-only flag, and the test that will prove it.
-- [ ] Decide the nine questions in section 8 and re-bucket the 14 doubly disputed ids.
-- [ ] Write the normative `PathSeg` grammar, the TCB statement and the enumerated implementation-defined behaviour.
+- [x] Turn the 944-id classification into a ledger: id, bucket, mechanism, TCB assumption, prelude-only flag, and the test that will prove it.
+- [x] Decide the nine questions in section 8 and re-bucket the 14 doubly disputed ids.
+- [x] Write the normative `PathSeg` grammar, the TCB statement and the enumerated implementation-defined behaviour.
 
 **Gate:** every E row names one mechanism and one planned compile-fail test; totals are regenerated from the ledger.
+
+**Gate result (2026-10-26): passed.** `corten-ledger check`: 944 rows, 175 E rows, 0 problems. A planted gap (an E row with no proof test) makes it exit 1. Kill thresholds, set by the owner before Phase 1: the benign-corpus false-rejection limit is **5%**; if the bypass hunt evades more than half of the E claims a phase targets, the E framing is dropped for those claims.
 
 ### Phase 1 — profile on stock Rust
 
@@ -532,7 +540,7 @@ The largest risk the panel named is ecosystem compatibility, not runtime overhea
 | Panic becomes denial of service | Bounds and arithmetic failures stop the component | Restart behaviour under a crafted input flood |
 | Maintenance load | A closed prelude has to track Rust releases and new interpreter types | Effort per Rust release |
 
-**Kill or re-scope rules (my recommendation; you set the thresholds before Phase 1):**
+**Kill or re-scope rules (thresholds set by the owner on 2026-10-26: false rejection 5%, bypass more than half):**
 
 - If the bypass hunt evades most of the E claims Phase 1 targets, drop the E framing and position Corten as a C-checking profile.
 - If the benign-corpus false-rejection rate is above the threshold you set, fix the rules before adding any new ones.
@@ -540,7 +548,7 @@ The largest risk the panel named is ecosystem compatibility, not runtime overhea
 
 ## 12. Appendix: sources and the CWE ledger
 
-The working ledger is [`ledger/cwe-ledger.csv`](../ledger/cwe-ledger.csv): 944 rows with id, name, abstraction, MITRE CWE-1400 category, Rust applicability, drafted bucket, ratification disputes and the reason each panel member gave (quoted verbatim, so they still use the design's first name, Ferrum), plus empty columns for mechanism, TCB assumption, prelude-only flag, proof test and status (all "unverified"). Fill it in Phase 0.
+The working ledger is [`ledger/cwe-ledger.csv`](../ledger/cwe-ledger.csv): 944 rows with id, name, abstraction, MITRE CWE-1400 category, Rust applicability, drafted bucket, ratification disputes and the reason each panel member gave (quoted verbatim, so they still use the design's first name, Ferrum), the current `bucket` with a `bucket_reason` for every move or kept dispute, and, for each E row, the delivering `phase`, the `proof_kind` (`checker`: plain cargo builds the bad program and `cargo corten check` rejects it; `language`: Rust itself rejects it), mechanism, TCB assumption, prelude-only flag, proof test and status. Filled in Phase 0; `corten-ledger check` enforces the gate.
 
 **Drafted E ids (186; 108 undisputed)**
 

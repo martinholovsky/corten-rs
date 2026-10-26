@@ -6,6 +6,10 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Phase 0: the nine open decisions settled (panel position kept on all nine) and kill thresholds set (false rejection 5%; bypass of more than half of a phase's E claims). The 14 doubly disputed ids decided in the ledger; 11 drafted E ids moved to C with reasons. The ledger now holds E 175 / C 721 / O 26 / N 22.
+- Ledger columns `bucket`, `bucket_reason`, `phase`, `proof_kind`; every E row has a mechanism, TCB assumption, prelude-only flag and planned proof test.
+- `corten-ledger`: `check` (the Phase 0 gate, plus a guard against formula-leading cells) and `totals`. Runs in CI.
+- `docs/pathseg.md` (normative `PathSeg` grammar and `DirCap` monitor, adding `RESOLVE_NO_XDEV`) and `docs/tcb.md` (TCB, fail-closed rule, implementation-defined behaviour).
 - `main` ruleset: pull request with the four CI checks required, no bypass, no force-push or deletion, linear history. `.github/CODEOWNERS`. Signed commits not yet required.
 - Cargo workspace (edition 2024, Rust 1.99.1 pinned in `rust-toolchain.toml`) with workspace lints, `clippy.toml`, `deny.toml` and a nextest profile.
 - `cargo-corten`: `cargo corten check` builds a crate with `-F unsafe_code`, supplied through `CARGO_ENCODED_RUSTFLAGS`, and overrides `rustc-wrapper`, `rustc-workspace-wrapper`, `[build] rustc` and every `rustflags` source the checked repository could use to weaken it. Each override has a test with a control showing the bypass works against plain cargo. No dependencies.

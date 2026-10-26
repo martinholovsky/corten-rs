@@ -1,0 +1,12 @@
+[package]
+name = "corten-ledger"
+description = "Checks the Corten CWE ledger against the roadmap gates and recomputes its totals"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

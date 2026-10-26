@@ -1,0 +1,471 @@
+//! Reads `ledger/cwe-ledger.csv`, checks it against the roadmap gates and
+//! computes totals, so no number in the docs is typed by hand.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+
+/// One parsed CSV record: field values in header order.
+pub type Record = Vec<String>;
+
+/// Why the CSV text could not be parsed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseError {
+    /// 1-based line on which the problem was found.
+    pub line: usize,
+    /// What was wrong.
+    pub message: &'static str,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "line {}: {}", self.line, self.message)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+/// Parses RFC 4180 CSV: comma separated, `"` quoting with `""` escapes,
+/// LF or CRLF record ends. Quoted fields may span lines.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] for a quote inside an unquoted field, text after a
+/// closing quote, or an unterminated quoted field.
+pub fn parse_csv(text: &str) -> Result<Vec<Record>, ParseError> {
+    let mut records = Vec::new();
+    let mut record = Vec::new();
+    let mut field = String::new();
+    let mut line = 1usize;
+    let mut chars = text.chars().peekable();
+    let mut in_quotes = false;
+    let mut field_was_quoted = false;
+    while let Some(c) = chars.next() {
+        if c == '\n' {
+            line = line.saturating_add(1);
+        }
+        if in_quotes {
+            if c == '"' {
+                if chars.peek() == Some(&'"') {
+                    chars.next();
+                    field.push('"');
+                } else {
+                    in_quotes = false;
+                }
+            } else {
+                field.push(c);
+            }
+            continue;
+        }
+        match c {
+            '"' if field.is_empty() && !field_was_quoted => {
+                in_quotes = true;
+                field_was_quoted = true;
+            }
+            '"' => {
+                return Err(ParseError {
+                    line,
+                    message: "quote inside an unquoted field",
+                });
+            }
+            ',' => {
+                record.push(std::mem::take(&mut field));
+                field_was_quoted = false;
+            }
+            '\r' if chars.peek() == Some(&'\n') => {}
+            '\n' => {
+                record.push(std::mem::take(&mut field));
+                field_was_quoted = false;
+                records.push(std::mem::take(&mut record));
+            }
+            _ if field_was_quoted => {
+                return Err(ParseError {
+                    line,
+                    message: "text after a closing quote",
+                });
+            }
+            _ => field.push(c),
+        }
+    }
+    if in_quotes {
+        return Err(ParseError {
+            line,
+            message: "unterminated quoted field",
+        });
+    }
+    if !field.is_empty() || field_was_quoted || !record.is_empty() {
+        record.push(field);
+        records.push(record);
+    }
+    Ok(records)
+}
+
+/// The ledger: the header and one row per CWE id.
+#[derive(Debug, Clone)]
+pub struct Ledger {
+    header: Vec<String>,
+    rows: Vec<Record>,
+}
+
+/// A field lookup failed: the ledger lacks a column the tool needs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingColumn(pub &'static str);
+
+impl fmt::Display for MissingColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ledger has no column {:?}", self.0)
+    }
+}
+
+impl std::error::Error for MissingColumn {}
+
+/// Columns the gate checks read.
+pub const REQUIRED_COLUMNS: &[&str] = &[
+    "cwe_id",
+    "drafted_bucket",
+    "bucket",
+    "bucket_reason",
+    "phase",
+    "proof_kind",
+    "mechanism",
+    "tcb_assumption",
+    "prelude_only",
+    "proof_test",
+    "status",
+];
+
+/// Allowed values of `status`.
+pub const STATUSES: &[&str] = &["unverified", "verified"];
+
+/// Allowed values of `proof_kind`: the checker rejects the bad program (and
+/// plain cargo builds it), or the language itself rejects it.
+pub const PROOF_KINDS: &[&str] = &["checker", "language"];
+
+impl Ledger {
+    /// Builds a ledger from parsed CSV records, the first being the header.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MissingColumn`] if the header lacks a required column.
+    pub fn from_records(mut records: Vec<Record>) -> Result<Self, MissingColumn> {
+        let header = if records.is_empty() {
+            Vec::new()
+        } else {
+            records.remove(0)
+        };
+        for name in REQUIRED_COLUMNS {
+            if !header.iter().any(|h| h == name) {
+                return Err(MissingColumn(name));
+            }
+        }
+        Ok(Self {
+            header,
+            rows: records,
+        })
+    }
+
+    fn column(&self, name: &'static str) -> usize {
+        // from_records guarantees every required column exists.
+        self.header.iter().position(|h| h == name).unwrap_or(0)
+    }
+
+    /// Value of `name` in `row`, or "" for a short row.
+    fn get<'a>(&self, row: &'a Record, name: &'static str) -> &'a str {
+        row.get(self.column(name)).map_or("", String::as_str)
+    }
+
+    /// Number of data rows.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Whether the ledger has no data rows.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// Checks the Phase 0 gate and the ledger's internal consistency.
+    /// Returns one message per problem; empty means the gate passes.
+    #[must_use]
+    pub fn check(&self) -> Vec<String> {
+        let mut problems = Vec::new();
+        let mut seen = BTreeSet::new();
+        for row in &self.rows {
+            let id = self.get(row, "cwe_id");
+            if row.len() != self.header.len() {
+                problems.push(format!(
+                    "{id}: {} fields, header has {}",
+                    row.len(),
+                    self.header.len()
+                ));
+            }
+            if !seen.insert(id) {
+                problems.push(format!("{id}: duplicate id"));
+            }
+            let bucket = self.get(row, "bucket");
+            if !["E", "C", "O", "N"].contains(&bucket) {
+                problems.push(format!("{id}: bucket {bucket:?} is not E, C, O or N"));
+            }
+            if bucket != self.get(row, "drafted_bucket")
+                && self.get(row, "bucket_reason").is_empty()
+            {
+                problems.push(format!(
+                    "{id}: bucket differs from drafted_bucket without a bucket_reason"
+                ));
+            }
+            for value in row {
+                if starts_like_formula(value) {
+                    problems.push(format!(
+                        "{id}: cell {:?} starts with a spreadsheet formula character",
+                        value.chars().take(20).collect::<String>()
+                    ));
+                }
+            }
+            let status = self.get(row, "status");
+            if !STATUSES.contains(&status) {
+                problems.push(format!(
+                    "{id}: status {status:?} is not one of {STATUSES:?}"
+                ));
+            }
+            if bucket == "E" {
+                for column in [
+                    "mechanism",
+                    "tcb_assumption",
+                    "prelude_only",
+                    "proof_test",
+                    "phase",
+                    "proof_kind",
+                ] {
+                    if self.get(row, column).is_empty() {
+                        problems.push(format!("{id}: E row with empty {column}"));
+                    }
+                }
+                let kind = self.get(row, "proof_kind");
+                if !kind.is_empty() && !PROOF_KINDS.contains(&kind) {
+                    problems.push(format!(
+                        "{id}: proof_kind {kind:?} is not one of {PROOF_KINDS:?}"
+                    ));
+                }
+            } else if status == "verified" {
+                problems.push(format!(
+                    "{id}: only E rows carry a proof, but status is verified"
+                ));
+            }
+        }
+        problems
+    }
+
+    /// Ids of rows in `bucket` whose `status` is `verified`, with their proof test.
+    #[must_use]
+    pub fn verified(&self) -> Vec<(&str, &str)> {
+        self.rows
+            .iter()
+            .filter(|r| self.get(r, "status") == "verified")
+            .map(|r| (self.get(r, "cwe_id"), self.get(r, "proof_test")))
+            .collect()
+    }
+
+    /// Rows whose bucket is E, as (id, phase, proof kind, proof test).
+    #[must_use]
+    pub fn e_rows(&self) -> Vec<ERow<'_>> {
+        self.rows
+            .iter()
+            .filter(|r| self.get(r, "bucket") == "E")
+            .map(|r| ERow {
+                id: self.get(r, "cwe_id"),
+                phase: self.get(r, "phase"),
+                proof_kind: self.get(r, "proof_kind"),
+                proof_test: self.get(r, "proof_test"),
+                status: self.get(r, "status"),
+            })
+            .collect()
+    }
+
+    /// Totals, recomputed from the rows.
+    #[must_use]
+    pub fn totals(&self) -> Totals {
+        let mut totals = Totals::default();
+        for row in &self.rows {
+            let bucket = self.get(row, "bucket").to_owned();
+            let drafted = self.get(row, "drafted_bucket").to_owned();
+            add(&mut totals.by_bucket, bucket.clone());
+            if bucket != drafted {
+                add(&mut totals.moves, format!("{drafted}->{bucket}"));
+            }
+            if bucket == "E" {
+                add(
+                    &mut totals.e_by_phase,
+                    format!(
+                        "phase {} {}",
+                        self.get(row, "phase"),
+                        self.get(row, "proof_kind")
+                    ),
+                );
+                add(&mut totals.e_by_status, self.get(row, "status").to_owned());
+            }
+        }
+        totals.rows = self.rows.len();
+        totals
+    }
+}
+
+/// Whether a spreadsheet would treat `value` as a formula (CWE-1236): a
+/// leading `= + - @`, tab, CR, LF, NUL or a full-width `＝ ＋ － ＠`.
+#[must_use]
+pub fn starts_like_formula(value: &str) -> bool {
+    value.chars().next().is_some_and(|c| {
+        matches!(
+            c,
+            '=' | '+' | '-' | '@' | '\t' | '\r' | '\n' | '\0' | '＝' | '＋' | '－' | '＠'
+        )
+    })
+}
+
+fn add(map: &mut BTreeMap<String, usize>, key: String) {
+    let count = map.entry(key).or_insert(0);
+    *count = count.saturating_add(1);
+}
+
+/// One E row, as the corpus runner needs it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ERow<'a> {
+    /// `CWE-n`.
+    pub id: &'a str,
+    /// Roadmap phase that delivers the mechanism.
+    pub phase: &'a str,
+    /// `checker` or `language`.
+    pub proof_kind: &'a str,
+    /// Path of the compile-fail case, relative to the repository root.
+    pub proof_test: &'a str,
+    /// `unverified` or `verified`.
+    pub status: &'a str,
+}
+
+/// Counts recomputed from the ledger.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Totals {
+    /// Data rows.
+    pub rows: usize,
+    /// Rows per current bucket.
+    pub by_bucket: BTreeMap<String, usize>,
+    /// Rows whose bucket differs from the drafted one, per `drafted->bucket`.
+    pub moves: BTreeMap<String, usize>,
+    /// E rows per phase and proof kind.
+    pub e_by_phase: BTreeMap<String, usize>,
+    /// E rows per status.
+    pub e_by_status: BTreeMap<String, usize>,
+}
+
+impl fmt::Display for Totals {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "rows: {}", self.rows)?;
+        for (title, map) in [
+            ("bucket", &self.by_bucket),
+            ("moved from drafted", &self.moves),
+            ("E by phase", &self.e_by_phase),
+            ("E by status", &self.e_by_status),
+        ] {
+            writeln!(f, "{title}:")?;
+            for (key, count) in map {
+                writeln!(f, "  {key}: {count}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_quotes_escapes_and_crlf() {
+        let text = "a,b\r\n\"x, y\",\"say \"\"hi\"\"\"\n\"multi\nline\",\n";
+        let records = parse_csv(text).unwrap();
+        assert_eq!(
+            records,
+            vec![
+                vec!["a".to_owned(), "b".to_owned()],
+                vec!["x, y".to_owned(), "say \"hi\"".to_owned()],
+                vec!["multi\nline".to_owned(), String::new()],
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_quoting() {
+        assert!(parse_csv("a\"b\n").is_err());
+        assert!(parse_csv("\"a\"b\n").is_err());
+        assert!(parse_csv("\"open\n").is_err());
+    }
+
+    fn ledger(rows: &[&str]) -> Ledger {
+        let header = REQUIRED_COLUMNS.join(",");
+        let text = std::iter::once(header.as_str())
+            .chain(rows.iter().copied())
+            .collect::<Vec<_>>()
+            .join("\n");
+        Ledger::from_records(parse_csv(&text).unwrap()).unwrap()
+    }
+
+    const GOOD_E: &str = "CWE-1,E,E,,1,checker,m,t,no,corpus/CWE-1,unverified";
+
+    #[test]
+    fn complete_e_row_passes() {
+        assert_eq!(ledger(&[GOOD_E]).check(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn e_row_without_proof_test_fails() {
+        let problems = ledger(&["CWE-1,E,E,,1,checker,m,t,no,,unverified"]).check();
+        assert_eq!(problems, ["CWE-1: E row with empty proof_test"]);
+    }
+
+    #[test]
+    fn move_without_reason_fails() {
+        let problems = ledger(&["CWE-2,E,C,,,,,,,,unverified"]).check();
+        assert_eq!(
+            problems,
+            ["CWE-2: bucket differs from drafted_bucket without a bucket_reason"]
+        );
+    }
+
+    #[test]
+    fn duplicate_and_bad_status_fail() {
+        let problems = ledger(&[GOOD_E, &GOOD_E.replace("unverified", "done")]).check();
+        assert_eq!(problems.len(), 2, "{problems:?}");
+    }
+
+    #[test]
+    fn formula_leading_cell_fails() {
+        let problems = ledger(&[&GOOD_E.replace(",m,", ",=cmd(),")]).check();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(starts_like_formula("＠x"));
+        assert!(!starts_like_formula("x=1"));
+    }
+
+    #[test]
+    fn verified_non_e_row_fails() {
+        let problems = ledger(&["CWE-3,C,C,,,,,,,,verified"]).check();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+    }
+
+    #[test]
+    fn missing_column_is_reported() {
+        let records = parse_csv("cwe_id,bucket\nCWE-1,E\n").unwrap();
+        assert_eq!(
+            Ledger::from_records(records).err(),
+            Some(MissingColumn("drafted_bucket"))
+        );
+    }
+
+    #[test]
+    fn totals_count_moves_and_phases() {
+        let t = ledger(&[GOOD_E, "CWE-2,E,C,why,,,,,,,unverified"]).totals();
+        assert_eq!(t.rows, 2);
+        assert_eq!(t.by_bucket.get("E"), Some(&1));
+        assert_eq!(t.moves.get("E->C"), Some(&1));
+        assert_eq!(t.e_by_phase.get("phase 1 checker"), Some(&1));
+    }
+}
