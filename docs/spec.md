@@ -466,6 +466,16 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 
 So `cargo corten check` must supply its own flags and lint configuration rather than reading them from the repository it checks.
 
+Supplying the flags is not enough on its own. **Measured, 2026-10-26, cargo 1.99.1:**
+
+| Case | Result |
+| --- | --- |
+| Flags injected through `CARGO_ENCODED_RUSTFLAGS`, and the repository's `.cargo/config.toml` names a `rustc-wrapper` that drops `-F` | **Builds, with `unsafe`** |
+| Same, and the checker also sets `RUSTC_WRAPPER` to the empty string | Build fails (E0453) |
+| The repository's config replaces `rustc` (`[build] rustc`) | The replacement runs, unless the checker sets `RUSTC` |
+
+Cargo reads that configuration from the working directory and its ancestors, so the checker must override every program and flag source cargo takes from configuration. What `cargo-corten` overrides today, and what it does not, is listed in [`crates/cargo-corten/README.md`](../crates/cargo-corten/README.md).
+
 ### Five layers
 
 | Layer | What it is | What it guarantees |
@@ -505,6 +515,8 @@ Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHu
 ### First deliverable
 
 `cargo corten check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
+
+Progress (2026-10-26): `crates/cargo-corten` runs `cargo check` with `-F unsafe_code` and the overrides above, with tests for each. The Clippy lint set, layer 3 and the GitHub Action are not built.
 
 ## 11. Risks and kill criteria
 

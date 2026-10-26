@@ -1,0 +1,7 @@
+# Pinned so clippy, rustfmt and the measured cargo behaviour are the same
+# everywhere. 1.99.1 was the latest stable on 2026-10-26 (rustup check).
+# Rust supports only the latest stable; 1.100 is due about 2026-11-12.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
