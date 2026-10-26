@@ -2,7 +2,7 @@
 
 Of the 944 weaknesses in MITRE CWE 4.20, **853 apply to Rust**: 794 directly and 59 only through `unsafe` code. Corten's drafted classification puts **168 of those 853 in E** (cannot be written), **659 in C** (checkable once the policy is stated) and **26 in O** (out of reach of any language). The other 69 weaknesses are specific to other languages or frameworks, and 22 are not coding weaknesses.
 
-Every E claim is the design panel's, not yet proven by tests, and 78 of the 186 E ids across the full catalogue were disputed in ratification. Read E as the target, not the result.
+After Phase 0 the ledger holds E 157 / C 670 / O 26 for these 853 (eleven drafted E ids moved to C, with reasons in the ledger); the per-category columns below are the drafted split. Every E claim is the design panel's, not yet proven by tests, and 78 of the 186 E ids across the full catalogue were disputed in ratification. Read E as the target, not the result.
 
 ## How each CWE was sorted
 

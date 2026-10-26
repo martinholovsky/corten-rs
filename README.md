@@ -43,7 +43,9 @@ The drafted classification of the 944 CWE weaknesses:
 
 Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids down to C.
 
-Restricted to the 853 weaknesses that apply to Rust, the drafted split is E 168 / C 659 / O 26. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Restricted to the 853 weaknesses that apply to Rust, the drafted split is E 168 / C 659 / O 26.
+
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a planned compile-fail test; none is verified yet. `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 
@@ -56,8 +58,11 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/spec.md`](docs/spec.md) | The full design: mechanisms, ratification amendments, open decisions, roadmap, enforcement model, risks |
 | [`docs/rust-comparison.md`](docs/rust-comparison.md) | Which of the 944 CWEs apply to Rust (853), what plain Rust does about each category today, and how Corten mitigates it |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
+| [`docs/pathseg.md`](docs/pathseg.md) | Normative `PathSeg` grammar and the `DirCap` monitor that the path-family E claims rest on |
+| [`docs/tcb.md`](docs/tcb.md) | What every E claim trusts, the fail-closed rule, and the enumerated implementation-defined behaviour |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
 | [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself; its README lists what it overrides and its known gaps |
+| [`crates/corten-ledger`](crates/corten-ledger) | `corten-ledger check` (the ledger gate, run in CI) and `corten-ledger totals` |
 | [`crates/corten-std`](crates/corten-std) | Placeholder for the closed prelude (spec section 9, Phase 1) |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |

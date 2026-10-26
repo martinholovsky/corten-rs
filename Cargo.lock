@@ -7,5 +7,9 @@ name = "cargo-corten"
 version = "0.0.0"
 
 [[package]]
+name = "corten-ledger"
+version = "0.0.0"
+
+[[package]]
 name = "corten-std"
 version = "0.0.0"

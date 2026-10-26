@@ -48,6 +48,8 @@ jobs:
           tool: cargo-nextest@0.9.150
       - run: cargo nextest run --workspace --all-features --locked
       - run: cargo test --doc --workspace --locked
+      - name: Ledger gate
+        run: cargo run --locked -p corten-ledger -- check
 
   supply-chain:
     name: cargo deny

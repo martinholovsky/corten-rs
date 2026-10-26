@@ -12,10 +12,11 @@ Corten is a hardened Rust profile that aims to make whole classes of security bu
 2. **Report the false-rejection rate beside every detection number.** A rule that catches bad code but also rejects good code is not done. Every result states both: how many bad programs failed to build, and how many good programs failed too, with the totals.
 3. **The checker supplies its own configuration.** `cargo corten check` must inject its flags (for example `-F unsafe_code`) and lint lists itself. Never read them from the repository being checked: an author can delete an in-source `#![forbid]` and the crate builds again (measured, spec section 10).
 4. **Do not move a CWE between buckets without a reason in the ledger.** Bucket changes go through the ledger with the mechanism and, for disputed ids, a response to the reasons in `dispute_reasons`. The 14 ids disputed by two or more panel members (spec section 6) are decided first.
-5. **Respect the open decisions.** The nine questions in spec section 8 are owner decisions. Do not implement one side of a question that is still Open; ask.
-6. **Names.** The project is Corten. Crates and tools are `cargo-corten`, `corten-std` and `corten-*`. The bare `corten` crate name on crates.io belongs to someone else.
-7. **Keep the CWE notice intact.** Any copy of CWE names or identifiers keeps MITRE's copyright line and terms (`ledger/NOTICE`).
-8. **The design panel's transcript is not public.** Do not ask for it or try to reconstruct it; the spec and the ledger (including `dispute_reasons`) are the public record.
+5. **Respect the owner's decisions.** The nine questions in spec section 8 were decided on 2026-10-26 (panel position kept on all nine). Reopening one is an owner decision; ask. New open questions go in section 8 as Open, and the same rule applies to them.
+6. **Numbers come from the ledger.** Bucket totals and counts in the docs are the output of `cargo run -p corten-ledger -- totals`, pasted, never edited by hand. `corten-ledger check` must pass (it runs in CI).
+7. **Names.** The project is Corten. Crates and tools are `cargo-corten`, `corten-std` and `corten-*`. The bare `corten` crate name on crates.io belongs to someone else.
+8. **Keep the CWE notice intact.** Any copy of CWE names or identifiers keeps MITRE's copyright line and terms (`ledger/NOTICE`).
+9. **The design panel's transcript is not public.** Do not ask for it or try to reconstruct it; the spec and the ledger (including `dispute_reasons`) are the public record.
 
 ## General working rules
 
