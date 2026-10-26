@@ -6,6 +6,7 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- `main` ruleset: pull request with the four CI checks required, no bypass, no force-push or deletion, linear history. `.github/CODEOWNERS`. Signed commits not yet required.
 - Cargo workspace (edition 2024, Rust 1.99.1 pinned in `rust-toolchain.toml`) with workspace lints, `clippy.toml`, `deny.toml` and a nextest profile.
 - `cargo-corten`: `cargo corten check` builds a crate with `-F unsafe_code`, supplied through `CARGO_ENCODED_RUSTFLAGS`, and overrides `rustc-wrapper`, `rustc-workspace-wrapper`, `[build] rustc` and every `rustflags` source the checked repository could use to weaken it. Each override has a test with a control showing the bypass works against plain cargo. No dependencies.
 - `corten-std`: placeholder crate for the closed prelude.

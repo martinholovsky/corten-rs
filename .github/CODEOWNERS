@@ -1,0 +1,15 @@
+# Owners are requested for review on every pull request touching their paths.
+# The last matching pattern wins.
+
+* @martinholovsky
+
+# Files that decide what the gates check. A change here changes what every
+# later pull request is judged by.
+/.github/                 @martinholovsky
+/.pre-commit-config.yaml  @martinholovsky
+/deny.toml                @martinholovsky
+/clippy.toml              @martinholovsky
+/rust-toolchain.toml      @martinholovsky
+/Cargo.toml               @martinholovsky
+/AGENTS.md                @martinholovsky
+/CLAUDE.md                @martinholovsky
