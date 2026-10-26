@@ -33,11 +33,15 @@ The drafted classification of the 944 CWE weaknesses:
 
 Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids down to C.
 
+## How it will be enforced
+
+A rule only holds if the check that enforces it runs somewhere the code's author cannot change. Ferrum is planned in five layers: crates that make the safe way easy (`ferrum-std`, typed sinks); `cargo ferrum check`, which builds with flags and lints it supplies itself; the same rules applied to every dependency; a CI gate that signs proof the build passed; and a deployment check plus runtime sandbox that refuse anything without that proof. The first deliverable is `cargo ferrum check` plus a GitHub Action that runs it and signs the result. Details, including a test showing why in-repo rules alone are not enough: [`docs/spec.md`](docs/spec.md) section 10.
+
 ## Repository layout
 
 | Path | What it is |
 | --- | --- |
-| [`docs/spec.md`](docs/spec.md) | The full design: mechanisms, ratification amendments, open decisions, roadmap, risks |
+| [`docs/spec.md`](docs/spec.md) | The full design: mechanisms, ratification amendments, open decisions, roadmap, enforcement model, risks |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its drafted bucket and disputes; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
 

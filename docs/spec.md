@@ -409,7 +409,7 @@ Phases 0 to 3 make up the MVP; nothing moves to the next phase until its gate's 
 
 ### Phase 1 — profile on stock Rust
 
-Start without forking the compiler: `no_std` plus a custom prelude crate, `clippy` disallowed-methods and disallowed-types lists, custom lints for the rules clippy lacks, and `cargo-deny` for dependency policy. These are standard Rust tools, but whether they can express every rule here is unverified.
+Start without forking the compiler (tools and their versions are in section 10): `no_std` plus a custom prelude crate, `clippy` disallowed-methods and disallowed-types lists, custom lints for the rules clippy lacks, and `cargo-deny` for dependency policy. These are standard Rust tools, but whether they can express every rule here is unverified.
 
 - [ ] Closed prelude with no ambient `std::fs`, `std::net`, `std::process` or `std::env`.
 - [ ] Lints: no `unsafe`, no FFI, must-use on every non-unit return, no implicit numeric casts, labelled same-typed parameters.
@@ -451,7 +451,61 @@ Start without forking the compiler: `no_std` plus a custom prelude crate, `clipp
 
 Report the false-rejection rate beside every detection number: a profile that rejects good code will not be used. The adversary-panel method used in AethelGard (cross-vendor models asked to break the gate, scored on ground truth) fits the E bypass hunt.
 
-## 10. Risks and kill criteria
+## 10. Enforcement model
+
+A rule only holds if the check that enforces it runs somewhere the code's author cannot change, and the shipped artifact carries signed proof that it passed. Rules written into the repository are suggestions the author can delete.
+
+**Measured, 2026-10-26, rustc 1.97.1 / clippy 0.1.97, on a scratch crate:**
+
+| Case | Result |
+| --- | --- |
+| `#![forbid(unsafe_code)]` in the source, inner `#[allow(unsafe_code)]` | Build fails (E0453) |
+| The author deletes the `forbid` line | **Builds, with `unsafe`** |
+| Same code, the gate injects `RUSTFLAGS="-F unsafe_code"` | Build fails; the in-source `allow` cannot override it (E0453) |
+
+So `cargo ferrum check` must supply its own flags and lint configuration rather than reading them from the repository it checks.
+
+### Five layers
+
+| Layer | What it is | What it guarantees |
+| --- | --- | --- |
+| 1. Crates | `ferrum-std` capability library, typed sinks (`sql!`, `html!`, `process!`), `DirCap`, `Secret<T>` | Nothing on its own; it makes the safe way the easy way |
+| 2. `cargo ferrum check` | Cargo subcommand that builds with flags and lint configuration it supplies itself | The crate's own code breaks no rule, when it runs |
+| 3. Dependency audit | The same rules and effect summaries applied to every dependency | A dependency cannot do what the crate itself is not allowed to |
+| 4. CI gate and attestation | Required check on a protected branch; emits signed proof "built under Ferrum profile vX, rule set hash Y" | The shipped artifact really passed |
+| 5. Deployment check and runtime sandbox | Deployment refuses artifacts without a valid attestation; the capability manifest is turned into an OS sandbox | What the checks missed still cannot reach undeclared files or network |
+
+Layers 4 and 5 are what make sure. Layers 1 to 3 are what developers touch day to day. A skill or editor hook for AI coding agents, so they write Ferrum-style code and run `cargo ferrum check` before committing, is convenience on top of these, never a substitute for layer 4.
+
+### Existing tools for layers 2 and 3
+
+Checked 2026-10-26 against crates.io and the locally installed Clippy:
+
+| Tool | Version | Use in Ferrum |
+| --- | --- | --- |
+| Clippy `disallowed_methods`, `disallowed_types`, `disallowed_macros` | 0.1.97 | Ban ambient `std::fs`, `std::net`, `std::process`, `std::env` and raw sink constructors |
+| Clippy `arithmetic_side_effects`, `as_conversions`, `indexing_slicing`, `let_underscore_must_use`, `mem_forget` | 0.1.97 | Checked arithmetic, no implicit casts, no unchecked indexing, no discarded results, no `mem::forget` |
+| dylint | 6.2.0 | Custom lints for rules Clippy cannot express (must-use on every non-unit return, no `String` to sink-type conversion) |
+| cargo-geiger | 0.14.0 | `unsafe` usage across the dependency tree |
+| cargo-deny | 0.20.2 | Dependency policy: licences, advisories, banned crates, sources |
+| cargo-vet | 0.10.3 | Recorded audits of third-party dependencies |
+| cargo-auditable | 0.7.7 | Dependency list embedded in the shipped binary |
+
+Phase 1 can therefore be mostly assembly rather than a compiler fork. Whether these tools can express every rule in section 4 is unverified; the rules they cannot express go to dylint or, last, to a rustc driver.
+
+Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHub artifact attestations) and layer 5 on Linux can use Landlock and seccomp to enforce the capability manifest; neither has been tried for Ferrum yet.
+
+### What no layer guarantees
+
+- Bugs in the trusted parts: the checker, the prelude, the encoders or the compiler.
+- A team that controls its own CI and switches the gate off. That is governance: organisation-level required workflows and branch protection.
+- A wrong policy. A capability manifest that grants too much is enforced perfectly.
+
+### First deliverable
+
+`cargo ferrum check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
+
+## 11. Risks and kill criteria
 
 The largest risk the panel named is ecosystem compatibility, not runtime overhead: most real Rust crates use ambient `std`, `unsafe` or FFI somewhere and must be ported, replaced or isolated.
 
@@ -471,7 +525,7 @@ The largest risk the panel named is ecosystem compatibility, not runtime overhea
 - If the benign-corpus false-rejection rate is above the threshold you set, fix the rules before adding any new ones.
 - If porting one real service needs brokers for most of its dependency tree, re-scope to new code only and stop the migration path.
 
-## 11. Appendix: sources and the CWE ledger
+## 12. Appendix: sources and the CWE ledger
 
 The working ledger is [`ledger/cwe-ledger.csv`](../ledger/cwe-ledger.csv): 944 rows with id, name, abstraction, drafted bucket and ratification disputes, plus empty columns for mechanism, TCB assumption, prelude-only flag, proof test and status (all "unverified"). Fill it in Phase 0.
 
