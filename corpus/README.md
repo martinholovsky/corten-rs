@@ -24,4 +24,5 @@ Each file is a whole `src/main.rs`. Header lines configure it:
 - Write the bad program so plain Rust would build it whenever the mechanism is the checker. The runner checks this (the control).
 - Pick `expect` text that names the mechanism: the forbidden lint (`-F unsafe-code`, `-F clippy::as-conversions`) or the compiler error code (`E0381`), not a generic word.
 - A new way to write the weakness is a new `bad-*.rs` file, even if it is not detected yet. A row with an undetected variant stays unverified, which is the point.
-- After a change, run the corpus with `--mark-verified` and commit the ledger with it.
+- After a change, run the corpus with `--mark-verified` and commit the ledger with it. Rows with `review = required` stay unverified even when their case passes; the report lists them.
+- A case that needs the prelude depends on it with `//@ deps: corten-std`; the runner builds it as a path dependency, so `corten-std` itself is checked under the profile.

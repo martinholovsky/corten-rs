@@ -201,11 +201,11 @@ impl Runner<'_> {
         fs::write(dir.join("src/main.rs"), source)
     }
 
-    fn plain(&self, dir: &Path) -> io::Result<Build> {
+    fn plain(&self, dir: &Path, target: &Path) -> io::Result<Build> {
         let out = Command::new(&self.cargo)
             .arg("check")
             .current_dir(dir)
-            .env("CARGO_TARGET_DIR", dir.join("target"))
+            .env("CARGO_TARGET_DIR", target)
             .env_remove("RUSTFLAGS")
             .env_remove("CARGO_ENCODED_RUSTFLAGS")
             .env_remove("RUSTC_WRAPPER")
@@ -218,14 +218,14 @@ impl Runner<'_> {
         })
     }
 
-    fn corten(&self, dir: &Path) -> io::Result<Build> {
+    fn corten(&self, dir: &Path, target: &Path) -> io::Result<Build> {
         let out = Command::new(&self.opts.checker)
             .args(["corten", "check"])
             .current_dir(dir)
             .env("CARGO", &self.cargo)
             .env_remove("RUSTC")
             .env_remove("CARGO_BUILD_WARNINGS")
-            .env("CARGO_TARGET_DIR", dir.join("target"))
+            .env("CARGO_TARGET_DIR", target)
             .output()?;
         Ok(Build {
             code: out.status.code(),
@@ -234,17 +234,22 @@ impl Runner<'_> {
     }
 
     /// Checks one bad variant; `None` means it was rejected as required.
-    fn check_bad(&self, row_kind: &str, dir: &Path, d: &Directives) -> io::Result<Option<Verdict>> {
+    fn check_bad(
+        &self,
+        row_kind: &str,
+        dir: &Path,
+        target: &Path,
+        d: &Directives,
+    ) -> io::Result<Option<Verdict>> {
         let expected_in = |b: &Build| d.expect.iter().all(|e| b.output.contains(e.as_str()));
         let kind = d.kind.as_deref().unwrap_or(row_kind);
         match kind {
             "checker" => {
-                let control = self.plain(dir)?;
+                let control = self.plain(dir, target)?;
                 if !control.ok() {
                     return Ok(Some(Verdict::ControlFailed(excerpt(&control.output))));
                 }
-                fs::remove_dir_all(dir.join("target"))?;
-                let checked = self.corten(dir)?;
+                let checked = self.corten(dir, target)?;
                 if checked.ok() || !expected_in(&checked) {
                     return Ok(Some(Verdict::NotDetected(format!(
                         "exit {:?}: {}",
@@ -254,7 +259,7 @@ impl Runner<'_> {
                 }
             }
             "language" => {
-                let plain = self.plain(dir)?;
+                let plain = self.plain(dir, target)?;
                 if plain.ok() || !expected_in(&plain) {
                     return Ok(Some(Verdict::NotDetected(format!(
                         "plain exit {:?}: {}",
@@ -272,7 +277,7 @@ impl Runner<'_> {
         Ok(None)
     }
 
-    fn run_case(&self, row: &ERow<'_>) -> io::Result<(Verdict, bool)> {
+    fn run_case(&self, row: &ERow<'_>, target: &Path) -> io::Result<(Verdict, bool)> {
         let case = self.opts.root.join(row.proof_test);
         let mut bad_files: Vec<PathBuf> = fs::read_dir(&case)?
             .filter_map(Result::ok)
@@ -304,7 +309,7 @@ impl Runner<'_> {
             absent_only &= d.absent;
             let dir = work.join(format!("bad-{i}"));
             self.write_crate(&dir, &source, &d)?;
-            if let Some(verdict) = self.check_bad(row.proof_kind, &dir, &d)? {
+            if let Some(verdict) = self.check_bad(row.proof_kind, &dir, target, &d)? {
                 let verdict = match verdict {
                     Verdict::NotDetected(why) => Verdict::NotDetected(format!("{name}: {why}")),
                     Verdict::ControlFailed(why) => Verdict::ControlFailed(format!("{name}: {why}")),
@@ -315,7 +320,7 @@ impl Runner<'_> {
         }
         let good_dir = work.join("good");
         self.write_crate(&good_dir, &good, &good_d)?;
-        let accepted = self.corten(&good_dir)?;
+        let accepted = self.corten(&good_dir, target)?;
         if !accepted.ok() {
             return Ok((Verdict::FalseRejection(excerpt(&accepted.output)), false));
         }
@@ -349,6 +354,9 @@ fn main() -> ExitCode {
 struct CaseResult {
     kind: String,
     verdict: Verdict,
+    /// The row needs an independent encoder review before it may be
+    /// verified, so a pass leaves it unverified.
+    awaiting_review: bool,
     /// Every bad variant is written in syntax Rust does not have.
     absent_only: bool,
     /// The row's ledger status before this run.
@@ -366,6 +374,7 @@ struct Summary {
     controls_failed: usize,
     broken: usize,
     absent_only: usize,
+    awaiting_review: usize,
 }
 
 impl Summary {
@@ -384,6 +393,7 @@ impl Summary {
             controls_failed: count(&|c| matches!(c.verdict, Verdict::ControlFailed(_))),
             broken: count(&|c| matches!(c.verdict, Verdict::Broken(_))),
             absent_only: count(&|c| c.verdict == Verdict::Pass && c.absent_only),
+            awaiting_review: count(&|c| c.verdict == Verdict::Pass && c.awaiting_review),
         }
     }
 
@@ -433,10 +443,17 @@ fn render_report(
     )?;
     writeln!(
         r,
+        "- Passed but left unverified until the encoder is independently reviewed: {}\n",
+        s.awaiting_review
+    )?;
+    writeln!(
+        r,
         "| CWE | Proof kind | Result | Detail |\n| --- | --- | --- | --- |"
     )?;
     for (id, c) in results {
-        let label = if c.verdict == Verdict::Pass && c.absent_only {
+        let label = if c.verdict == Verdict::Pass && c.awaiting_review {
+            "pass (awaiting encoder review)"
+        } else if c.verdict == Verdict::Pass && c.absent_only {
             "pass (construct absent)"
         } else {
             c.verdict.label()
@@ -462,7 +479,7 @@ fn mark_verified(
     let pick = |want: bool| -> Vec<&str> {
         results
             .iter()
-            .filter(|(_, c)| (c.verdict == Verdict::Pass) == want)
+            .filter(|(_, c)| (c.verdict == Verdict::Pass && !c.awaiting_review) == want)
             .map(|(id, _)| id.as_str())
             .collect()
     };
@@ -471,7 +488,7 @@ fn mark_verified(
     fs::write(ledger_path, updated)?;
     let newly = results
         .values()
-        .filter(|c| c.verdict == Verdict::Pass && c.status != "verified")
+        .filter(|c| c.verdict == Verdict::Pass && !c.awaiting_review && c.status != "verified")
         .count();
     eprintln!(
         "ledger: {} rows verified ({newly} newly), {} unverified",
@@ -506,13 +523,19 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
     let queue = Mutex::new(cases.clone());
     let results = Mutex::new(Results::new());
     thread::scope(|scope| {
-        for _ in 0..opts.jobs {
-            scope.spawn(|| {
+        // One target directory per worker: dependencies (corten-std and its
+        // crates) build once per worker, not once per case. Plain and
+        // checker builds use different flags, so cargo never reuses one
+        // for the other.
+        let (runner, queue, results) = (&runner, &queue, &results);
+        for worker in 0..opts.jobs {
+            let target = work.join(format!("target-{worker}"));
+            scope.spawn(move || {
                 loop {
                     let next = queue.lock().ok().and_then(|mut q| q.pop());
                     let Some(row) = next else { break };
                     let (verdict, absent_only) = runner
-                        .run_case(row)
+                        .run_case(row, &target)
                         .unwrap_or_else(|e| (Verdict::Broken(format!("I/O: {e}")), false));
                     if let Ok(mut r) = results.lock() {
                         r.insert(
@@ -520,6 +543,7 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
                             CaseResult {
                                 kind: row.proof_kind.to_owned(),
                                 verdict,
+                                awaiting_review: row.review == "required",
                                 absent_only,
                                 status: row.status.to_owned(),
                             },

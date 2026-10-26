@@ -431,12 +431,14 @@ Start without forking the compiler (tools and their versions are in section 10):
 
 ### Phase 2 — capabilities and typed sinks
 
-- [ ] `DirCap` and `PathSeg` on `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_MAGICLINKS`; refuse elsewhere.
-- [ ] `sql!`, `html!`, `process!`, `log_record!` and header, URL, CSV and template types, with no raw constructors.
-- [ ] Signed capability manifest handed to `main`.
-- [ ] `Secret<T>` with the observable wipe, `mlock` and no-dump.
+- [x] `DirCap` and `PathSeg` on `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_MAGICLINKS` (and `RESOLVE_NO_XDEV`, docs/pathseg.md); refuse elsewhere.
+- [x] `sql!`, `html!`, `process!`, `log_record!` and header, CSV and template types, with no raw constructors; also `ldap_filter!`, `ldap_dn!`, `xpath!`, `xquery!`. Not done: a URL type.
+- [x] Signed capability manifest handed to `main` (`Capabilities::load`, Ed25519).
+- [x] `Secret<T>` with the observable wipe, `mlock` and no-dump (process-wide non-dumpable on Linux; a per-page `MADV_DONTDUMP` needs `unsafe`).
 
 **Gate:** the injection and path compile-fail corpus passes; the encoders get an independent review before any E claim on them.
+
+**Gate result (2026-10-26): half passed.** The corpus passes (76 of 76 Phase 2 cases, 0 false rejections). The independent encoder review has not happened, so the 26 encoder-backed rows stay unverified (`review = required` in the ledger); the 50 path and process rows are verified. One known gap: calling a sink's `from_template` directly with a hand-written template passes `cargo check` and fails only `cargo build`. Report: [`docs/gates/phase-2.md`](gates/phase-2.md).
 
 ### Phase 3 — runtime and isolation
 
