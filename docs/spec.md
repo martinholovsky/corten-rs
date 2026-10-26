@@ -528,7 +528,7 @@ The largest risk the panel named is ecosystem compatibility, not runtime overhea
 
 ## 12. Appendix: sources and the CWE ledger
 
-The working ledger is [`ledger/cwe-ledger.csv`](../ledger/cwe-ledger.csv): 944 rows with id, name, abstraction, MITRE CWE-1400 category, Rust applicability, drafted bucket and ratification disputes, plus empty columns for mechanism, TCB assumption, prelude-only flag, proof test and status (all "unverified"). Fill it in Phase 0.
+The working ledger is [`ledger/cwe-ledger.csv`](../ledger/cwe-ledger.csv): 944 rows with id, name, abstraction, MITRE CWE-1400 category, Rust applicability, drafted bucket, ratification disputes and the reason each panel member gave, plus empty columns for mechanism, TCB assumption, prelude-only flag, proof test and status (all "unverified"). Fill it in Phase 0.
 
 **Drafted E ids (186; 108 undisputed)**
 

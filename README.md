@@ -55,12 +55,13 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | --- | --- |
 | [`docs/spec.md`](docs/spec.md) | The full design: mechanisms, ratification amendments, open decisions, roadmap, enforcement model, risks |
 | [`docs/rust-comparison.md`](docs/rust-comparison.md) | Which of the 944 CWEs apply to Rust (853), what plain Rust does about each category today, and how Corten mitigates it |
-| [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its drafted bucket and disputes; columns for mechanism, TCB assumption and proof test, to be filled in |
+| [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
+| [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 
 ## Where to help
 
-The roadmap in [`docs/spec.md`](docs/spec.md) section 9 starts with Phase 0: turning the ledger into a per-CWE record of mechanism and proof test, and settling the nine open design decisions in section 8. Issues and pull requests on either are welcome.
+The roadmap in [`docs/spec.md`](docs/spec.md) section 9 starts with Phase 0: turning the ledger into a per-CWE record of mechanism and proof test, and settling the nine open design decisions in section 8. Issues and pull requests on either are welcome. Read [`AGENTS.md`](AGENTS.md) first; commits run a gitleaks secret scan through pre-commit (`pre-commit install --hook-type pre-commit --hook-type pre-push`).
 
 ## License
 

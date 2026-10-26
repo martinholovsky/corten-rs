@@ -1,0 +1,11 @@
+# Managed in part by scripts/init-gates.sh. Hooks between the
+# sota-gates markers are regenerated on each run; add your own
+# hooks OUTSIDE the markers (still under the single repos: key).
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  # >>> sota-gates (managed by init-gates.sh — edits here are overwritten) >>>
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks            # secret scanning — fast, every commit
+  # <<< sota-gates <<<
