@@ -154,8 +154,7 @@ mod imp {
     pub(super) fn create_temp(dir: &DirCap) -> Result<(PathSeg, CapFile), FsError> {
         let mut bytes = [0u8; 16];
         rustix::rand::getrandom(&mut bytes, rustix::rand::GetRandomFlags::empty()).map_err(map)?;
-        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        let name = PathSeg::parse(&format!("tmp-{hex}"))
+        let name = PathSeg::parse(&format!("tmp-{:032x}", u128::from_be_bytes(bytes)))
             .map_err(|e| FsError::Os(std::io::Error::other(e)))?;
         let fd = rustix::fs::openat2(
             &dir.fd,
@@ -327,18 +326,18 @@ mod tests {
 
     struct Scratch(std::path::PathBuf);
     impl Scratch {
-        fn new(name: &str) -> Self {
+        fn new(name: &str) -> std::io::Result<Self> {
             let dir =
                 std::env::temp_dir().join(format!("corten-std-{}-{name}", std::process::id()));
             if dir.exists() {
-                std::fs::remove_dir_all(&dir).unwrap();
+                std::fs::remove_dir_all(&dir)?;
             }
-            std::fs::create_dir_all(dir.join("jail")).unwrap();
-            std::fs::write(dir.join("secret.txt"), b"outside").unwrap();
-            Self(dir)
+            std::fs::create_dir_all(dir.join("jail"))?;
+            std::fs::write(dir.join("secret.txt"), b"outside")?;
+            Ok(Self(dir))
         }
-        fn jail(&self) -> DirCap {
-            DirCap::open_root(&self.0.join("jail")).unwrap()
+        fn jail(&self) -> Result<DirCap, FsError> {
+            DirCap::open_root(&self.0.join("jail"))
         }
     }
     impl Drop for Scratch {
@@ -347,17 +346,19 @@ mod tests {
         }
     }
 
+    /// The OS error number, or `None` for anything else (which fails the
+    /// caller's comparison).
     fn errno(r: Result<CapFile, FsError>) -> Option<i32> {
         match r {
             Err(FsError::Os(e)) => e.raw_os_error(),
-            other => panic!("expected an OS error, got {other:?}"),
+            _ => None,
         }
     }
 
     #[test]
     fn reads_and_writes_inside() {
-        let s = Scratch::new("rw");
-        let jail = s.jail();
+        let s = Scratch::new("rw").unwrap();
+        let jail = s.jail().unwrap();
         let f = jail
             .open_file(&rel("a.txt").unwrap(), OpenMode::CreateExclusive)
             .unwrap();
@@ -383,17 +384,20 @@ mod tests {
 
     #[test]
     fn symlink_out_of_the_jail_is_refused() {
-        let s = Scratch::new("symlink");
+        let s = Scratch::new("symlink").unwrap();
         symlink(s.0.join("secret.txt"), s.0.join("jail/link")).unwrap();
         // Control: the link works for ordinary path resolution.
         assert_eq!(std::fs::read(s.0.join("jail/link")).unwrap(), b"outside");
-        let r = s.jail().open_file(&rel("link").unwrap(), OpenMode::Read);
+        let r = s
+            .jail()
+            .unwrap()
+            .open_file(&rel("link").unwrap(), OpenMode::Read);
         assert_eq!(errno(r), Some(libc_eloop()));
     }
 
     #[test]
     fn symlink_to_a_directory_on_the_path_is_refused() {
-        let s = Scratch::new("dirlink");
+        let s = Scratch::new("dirlink").unwrap();
         symlink(&s.0, s.0.join("jail/up")).unwrap();
         assert!(
             std::fs::read(s.0.join("jail/up/secret.txt")).is_ok(),
@@ -402,21 +406,23 @@ mod tests {
         let path = rel("up")
             .unwrap()
             .join(PathSeg::parse("secret.txt").unwrap());
-        let r = s.jail().open_file(&path, OpenMode::Read);
+        let r = s.jail().unwrap().open_file(&path, OpenMode::Read);
         assert_eq!(errno(r), Some(libc_eloop()));
     }
 
     #[test]
     fn exclusive_create_refuses_a_planted_name() {
-        let s = Scratch::new("planted");
+        let s = Scratch::new("planted").unwrap();
         std::fs::write(s.0.join("jail/report"), b"planted").unwrap();
         let r = s
             .jail()
+            .unwrap()
             .open_file(&rel("report").unwrap(), OpenMode::CreateExclusive);
         assert_eq!(errno(r), Some(17)); // EEXIST
         symlink(s.0.join("secret.txt"), s.0.join("jail/report2")).unwrap();
         let r = s
             .jail()
+            .unwrap()
             .open_file(&rel("report2").unwrap(), OpenMode::CreateExclusive);
         assert!(errno(r).is_some(), "a planted link must not be followed");
         assert_eq!(std::fs::read(s.0.join("secret.txt")).unwrap(), b"outside");
@@ -424,8 +430,8 @@ mod tests {
 
     #[test]
     fn temp_files_are_unique_and_private() {
-        let s = Scratch::new("temp");
-        let jail = s.jail();
+        let s = Scratch::new("temp").unwrap();
+        let jail = s.jail().unwrap();
         let (a, fa) = jail.create_temp().unwrap();
         let (b, _fb) = jail.create_temp().unwrap();
         assert_ne!(a, b);
@@ -440,18 +446,21 @@ mod tests {
 
     #[test]
     fn remove_does_not_follow_a_final_link() {
-        let s = Scratch::new("remove");
+        let s = Scratch::new("remove").unwrap();
         symlink(s.0.join("secret.txt"), s.0.join("jail/victim")).unwrap();
-        s.jail().remove_file(&rel("victim").unwrap()).unwrap();
+        s.jail()
+            .unwrap()
+            .remove_file(&rel("victim").unwrap())
+            .unwrap();
         assert!(s.0.join("secret.txt").exists());
         assert!(!s.0.join("jail/victim").exists());
     }
 
     #[test]
     fn subdirectories_are_capabilities_too() {
-        let s = Scratch::new("subdir");
+        let s = Scratch::new("subdir").unwrap();
         std::fs::create_dir(s.0.join("jail/inner")).unwrap();
-        let inner = s.jail().open_dir(&rel("inner").unwrap()).unwrap();
+        let inner = s.jail().unwrap().open_dir(&rel("inner").unwrap()).unwrap();
         inner
             .open_file(&rel("f").unwrap(), OpenMode::CreateExclusive)
             .unwrap();
