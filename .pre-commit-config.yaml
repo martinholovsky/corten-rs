@@ -1,6 +1,9 @@
 # Managed in part by scripts/init-gates.sh. Hooks between the
 # sota-gates markers are regenerated on each run; add your own
 # hooks OUTSIDE the markers (still under the single repos: key).
+# gitleaks is pinned at v8.30.0 by init-gates.sh. GitHub lists v8.30.1 as the latest
+# release (2026-03-21) but `pre-commit autoupdate` reported "already up to date" on
+# 2026-10-26; unexplained, left as is. Re-check before relying on a newer rule set.
 default_install_hook_types: [pre-commit, pre-push]
 repos:
   # >>> sota-gates (managed by init-gates.sh — edits here are overwritten) >>>

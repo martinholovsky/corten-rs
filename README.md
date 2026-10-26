@@ -26,11 +26,11 @@ That is the idea of this profile. The Rust language already has the material for
 
 The name also avoids a wrong story. The panel first called the design "Ferrum" (Latin for iron), as if the goal were iron without rust. But Rust is not named after iron oxide: its creator, Graydon Hoare, named it after rust fungi, which he called "over-engineered for survival" ([MIT Technology Review, 2023](https://www.technologyreview.com/2023/02/14/1067869/rust-worlds-fastest-growing-programming-language/)). Corten keeps Rust and makes it the armour.
 
-"COR-TEN" was a registered trademark of U.S. Steel until 2016, according to [Wikipedia](https://en.wikipedia.org/wiki/Weathering_steel); this project uses the generic spelling and is not affiliated with U.S. Steel.
+"COR-TEN" was a registered trademark of U.S. Steel until 2016, according to [Wikipedia](https://en.wikipedia.org/wiki/Weathering_steel) (not yet checked against the USPTO record; do that before promoting the name); this project uses the generic spelling and is not affiliated with U.S. Steel.
 
 ## Where the design came from
 
-The design was produced in October 2026 by a panel of five frontier models from five vendors (OpenAI, Google, xAI, DeepSeek, Qwen). Each wrote a blind proposal, they debated for three rounds while seeing each other only as anonymous letters, and all five ratified a joint specification with reservations. Two of the five started out proposing a new language; all five converged on a Rust profile. The panel ran inside the author's AethelGard project. The panel named the design Ferrum; it was renamed Corten on 2026-10-26 (see above).
+The design was produced in October 2026 by a panel of five frontier models from five vendors (OpenAI, Google, xAI, DeepSeek, Alibaba's Qwen). Each wrote a blind proposal, they debated for three rounds while seeing each other only as anonymous letters, and all five ratified a joint specification with reservations. Two of the five started out proposing a new language; all five converged on a Rust profile. The panel ran inside the author's AethelGard project. The panel named the design Ferrum; it was renamed Corten on 2026-10-26 (see above).
 
 The drafted classification of the 944 CWE weaknesses:
 

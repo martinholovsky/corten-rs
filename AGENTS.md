@@ -22,7 +22,7 @@ Corten is a hardened Rust profile that aims to make whole classes of security bu
 - **Validate before you assert.** Check claims about code, versions, tools and external facts against a primary source (read the file, run the command, fetch the official docs) before stating them, and label anything unverified.
 - **Keep docs current in the same change.** When behaviour, rules or the ledger change, update the spec, README and this file in the same commit.
 - **Prove a check can fail before trusting it passed.** A scan or test that reports "nothing found" counts only if the same instrument finds a planted positive (for example, gitleaks finding a planted token).
-- **Gates.** Commits run gitleaks via pre-commit (`.pre-commit-config.yaml`); install hooks with `pre-commit install --hook-type pre-commit --hook-type pre-push`. Rust checks (fmt, clippy, tests, audit) join automatically once a Cargo workspace exists, by re-running the gate generator.
+- **Gates.** Commits run gitleaks via pre-commit (`.pre-commit-config.yaml`); install hooks with `pre-commit install --hook-type pre-commit --hook-type pre-push`. Rust checks (fmt, clippy, tests, audit) are not in the config yet; the maintainer adds them when the Cargo workspace lands, by re-running the SOTA `init-gates.sh` generator.
 
 ## Optional: SOTA engineering skills
 
