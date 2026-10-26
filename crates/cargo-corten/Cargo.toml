@@ -1,0 +1,15 @@
+[package]
+name = "cargo-corten"
+description = "Builds a Rust crate under the Corten security profile, with flags it supplies itself"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# No dependencies on purpose: the checker is part of Corten's trusted base
+# (spec section 2), so every crate added here widens what must be trusted.
+
+[lints]
+workspace = true

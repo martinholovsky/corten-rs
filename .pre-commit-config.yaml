@@ -11,4 +11,33 @@ repos:
     rev: v8.30.0
     hooks:
       - id: gitleaks            # secret scanning — fast, every commit
+  # rust — fmt fast on commit; clippy/test/audit on push
+  - repo: local
+    hooks:
+      - id: sota-cargo-fmt
+        name: cargo fmt --check
+        entry: cargo fmt --all --check
+        language: system
+        files: \.rs$
+        pass_filenames: false
+      - id: sota-clippy
+        name: cargo clippy -D warnings
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: sota-cargo-test
+        name: cargo test
+        entry: cargo test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: sota-cargo-audit
+        name: cargo audit
+        entry: cargo audit
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
   # <<< sota-gates <<<

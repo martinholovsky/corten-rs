@@ -2,7 +2,7 @@
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-> Status: **design only.** There is no implementation yet. Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
+> Status: **design, with the first piece of code.** `cargo corten check` exists and enforces one rule (`-F unsafe_code`, with the checked repository unable to switch it off through cargo configuration). Nothing else in the design is implemented. Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
 
 ## What Corten is
 
@@ -16,7 +16,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Today it's a ratified design with no implementation.
+- **Not finished.** Today it's a ratified design with one rule implemented.
 
 ## Why "Corten"
 
@@ -57,7 +57,22 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/rust-comparison.md`](docs/rust-comparison.md) | Which of the 944 CWEs apply to Rust (853), what plain Rust does about each category today, and how Corten mitigates it |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
+| [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself; its README lists what it overrides and its known gaps |
+| [`crates/corten-std`](crates/corten-std) | Placeholder for the closed prelude (spec section 9, Phase 1) |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
+
+## Building
+
+The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. The workspace has no third-party dependencies.
+
+```console
+$ cargo test --workspace
+$ cargo clippy --workspace --all-targets --all-features -- -D warnings
+$ cargo deny check
+```
+
+CI (`.github/workflows/ci.yml`) runs fmt, clippy, rustdoc, nextest and doctests, cargo-deny, and a gitleaks scan of the full history.
 
 ## Where to help
 

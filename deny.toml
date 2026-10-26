@@ -1,0 +1,31 @@
+# cargo-deny policy. The workspace has no third-party dependencies today; this
+# file makes the first one meet the policy before it lands.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+# Permissive only. Adding a licence here is a policy decision, not a fix.
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "CC0-1.0"]
+confidence-threshold = 0.93
+# The list is the policy, not an inventory of what is in use today.
+unused-allowed-license = "allow"
+
+[licenses.private]
+# Workspace crates are publish = false; their licence is checked anyway.
+ignore = false
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
