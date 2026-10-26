@@ -99,6 +99,89 @@ pub fn parse_csv(text: &str) -> Result<Vec<Record>, ParseError> {
     Ok(records)
 }
 
+/// Writes records as RFC 4180 CSV with LF line ends, quoting a field only
+/// when it contains a comma, quote, CR or LF (the ledger's existing style).
+#[must_use]
+pub fn write_csv(records: &[Record]) -> String {
+    let mut out = String::new();
+    for record in records {
+        for (i, field) in record.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            if field.contains([',', '"', '\r', '\n']) {
+                out.push('"');
+                out.push_str(&field.replace('"', "\"\""));
+                out.push('"');
+            } else {
+                out.push_str(field);
+            }
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// Why `set_status` could not update the ledger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetStatusError {
+    /// The text is not valid CSV.
+    Parse(ParseError),
+    /// The header has no `cwe_id` or `status` column.
+    MissingColumn(&'static str),
+    /// An id to update is not in the ledger.
+    UnknownId(String),
+}
+
+impl fmt::Display for SetStatusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Parse(e) => write!(f, "{e}"),
+            Self::MissingColumn(c) => write!(f, "ledger has no column {c:?}"),
+            Self::UnknownId(id) => write!(f, "{id} is not in the ledger"),
+        }
+    }
+}
+
+impl std::error::Error for SetStatusError {}
+
+/// Returns the ledger text with `status` set to `verified` for `verified`
+/// ids and `unverified` for `unverified` ids; every other byte is kept.
+///
+/// # Errors
+///
+/// Returns [`SetStatusError`] if the text does not parse, lacks a column, or
+/// an id is not in it.
+pub fn set_status(
+    text: &str,
+    verified: &[&str],
+    unverified: &[&str],
+) -> Result<String, SetStatusError> {
+    let mut records = parse_csv(text).map_err(SetStatusError::Parse)?;
+    let header = records.first().cloned().unwrap_or_default();
+    let col = |name: &'static str| {
+        header
+            .iter()
+            .position(|h| h == name)
+            .ok_or(SetStatusError::MissingColumn(name))
+    };
+    let id_col = col("cwe_id")?;
+    let status_col = col("status")?;
+    for (ids, value) in [(verified, "verified"), (unverified, "unverified")] {
+        for id in ids {
+            let row = records
+                .iter_mut()
+                .skip(1)
+                .find(|r| r.get(id_col).is_some_and(|v| v == id))
+                .ok_or_else(|| SetStatusError::UnknownId((*id).to_owned()))?;
+            if let Some(cell) = row.get_mut(status_col) {
+                value.clone_into(cell);
+            }
+        }
+    }
+    Ok(write_csv(&records))
+}
+
 /// The ledger: the header and one row per CWE id.
 #[derive(Debug, Clone)]
 pub struct Ledger {
@@ -458,6 +541,25 @@ mod tests {
             Ledger::from_records(records).err(),
             Some(MissingColumn("drafted_bucket"))
         );
+    }
+
+    #[test]
+    fn writer_round_trips_and_set_status_changes_one_cell() {
+        let text =
+            "cwe_id,name,status\nCWE-1,\"a, \"\"b\"\"\",unverified\nCWE-2,plain,unverified\n";
+        assert_eq!(write_csv(&parse_csv(text).unwrap()), text);
+        let updated = set_status(text, &["CWE-2"], &[]).unwrap();
+        assert_eq!(
+            updated,
+            "cwe_id,name,status\nCWE-1,\"a, \"\"b\"\"\",unverified\nCWE-2,plain,verified\n"
+        );
+        assert!(set_status(text, &["CWE-9"], &[]).is_err());
+    }
+
+    #[test]
+    fn real_ledger_round_trips_byte_for_byte() {
+        let text = include_str!("../../../ledger/cwe-ledger.csv");
+        assert_eq!(write_csv(&parse_csv(text).unwrap()), text);
     }
 
     #[test]

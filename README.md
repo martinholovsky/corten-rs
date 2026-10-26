@@ -2,7 +2,7 @@
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-> Status: **design, with the first piece of code.** `cargo corten check` exists and enforces one rule (`-F unsafe_code`, with the checked repository unable to switch it off through cargo configuration). Nothing else in the design is implemented. Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
+> Status: **Phases 0 and 1 implemented, Phase 1 gate partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. 85 E claims are verified by the compile-fail corpus, with 0 false rejections. One known bypass (a dependency's macro can inject `unsafe`) is open; see [`docs/gates/phase-1.md`](docs/gates/phase-1.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
 
 ## What Corten is
 
@@ -16,7 +16,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Today it's a ratified design with one rule implemented.
+- **Not finished.** Today it's a ratified design with its first phase implemented.
 
 ## Why "Corten"
 
@@ -45,7 +45,7 @@ Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids
 
 Restricted to the 853 weaknesses that apply to Rust, the drafted split is E 168 / C 659 / O 26.
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a planned compile-fail test; none is verified yet. `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **85 of the 175 are verified** (Phase 1). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 
@@ -59,9 +59,12 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/rust-comparison.md`](docs/rust-comparison.md) | Which of the 944 CWEs apply to Rust (853), what plain Rust does about each category today, and how Corten mitigates it |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`docs/pathseg.md`](docs/pathseg.md) | Normative `PathSeg` grammar and the `DirCap` monitor that the path-family E claims rest on |
+| [`docs/gates/`](docs/gates) | Gate reports per phase, and the generated corpus report |
+| [`corpus/`](corpus) | Compile-fail corpus: per E row, programs exhibiting the weakness and a matched benign program |
 | [`docs/tcb.md`](docs/tcb.md) | What every E claim trusts, the fail-closed rule, and the enumerated implementation-defined behaviour |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
 | [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself; its README lists what it overrides and its known gaps |
+| [`crates/corten-corpus`](crates/corten-corpus) | Runs the corpus; reports detection beside false rejection and marks verified rows |
 | [`crates/corten-ledger`](crates/corten-ledger) | `corten-ledger check` (the ledger gate, run in CI) and `corten-ledger totals` |
 | [`crates/corten-std`](crates/corten-std) | Placeholder for the closed prelude (spec section 9, Phase 1) |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
@@ -77,7 +80,11 @@ $ cargo clippy --workspace --all-targets --all-features -- -D warnings
 $ cargo deny check
 ```
 
-CI (`.github/workflows/ci.yml`) runs fmt, clippy, rustdoc, nextest and doctests, cargo-deny, and a gitleaks scan of the full history.
+CI (`.github/workflows/ci.yml`) runs fmt, clippy, rustdoc, nextest and doctests, the ledger gate, the compile-fail corpus, cargo-deny, and a gitleaks scan of the full history. To run the corpus locally:
+
+```console
+$ cargo build -p cargo-corten && cargo run -p corten-corpus -- --checker target/debug/cargo-corten
+```
 
 ## Where to help
 

@@ -1,0 +1,15 @@
+[package]
+name = "corten-corpus"
+description = "Runs the Corten compile-fail corpus and reports detection beside false rejection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+corten-ledger = { path = "../corten-ledger" }
+
+[lints]
+workspace = true

@@ -6,6 +6,11 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Phase 1 profile in `cargo corten check`: clippy-driver wraps every local crate; forbidden lints `unsafe_code`, `unused_must_use`, `disallowed_methods`/`disallowed_types` (ambient `std` authority, `catch_unwind`, destructor-skipping APIs), `arithmetic_side_effects`, `as_conversions`, `let_underscore_must_use`, `mem_forget`; `overflow-checks=on`; a checker-owned `clippy.toml` in a private directory.
+- Overrides found by measurement: forced `[env]` `CLIPPY_CONF_DIR` and `RUSTC_BOOTSTRAP` pinned with `cargo --config`; a repository `clippy.toml` ignored; local path dependencies outside the workspace linted. Each has a test with a live control.
+- `corten-corpus` and `corpus/`: 93 cases; 85 E rows verified with 0 false rejections; `docs/gates/phase-1.md` with the bypass hunt (two bypasses found: `thread::join` as a catch-all, and `unsafe` from a dependency's macro, recorded on the 43 rows it affects).
+- `corten-ledger`: CSV writer and `set_status`, round-tripping the ledger byte for byte.
+- Spec open question 10: custom lints need a nightly-based lint driver.
 - Phase 0: the nine open decisions settled (panel position kept on all nine) and kill thresholds set (false rejection 5%; bypass of more than half of a phase's E claims). The 14 doubly disputed ids decided in the ledger; 11 drafted E ids moved to C with reasons. The ledger now holds E 175 / C 721 / O 26 / N 22.
 - Ledger columns `bucket`, `bucket_reason`, `phase`, `proof_kind`; every E row has a mechanism, TCB assumption, prelude-only flag and planned proof test.
 - `corten-ledger`: `check` (the Phase 0 gate, plus a guard against formula-leading cells) and `totals`. Runs in CI.

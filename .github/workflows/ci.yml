@@ -50,6 +50,10 @@ jobs:
       - run: cargo test --doc --workspace --locked
       - name: Ledger gate
         run: cargo run --locked -p corten-ledger -- check
+      - name: Compile-fail corpus
+        run: |
+          cargo build --locked -p cargo-corten
+          cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten
 
   supply-chain:
     name: cargo deny
