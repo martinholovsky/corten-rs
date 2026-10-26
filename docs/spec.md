@@ -1,12 +1,12 @@
-# Ferrum — Secure-by-Construction Rust Profile
+# Corten — Secure-by-Construction Rust Profile
 
 As of 2026-10-26 · Martin Holovsky
 
-**Ferrum is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
+**Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-## What Ferrum is
+## What Corten is
 
-Ferrum is a security profile of Rust: same syntax, compiler and tooling, but with a locked-down standard library and stricter rules.
+Corten is a security profile of Rust: same syntax, compiler and tooling, but with a locked-down standard library and stricter rules.
 
 Its goal is to remove security bugs by construction instead of finding them later. Code can't touch files, the network or processes without being explicitly handed that permission. No string can become a SQL query, HTML or a shell command without going through a typed builder. Arithmetic is always checked, errors can't be silently ignored, and memory-unsafe or foreign code runs isolated, never in-process.
 
@@ -18,7 +18,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
 - **Not finished.** Today it's a ratified design with no implementation, and every "impossible to write" claim is still to be proven by tests.
 
-Ferrum is a ratified design, not a built or verified one: every guarantee below is a claim to be made true, and this document is the work plan for doing that.
+Corten is a ratified design, not a built or verified one: every guarantee below is a claim to be made true, and this document is the work plan for doing that.
 
 ## 1. Status and provenance
 
@@ -38,6 +38,7 @@ The design was produced on 25–26 October 2026 by a panel of five frontier mode
 **How to read the claims.**
 
 - Sections 3, 4 and 7 restate the joint spec drafted by Member A, edited for structure.
+- The panel named the design "Ferrum" (Latin for iron). It was renamed Corten on 2026-10-26: weathering steel, whose rust layer protects the metal, fits a profile that turns Rust's own features into the defence. See the README's "Why Corten" section.
 - Every "E" (eliminated by construction) claim is the panel's assertion. None has been implemented or tested.
 - The bucket counts were checked mechanically against the catalogue (944 of 944 ids present). The design mechanisms behind them were not verified.
 - The drafter vote tied A 2 to F 2 and was broken by fixed panel order, not by judgement.
@@ -51,31 +52,31 @@ Every CWE gets exactly one bucket:
 
 | Bucket | Meaning | Test it must pass |
 | --- | --- | --- |
-| **E** — eliminated by construction | A program with the weakness does not compile or cannot be expressed | Holds for every broker-free Ferrum program, with no annotation from the programmer |
+| **E** — eliminated by construction | A program with the weakness does not compile or cannot be expressed | Holds for every broker-free Corten program, with no annotation from the programmer |
 | **C** — mechanically checkable | Types, effects, capabilities, contracts, proofs or mandatory runtime checks catch it | Depends on someone stating the policy or spec (which principal may call what, which data is secret) |
 | **O** — out of reach | Design, requirements, intent or business-logic flaws | No language can decide it; name what covers it instead |
 | **N** — not a coding weakness | Hardware design, physical, silicon or documentation-only | No code in any language could exhibit it |
 
 **A mandatory runtime check counts as C, not E.** So bounds-checked memory safety (out-of-bounds read and write) is C. This definitional choice moved those ids out of E and is the panel's first recorded dissent.
 
-**The E boundary is a broker-free Ferrum component.** The claims assume the compiler, the closed prelude, its encoders, the reference monitor and the brokers are correct. Bugs there, and in the manifest signer, are outside every E claim. Native code linked into the same address space is never inside the boundary.
+**The E boundary is a broker-free Corten component.** The claims assume the compiler, the closed prelude, its encoders, the reference monitor and the brokers are correct. Bugs there, and in the manifest signer, are outside every E claim. Native code linked into the same address space is never inside the boundary.
 
-**Undecidable properties are sidestepped, not solved.** Termination, semantic equivalence and general deadlock freedom are out of scope. Ferrum restricts what can be written, asks for annotations in decidable fragments, or inserts runtime checks.
+**Undecidable properties are sidestepped, not solved.** Termination, semantic equivalence and general deadlock freedom are out of scope. Corten restricts what can be written, asks for annotations in decidable fragments, or inserts runtime checks.
 
 ## 3. Decision: a hardened Rust profile
 
-Ferrum is a hardened Rust profile plus compiler extensions, not a new language. It keeps Rust syntax, ownership and borrowing, Cargo, LLVM targets, debuggers and IDEs, and replaces Rust's ambient standard library with a closed, capability-oriented prelude.
+Corten is a hardened Rust profile plus compiler extensions, not a new language. It keeps Rust syntax, ownership and borrowing, Cargo, LLVM targets, debuggers and IDEs, and replaces Rust's ambient standard library with a closed, capability-oriented prelude.
 
 In the blind round, A, B and F chose a Rust profile, while C ("Hart") and D ("Aegis") chose a new language in the Rust lineage. By round 3 all five had moved to a Rust profile. The deciding argument was adoption: a language nobody can use mitigates nothing, and the properties needed (capabilities, context-typed sinks) can be delivered by a closed prelude rather than new syntax.
 
 ```rust
-#![ferrum]
+#![corten]
 #![deny(unsafe_code)]
 #![deny(unused_must_use)]
-#![ferrum::no_ambient_authority]
+#![corten::no_ambient_authority]
 ```
 
-**Ferrum is deliberately not source-compatible with ordinary `std` code** that relies on any of these:
+**Corten is deliberately not source-compatible with ordinary `std` code** that relies on any of these:
 
 - ambient filesystem, network, process, clock or environment access;
 - raw string sinks for interpreters (SQL, HTML, shell);
@@ -86,11 +87,11 @@ In the blind round, A, B and F chose a Rust profile, while C ("Hart") and D ("Ae
 
 ## 4. Language design
 
-Fifteen mechanisms make up Ferrum. Each subsection states the rule, then the bucket it earns and what stays outside it.
+Fifteen mechanisms make up Corten. Each subsection states the rule, then the bucket it earns and what stays outside it.
 
 ### 4.1 Memory, initialization and representation
 
-Ferrum keeps Rust's affine ownership and borrowing and removes every escape from it in application code:
+Corten keeps Rust's affine ownership and borrowing and removes every escape from it in application code:
 
 - aliasing XOR mutable access, definite initialization, no null references;
 - no raw pointers, `transmute`, unchecked layout casts, `mem::forget`, manual free or user-defined finalization;
@@ -191,7 +192,7 @@ A panic terminates the component. It prevents continuing in corrupted state but 
 
 ### 4.8 Concurrency
 
-Ownership prevents unsynchronized data races. Ferrum adds structured concurrency, bounded channels, affine lock guards, no mutable public statics, signals as typed events, cancellation-safe resource scopes, and a `blocking` effect that is ill-typed inside non-blocking event loops.
+Ownership prevents unsynchronized data races. Corten adds structured concurrency, bounded channels, affine lock guards, no mutable public statics, signals as typed events, cancellation-safe resource scopes, and a `blocking` effect that is ill-typed inside non-blocking event loops.
 
 ```rust
 async fn handle(req: Request) -> Result<Response, Error> / {net, database} {
@@ -216,7 +217,7 @@ let sealed = session_key.seal_unique(plaintext, associated_data)?;
 let hash = PasswordHash::argon2id(password, policy)?;
 ```
 
-Trust roots, revocation, cryptoperiods, algorithm retirement and recovery policy are supplied by policy (**C**). Arithmetic can still implement a bad cipher, so Ferrum claims nothing about cryptographic soundness.
+Trust roots, revocation, cryptoperiods, algorithm retirement and recovery policy are supplied by policy (**C**). Arithmetic can still implement a bad cipher, so Corten claims nothing about cryptographic soundness.
 
 ### 4.11 Authentication, authorization and workflow
 
@@ -266,7 +267,7 @@ A signed native crate linked into the same address space is not a sandbox.
 
 ### 4.15 Toolchain and supply chain
 
-`cargo-ferrum` enforces content-addressed dependencies and lockfile hashes, signed provenance, SBOMs, sandboxed procedural macros, no networked build scripts, declared `unsafe`/`ffi`/`raw_io`/`dynamic_code` effects per package, release-profile policy, vulnerability and licence gates, hardened compiler and linker flags, and separate debug and release artifacts. The criteria themselves are deployment policy, so these are **C**.
+`cargo-corten` enforces content-addressed dependencies and lockfile hashes, signed provenance, SBOMs, sandboxed procedural macros, no networked build scripts, declared `unsafe`/`ffi`/`raw_io`/`dynamic_code` effects per package, release-profile policy, vulnerability and licence gates, hardened compiler and linker flags, and separate debug and release artifacts. The criteria themselves are deployment policy, so these are **C**.
 
 ## 5. Required amendments from ratification
 
@@ -299,11 +300,11 @@ All five members accepted only with reservations, and their amendments are part 
 
 **P2 — availability and ergonomics**
 
-- [ ] **Supervision tree** (B). Because bounds and arithmetic failures panic, Ferrum turns memory corruption into denial of service. The runtime needs Erlang/OTP-style supervision that isolates and restarts a failed component.
+- [ ] **Supervision tree** (B). Because bounds and arithmetic failures panic, Corten turns memory corruption into denial of service. The runtime needs Erlang/OTP-style supervision that isolates and restarts a failed component.
 - [ ] **Arithmetic ergonomics** (B). A `strict_math!` block that propagates `?` through `+`, `-`, `*`, or compiler traps that end the transaction cleanly, instead of `checked_add` chains.
 - [ ] **Audited in-process escape hatch** (B). An `unsafe_trusted` effect allowed only with a mechanical proof (Kani, Creusot) or an audited exception in the manifest, for packet parsing and codecs where a Wasm or process boundary costs too much. This conflicts with the spec's no-`unsafe` rule; see section 8.
 
-**Classification** (A, F): intrinsically hardware-design entries (RTL FSMs, fabric bridges, register reset, NoC) should be N unless a Ferrum-HDL profile is added. Transient-execution entries (CWE-1342, 1420–1423) stay C only with a note that the microarchitectural root cause needs hardware or firmware controls.
+**Classification** (A, F): intrinsically hardware-design entries (RTL FSMs, fabric bridges, register reset, NoC) should be N unless a Corten-HDL profile is added. Transient-execution entries (CWE-1342, 1420–1423) stay C only with a note that the microarchitectural root cause needs hardware or firmware controls.
 
 ## 6. CWE coverage
 
@@ -342,11 +343,11 @@ CWE-22, 41, 58, 59, 94, 96, 248, 252, 363, 377, 379, 403, 783, 826.
 | Malice, hidden purpose, design judgement, UX | O | Audit, threat modelling, governance, UX testing | 26 |
 | Documentation-only and physical defects | N | Documentation process, hardware assurance | 22 |
 
-## 7. Residue: what Ferrum cannot do
+## 7. Residue: what Corten cannot do
 
-Ferrum can enforce a wrong policy perfectly; mechanical enforcement is not evidence that the policy is right. These stay outside the language and need the controls beside them:
+Corten can enforce a wrong policy perfectly; mechanical enforcement is not evidence that the policy is right. These stay outside the language and need the controls beside them:
 
-| Ferrum cannot decide | What covers it instead |
+| Corten cannot decide | What covers it instead |
 | --- | --- |
 | The intended authorization matrix; whether MFA is required | Requirements engineering, IAM and access review, abuse-case review |
 | Whether a business workflow is correct | Threat modelling, architecture and code review |
@@ -385,7 +386,7 @@ flowchart TD
     P0["Phase 0 · Ledger and specification<br/>944-row ledger, the nine open decisions, PathSeg grammar, TCB statement"]
     P1["Phase 1 · Profile on stock Rust<br/>no_std with a closed prelude, lints for unsafe, FFI and must-use, checked arithmetic only"]
     P2["Phase 2 · Capabilities and typed sinks<br/>DirCap on openat2, typed SQL, HTML and process sinks, signed manifest, Secret types"]
-    P3["Phase 3 · Runtime and isolation<br/>Mandatory budgets, supervision tree, Wasm and process brokers, hermetic cargo-ferrum"]
+    P3["Phase 3 · Runtime and isolation<br/>Mandatory budgets, supervision tree, Wasm and process brokers, hermetic cargo-corten"]
     P4["Phase 4 · Refinements and information flow (after the MVP)<br/>Decidable refinements, flow-sensitive labels, lock-order contracts"]
     P0 -->|"Gate: every E row names a mechanism and a compile-fail test"| P1
     P1 -->|"Gate: E weaknesses fail to build and matched benign programs build"| P2
@@ -397,7 +398,7 @@ flowchart TD
 
 Phases 0 to 3 make up the MVP; nothing moves to the next phase until its gate's tests pass.
 
-**MVP scope (from the joint spec).** The `#![ferrum]` profile; a closed prelude and capability standard library; package effect summaries; checked arithmetic and conversions; must-use `Result`; capability filesystem, network, process, clock, random and credential APIs; typed SQL, HTML, HTTP, URL, log, CSV, template and argv sinks; RE2-style regex; `Secret<T>` with a non-elidable wipe; process and Wasm broker tooling; hermetic `cargo-ferrum` builds with provenance. SMT refinements, lock-order checking and richer information flow come after the MVP.
+**MVP scope (from the joint spec).** The `#![corten]` profile; a closed prelude and capability standard library; package effect summaries; checked arithmetic and conversions; must-use `Result`; capability filesystem, network, process, clock, random and credential APIs; typed SQL, HTML, HTTP, URL, log, CSV, template and argv sinks; RE2-style regex; `Secret<T>` with a non-elidable wipe; process and Wasm broker tooling; hermetic `cargo-corten` builds with provenance. SMT refinements, lock-order checking and richer information flow come after the MVP.
 
 ### Phase 0 — ledger and specification
 
@@ -431,7 +432,7 @@ Start without forking the compiler (tools and their versions are in section 10):
 - [ ] Mandatory resource budgets on every parse, decode and allocate entry point.
 - [ ] Supervision tree that isolates and restarts a panicked component.
 - [ ] Wasm and process brokers with schema-checked IPC, quotas and deadlines.
-- [ ] `cargo-ferrum`: hermetic builds, sandboxed proc macros, SBOM, provenance.
+- [ ] `cargo-corten`: hermetic builds, sandboxed proc macros, SBOM, provenance.
 
 **Gate:** a panic in one component does not stop the service; a broker cannot exceed its declared capabilities.
 
@@ -463,25 +464,25 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | The author deletes the `forbid` line | **Builds, with `unsafe`** |
 | Same code, the gate injects `RUSTFLAGS="-F unsafe_code"` | Build fails; the in-source `allow` cannot override it (E0453) |
 
-So `cargo ferrum check` must supply its own flags and lint configuration rather than reading them from the repository it checks.
+So `cargo corten check` must supply its own flags and lint configuration rather than reading them from the repository it checks.
 
 ### Five layers
 
 | Layer | What it is | What it guarantees |
 | --- | --- | --- |
-| 1. Crates | `ferrum-std` capability library, typed sinks (`sql!`, `html!`, `process!`), `DirCap`, `Secret<T>` | Nothing on its own; it makes the safe way the easy way |
-| 2. `cargo ferrum check` | Cargo subcommand that builds with flags and lint configuration it supplies itself | The crate's own code breaks no rule, when it runs |
+| 1. Crates | `corten-std` capability library, typed sinks (`sql!`, `html!`, `process!`), `DirCap`, `Secret<T>` | Nothing on its own; it makes the safe way the easy way |
+| 2. `cargo corten check` | Cargo subcommand that builds with flags and lint configuration it supplies itself | The crate's own code breaks no rule, when it runs |
 | 3. Dependency audit | The same rules and effect summaries applied to every dependency | A dependency cannot do what the crate itself is not allowed to |
-| 4. CI gate and attestation | Required check on a protected branch; emits signed proof "built under Ferrum profile vX, rule set hash Y" | The shipped artifact really passed |
+| 4. CI gate and attestation | Required check on a protected branch; emits signed proof "built under Corten profile vX, rule set hash Y" | The shipped artifact really passed |
 | 5. Deployment check and runtime sandbox | Deployment refuses artifacts without a valid attestation; the capability manifest is turned into an OS sandbox | What the checks missed still cannot reach undeclared files or network |
 
-Layers 4 and 5 are what make sure. Layers 1 to 3 are what developers touch day to day. A skill or editor hook for AI coding agents, so they write Ferrum-style code and run `cargo ferrum check` before committing, is convenience on top of these, never a substitute for layer 4.
+Layers 4 and 5 are what make sure. Layers 1 to 3 are what developers touch day to day. A skill or editor hook for AI coding agents, so they write Corten-style code and run `cargo corten check` before committing, is convenience on top of these, never a substitute for layer 4.
 
 ### Existing tools for layers 2 and 3
 
 Checked 2026-10-26 against crates.io and the locally installed Clippy:
 
-| Tool | Version | Use in Ferrum |
+| Tool | Version | Use in Corten |
 | --- | --- | --- |
 | Clippy `disallowed_methods`, `disallowed_types`, `disallowed_macros` | 0.1.97 | Ban ambient `std::fs`, `std::net`, `std::process`, `std::env` and raw sink constructors |
 | Clippy `arithmetic_side_effects`, `as_conversions`, `indexing_slicing`, `let_underscore_must_use`, `mem_forget` | 0.1.97 | Checked arithmetic, no implicit casts, no unchecked indexing, no discarded results, no `mem::forget` |
@@ -493,7 +494,7 @@ Checked 2026-10-26 against crates.io and the locally installed Clippy:
 
 Phase 1 can therefore be mostly assembly rather than a compiler fork. Whether these tools can express every rule in section 4 is unverified; the rules they cannot express go to dylint or, last, to a rustc driver.
 
-Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHub artifact attestations) and layer 5 on Linux can use Landlock and seccomp to enforce the capability manifest; neither has been tried for Ferrum yet.
+Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHub artifact attestations) and layer 5 on Linux can use Landlock and seccomp to enforce the capability manifest; neither has been tried for Corten yet.
 
 ### What no layer guarantees
 
@@ -503,7 +504,7 @@ Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHu
 
 ### First deliverable
 
-`cargo ferrum check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
+`cargo corten check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
 
 ## 11. Risks and kill criteria
 
@@ -521,7 +522,7 @@ The largest risk the panel named is ecosystem compatibility, not runtime overhea
 
 **Kill or re-scope rules (my recommendation; you set the thresholds before Phase 1):**
 
-- If the bypass hunt evades most of the E claims Phase 1 targets, drop the E framing and position Ferrum as a C-checking profile.
+- If the bypass hunt evades most of the E claims Phase 1 targets, drop the E framing and position Corten as a C-checking profile.
 - If the benign-corpus false-rejection rate is above the threshold you set, fix the rules before adding any new ones.
 - If porting one real service needs brokers for most of its dependency tree, re-scope to new code only and stop the migration path.
 
