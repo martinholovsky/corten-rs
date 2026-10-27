@@ -2,7 +2,7 @@
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-> Status: **Phases 0 to 2 implemented; the Phase 1 and 2 gates are partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. `corten-std` provides directory capabilities on `openat2`, typed SQL, HTML, process, log, header, CSV, LDAP and XPath sinks with compile-time templates, `Secret`, and a signed capability manifest. 135 E claims are verified by the compile-fail corpus, with 0 false rejections; 25 more pass but wait for an independent review of the encoders. Open gaps are in [`docs/gates/phase-1.md`](docs/gates/phase-1.md) and [`docs/gates/phase-2.md`](docs/gates/phase-2.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
+> Status: **Phases 0 to 3 implemented; the Phase 1 to 3 gates are partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. `corten-std` provides directory capabilities on `openat2`, typed SQL, HTML, process, log, header, CSV, LDAP and XPath sinks with compile-time templates, `Secret`, and a signed capability manifest. Phase 3 adds a supervision tree, process and Wasm brokers, a Landlock sandbox, a dependency policy, and `cargo corten build`: a sandboxed build on Linux with an SBOM and provenance. 136 E claims are verified by the compile-fail corpus, with 0 false rejections; 25 more pass but wait for an independent review of the encoders. Open gaps are in [`docs/gates/phase-1.md`](docs/gates/phase-1.md), [`phase-2.md`](docs/gates/phase-2.md) and [`phase-3.md`](docs/gates/phase-3.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
 
 ## What Corten is
 
@@ -16,7 +16,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Phases 0 to 2 of five are implemented, and their gates are not all passed.
+- **Not finished.** Phases 0 to 3 of five are implemented, and their gates are not all passed.
 
 ## Why "Corten"
 
@@ -45,11 +45,11 @@ Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids
 
 Restricted to the 853 weaknesses that apply to Rust, the drafted split is E 168 / C 659 / O 26.
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **135 of the 175 are verified** (Phases 1 and 2). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **136 of the 175 are verified** (Phases 1 to 3). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 
-A rule only holds if the check that enforces it runs somewhere the code's author cannot change. Corten is planned in five layers: crates that make the safe way easy (`corten-std`, typed sinks); `cargo corten check`, which builds with flags and lints it supplies itself; the same rules applied to every dependency; a CI gate that signs proof the build passed; and a deployment check plus runtime sandbox that refuse anything without that proof. The first deliverable is `cargo corten check` plus a GitHub Action that runs it and signs the result. Details, including a test showing why in-repo rules alone are not enough: [`docs/spec.md`](docs/spec.md) section 10.
+A rule only holds if the check that enforces it runs somewhere the code's author cannot change. Corten is planned in five layers: crates that make the safe way easy (`corten-std`, typed sinks); `cargo corten check`, which builds with flags and lints it supplies itself; the same rules applied to every dependency; a CI gate that signs proof the build passed; and a deployment check plus runtime sandbox that refuse anything without that proof. Layers 1 to 3 exist, layer 4 as a GitHub Action ([`action.yml`](action.yml)) whose provenance the caller signs, and layer 5 as a Landlock launcher on Linux. Details, including a test showing why in-repo rules alone are not enough: [`docs/spec.md`](docs/spec.md) section 10.
 
 ## Repository layout
 
@@ -63,10 +63,14 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`corpus/`](corpus) | Compile-fail corpus: per E row, programs exhibiting the weakness and a matched benign program |
 | [`docs/tcb.md`](docs/tcb.md) | What every E claim trusts, the fail-closed rule, and the enumerated implementation-defined behaviour |
 | [`ledger/NOTICE`](ledger/NOTICE) | MITRE CWE copyright and licence |
-| [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself; its README lists what it overrides and its known gaps |
+| [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself, plus the dependency policy; `cargo corten build`: the sandboxed build with SBOM and provenance. Its README lists what it overrides and its known gaps |
 | [`crates/corten-corpus`](crates/corten-corpus) | Runs the corpus; reports detection beside false rejection and marks verified rows |
 | [`crates/corten-ledger`](crates/corten-ledger) | `corten-ledger check` (the ledger gate, run in CI) and `corten-ledger totals` |
 | [`crates/corten-std`](crates/corten-std) | The capability prelude: `DirCap`, typed sinks, `Secret`, the signed manifest |
+| [`crates/corten-runtime`](crates/corten-runtime) | Supervision tree: a panicked component is restarted, not the service |
+| [`crates/corten-broker`](crates/corten-broker) | Process and Wasm brokers with quotas and deadlines; size-checked IPC frames |
+| [`crates/corten-sandbox`](crates/corten-sandbox) | Landlock launcher (Linux): grants by flag or by signed capability manifest |
+| [`action.yml`](action.yml), [`scripts/hermetic-smoke.sh`](scripts/hermetic-smoke.sh) | The layer 4 GitHub Action, and the end-to-end test of the sandboxed build |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 

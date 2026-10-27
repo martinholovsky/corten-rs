@@ -1,5 +1,13 @@
 [workspace]
-members = ["crates/cargo-corten", "crates/corten-corpus", "crates/corten-ledger", "crates/corten-std"]
+members = [
+    "crates/cargo-corten",
+    "crates/corten-broker",
+    "crates/corten-corpus",
+    "crates/corten-ledger",
+    "crates/corten-runtime",
+    "crates/corten-sandbox",
+    "crates/corten-std",
+]
 resolver = "3"
 
 [workspace.package]

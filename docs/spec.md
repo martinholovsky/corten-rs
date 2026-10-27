@@ -369,7 +369,7 @@ Corten can enforce a wrong policy perfectly; mechanical enforcement is not evide
 
 ## 8. Open design decisions
 
-Nine questions split the panel and needed an owner decision; each one moves ids between buckets. Question 10 arose during implementation. The spec took the position in the middle column. On 2026-10-26 the owner kept the panel position on all nine. The 14 doubly disputed ids were then decided id by id in the ledger's `bucket_reason` column (section 6).
+Nine questions split the panel and needed an owner decision; each one moves ids between buckets. Questions 10 to 12 arose during implementation. The spec took the position in the middle column. On 2026-10-26 the owner kept the panel position on all nine. The 14 doubly disputed ids were then decided id by id in the ledger's `bucket_reason` column (section 6).
 
 | # | Question | Joint-spec position | Alternative (who) | Decision |
 | --- | --- | --- | --- | --- |
@@ -382,7 +382,9 @@ Nine questions split the panel and needed an owner decision; each one moves ids 
 | 7 | Hardware and transient execution | N only where no code is the defect | N for transient leakage itself (C, F); N for all hardware-design entries (A) | Keep panel position (owner, 2026-10-26) |
 | 8 | Legacy-framework absence (J2EE, Struts, PHP, ActiveX) | By underlying property | E by inexpressibility (A, C); O for product configuration (B, D, F) | Keep panel position (owner, 2026-10-26) |
 | 9 | Any in-process `unsafe`? | None in application crates | `unsafe_trusted` with a Kani/Creusot proof or audited exception (B) | Keep panel position (owner, 2026-10-26) |
-| 10 | Custom lints need rustc internals (dylint or a rustc driver), so a pinned nightly toolchain inside the checker. Accept that? (Raised in Phase 1.) | Not covered by the joint spec | Yes: pin a nightly for the lint driver only, build what ships on stable. No: leave CWE-252, 493, 500, 607 and 683 unverified until stable Clippy can express them | Open |
+| 10 | Custom lints need rustc internals (dylint or a rustc driver), so a pinned nightly toolchain inside the checker. Accept that? (Raised in Phase 1.) | Not covered by the joint spec | Yes: pin a nightly for the lint driver only, build what ships on stable. No: leave CWE-252, 493, 500, 607 and 683 unverified until stable Clippy can express them | Try it as Phase 3b; decide on its results (owner, 2026-10-27) |
+| 11 | The Linux sandbox (Landlock) for brokers and layer 5: the `landlock` crate brings `unicode-ident` (Unicode-3.0) in at build time. Allow that licence, or write the syscalls with `unsafe`? (Phase 3) | Not covered by the joint spec | Raw syscalls with `unsafe` in one launcher crate | Allow Unicode-3.0, use the `landlock` crate (owner, 2026-10-27) |
+| 12 | Wasm broker runtime: `wasmtime` (Cranelift JIT, 146 packages, Apache-2.0 WITH LLVM-exception) or `wasmi` (interpreter, 15 packages, MIT/Apache)? (Phase 3) | Not covered by the joint spec | `wasmtime` | `wasmi` (owner, 2026-10-27) |
 
 ## 9. Roadmap: making the claims true
 
@@ -442,12 +444,14 @@ Start without forking the compiler (tools and their versions are in section 10):
 
 ### Phase 3 — runtime and isolation
 
-- [ ] Mandatory resource budgets on every parse, decode and allocate entry point.
-- [ ] Supervision tree that isolates and restarts a panicked component.
-- [ ] Wasm and process brokers with schema-checked IPC, quotas and deadlines.
-- [ ] `cargo-corten`: hermetic builds, sandboxed proc macros, SBOM, provenance.
+- [ ] Mandatory resource budgets on every parse, decode and allocate entry point. Not built; the brokers, the IPC decoder and the checker's JSON parser are bounded.
+- [x] Supervision tree that isolates and restarts a panicked component (`corten-runtime`).
+- [x] Wasm and process brokers with schema-checked IPC, quotas and deadlines (`corten-broker`; Wasm on `wasmi`, owner decision 12; processes under `corten-sandbox`, Landlock, owner decision 11).
+- [ ] `cargo-corten`: hermetic builds, sandboxed proc macros, SBOM, provenance. Done for `cargo corten build` on Linux. Not done: `cargo corten check` runs build scripts and proc macros unsandboxed.
 
 **Gate:** a panic in one component does not stop the service; a broker cannot exceed its declared capabilities.
+
+**Gate result (2026-10-27): the gate's tests pass on Linux; two items not built.** A panicking child is restarted while its sibling works (4 of 4 supervisor tests). A brokered process is refused reads, writes, TCP and descriptors outside its grant, and stopped at its deadline and quotas (9 of 9; a no-op Landlock fails 4). A Wasm module gets no imports and is held to fuel, memory and output limits (6 of 6). A dependency build script is refused the network and writes outside `target/` under `cargo corten build` (3 of 3 smoke cases, each with a control). Corpus: 161 of 174 detected, 0 of 174 false rejections; CWE-403 verified, and the four ban-list rows stay unverified because a renamed crate passes. Not built: resource budgets, and sandboxing for `check`. Report: [`docs/gates/phase-3.md`](gates/phase-3.md).
 
 ### Phase 4 — refinements and information flow (post-MVP)
 
@@ -517,7 +521,7 @@ Checked 2026-10-26 against crates.io and the locally installed Clippy:
 
 Phase 1 can therefore be mostly assembly rather than a compiler fork. Whether these tools can express every rule in section 4 is unverified; the rules they cannot express go to dylint or, last, to a rustc driver.
 
-Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHub artifact attestations) and layer 5 on Linux can use Landlock and seccomp to enforce the capability manifest; neither has been tried for Corten yet.
+Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHub artifact attestations): `cargo corten build` writes an unsigned in-toto statement for that tooling to sign. Layer 5 on Linux uses Landlock: `corten-sandbox --manifest` turns a signed capability manifest into the process's rules (Phase 3). seccomp is not used yet.
 
 ### What no layer guarantees
 
@@ -529,7 +533,7 @@ Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHu
 
 `cargo corten check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
 
-Progress (2026-10-26): `crates/cargo-corten` runs the Phase 1 profile (Clippy as the compiler for every local crate, its own lint configuration, the overrides above) with tests for each. Layer 3 and the GitHub Action are not built.
+Progress (2026-10-27): `crates/cargo-corten` runs the Phase 1 profile (Clippy as the compiler for every local crate, its own lint configuration, the overrides above) with tests for each, and the layer 3 dependency policy (reachable dependencies' `unsafe` macros and proc macros, a ban list, an operator allowlist). The GitHub Action (`action.yml`) runs `check` or the hermetic `build`; signing its provenance is left to the caller's attestation step.
 
 ## 11. Risks and kill criteria
 

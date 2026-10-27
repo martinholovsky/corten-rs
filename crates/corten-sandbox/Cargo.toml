@@ -1,0 +1,24 @@
+[package]
+name = "corten-sandbox"
+description = "Confines itself with Landlock, then runs a program: Corten's broker and layer 5 sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+corten-std = { path = "../corten-std" }
+
+# Owner decision 11 (spec section 8): the landlock crate; Unicode-3.0 allowed.
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4.7"
+
+[dev-dependencies]
+corten-broker = { path = "../corten-broker" }
+corten-std = { path = "../corten-std" }
+ed25519-compact = { version = "2.6.0", default-features = false, features = ["std"] }
+
+[lints]
+workspace = true

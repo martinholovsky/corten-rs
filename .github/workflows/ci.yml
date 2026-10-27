@@ -54,6 +54,29 @@ jobs:
         run: |
           cargo build --locked -p cargo-corten
           cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten
+      - name: Hermetic build smoke test
+        run: |
+          cargo build --locked -p cargo-corten -p corten-sandbox
+          bash scripts/hermetic-smoke.sh target/debug
+      # Layer 4: the repository's own action, on a fresh crate outside the workspace.
+      - name: Action self-test fixture
+        run: |
+          cargo new --quiet --vcs none "$RUNNER_TEMP/fixture"
+          cargo generate-lockfile --manifest-path "$RUNNER_TEMP/fixture/Cargo.toml"
+      - name: Action self-test
+        id: corten
+        uses: ./
+        with:
+          command: build
+          manifest-path: ${{ runner.temp }}/fixture/Cargo.toml
+          out-dir: ${{ runner.temp }}/corten-out
+      - name: Action self-test outputs
+        env:
+          SBOM: ${{ steps.corten.outputs.sbom }}
+          PROVENANCE: ${{ steps.corten.outputs.provenance }}
+        run: |
+          grep -q '"purl":"pkg:cargo/fixture@0.1.0"' "$SBOM"
+          grep -q '"sandboxed":true' "$PROVENANCE"
 
   supply-chain:
     name: cargo deny

@@ -1,0 +1,22 @@
+[package]
+name = "corten-broker"
+description = "Corten's process and Wasm brokers: sandboxed, with quotas and deadlines"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+corten-std = { path = "../corten-std" }
+# Owner decision 12 (spec section 8): an interpreter, MIT/Apache, no JIT.
+# `validate`: modules are always validated (never `Module::new_unchecked`).
+# `portable-dispatch`: loop dispatch. The tail-call dispatch recursed per
+# executed instruction in an unoptimised build and overflowed the stack
+# (measured), which aborts the host. `extra-checks`: the executor checks
+# wasmi documents for safety-focused use (about 20% slower).
+wasmi = { version = "2.0.0", default-features = false, features = ["std", "stable", "validate", "portable-dispatch", "extra-checks"] }
+
+[lints]
+workspace = true

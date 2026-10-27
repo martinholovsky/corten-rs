@@ -1,10 +1,10 @@
-Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
+Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 
-- Detection: 160 of 169 cases had every bad program rejected for the expected reason
-- False rejection: 0 of 169 matched good programs failed to build (limit: 5%)
+- Detection: 161 of 174 cases had every bad program rejected for the expected reason
+- False rejection: 0 of 174 matched good programs failed to build (limit: 5%)
 - Controls failed (plain cargo did not build a checker case's bad program): 0
 - Broken cases: 0
-- Passed: 160 of 169; of those, 12 rest only on syntax Rust does not have (weakest evidence)
+- Passed: 161 of 174; of those, 12 rest only on syntax Rust does not have (weakest evidence)
 
 - Passed but left unverified until the encoder is independently reviewed: 25
 
@@ -28,6 +28,7 @@ Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
 | CWE-1236 | language | pass (awaiting encoder review) |  |
 | CWE-1321 | language | pass |  |
 | CWE-1322 | checker | not detected | bad.rs: exit Some(0):  |
+| CWE-1333 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-1336 | language | pass (awaiting encoder review) |  |
 | CWE-134 | language | pass |  |
 | CWE-1341 | checker | pass |  |
@@ -61,6 +62,7 @@ Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
 | CWE-396 | checker | not detected | bad-thread.rs: exit Some(0):  |
 | CWE-397 | language | pass (construct absent) |  |
 | CWE-40 | checker | pass |  |
+| CWE-403 | checker | pass |  |
 | CWE-415 | checker | pass |  |
 | CWE-416 | checker | pass |  |
 | CWE-42 | checker | pass |  |
@@ -124,6 +126,7 @@ Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
 | CWE-597 | language | pass |  |
 | CWE-607 | checker | not detected | bad.rs: exit Some(0):  |
 | CWE-61 | checker | pass |  |
+| CWE-611 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-621 | language | pass (construct absent) |  |
 | CWE-624 | language | pass (construct absent) |  |
 | CWE-626 | checker | pass |  |
@@ -149,6 +152,7 @@ Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
 | CWE-763 | checker | pass |  |
 | CWE-765 | checker | pass |  |
 | CWE-77 | checker | pass (awaiting encoder review) |  |
+| CWE-776 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-78 | checker | pass (awaiting encoder review) |  |
 | CWE-79 | language | pass (awaiting encoder review) |  |
 | CWE-80 | language | pass (awaiting encoder review) |  |
@@ -158,6 +162,7 @@ Corpus run (all phases): 169 cases for 175 E rows; 6 E rows have no case yet.
 | CWE-823 | checker | pass |  |
 | CWE-824 | checker | pass |  |
 | CWE-825 | checker | pass |  |
+| CWE-827 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-83 | language | pass (awaiting encoder review) |  |
 | CWE-832 | checker | pass |  |
 | CWE-838 | language | not detected | bad-direct.rs: plain exit Some(0):  |

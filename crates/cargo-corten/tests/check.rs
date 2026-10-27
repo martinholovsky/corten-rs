@@ -390,62 +390,132 @@ fn local_path_dependency_outside_the_workspace_is_linted() {
     assert!(out.stderr.contains("as-conversions"), "{}", out.stderr);
 }
 
-/// Known bypass, recorded in `docs/gates/phase-1.md`: a macro exported by a
-/// non-local dependency expands to `unsafe` in the checked crate, and rustc
-/// does not report `unsafe_code` inside external macro expansions. Layer 3
-/// (dependency policy) must close it. This test fails when the checker starts
-/// rejecting the crate, so the docs get updated.
-#[test]
-fn known_bypass_unsafe_from_a_dependency_macro() {
-    let main = "fn main() {\n    let p: *const u32 = std::ptr::null();\n    let v = evil_macro::read_raw!(p);\n    println!(\"{v}\");\n}\n";
-    let fx = Fixture::new("dep-macro", main).unwrap();
+/// A non-local dependency, as cargo sees a registry crate: a directory
+/// source replaces crates-io with `vendor/`.
+fn vendor_crate(fx: &Fixture, name: &str, cargo_extra: &str, lib_rs: &str) -> io::Result<()> {
     fx.write(
-        "Cargo.toml",
-        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nevil-macro = \"0.1.0\"\n",
-    )
-    .unwrap();
+        &format!("vendor/{name}/Cargo.toml"),
+        &format!(
+            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n{cargo_extra}"
+        ),
+    )?;
+    fx.write(&format!("vendor/{name}/src/lib.rs"), lib_rs)?;
     fx.write(
-        "vendor/evil-macro/Cargo.toml",
-        "[package]\nname = \"evil-macro\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
-    )
-    .unwrap();
-    fx.write(
-        "vendor/evil-macro/src/lib.rs",
-        "#[macro_export]\nmacro_rules! read_raw {\n    ($p:expr) => { unsafe { *$p } };\n}\n",
-    )
-    .unwrap();
-    fx.write(
-        "vendor/evil-macro/.cargo-checksum.json",
+        &format!("vendor/{name}/.cargo-checksum.json"),
         "{\"files\":{},\"package\":null}",
-    )
-    .unwrap();
-    // A directory source makes the crate non-local, like a registry crate.
+    )?;
     let config = format!(
         "[source.crates-io]\nreplace-with = \"vendored\"\n[source.vendored]\ndirectory = {:?}\n",
         fx.dir.join("vendor").display().to_string()
     );
-    fx.write(".cargo/config.toml", &config).unwrap();
-    let out = corten(&fx, &[]).unwrap();
-    assert_eq!(
-        out.code,
-        Some(0),
-        "the dependency-macro bypass is closed; update docs/gates/phase-1.md and docs/tcb.md\n{}",
-        out.stderr
-    );
-    // Positive control: the same expression written in the crate is rejected.
+    fx.write(".cargo/config.toml", &config)
+}
+
+fn with_dependency(fx: &Fixture, name: &str) -> io::Result<()> {
     fx.write(
-        "src/main.rs",
-        "fn main() {\n    let p: *const u32 = std::ptr::null();\n    let v = unsafe { *p };\n    println!(\"{v}\");\n}\n",
+        "Cargo.toml",
+        &format!("[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\n{name} = \"0.1.0\"\n"),
+    )
+}
+
+/// Phase 1 found this bypass: a macro exported by a non-local dependency
+/// expands to `unsafe` in the checked crate, and rustc does not report
+/// `unsafe_code` inside external macro expansions. The layer 3 dependency
+/// policy now refuses such a dependency unless the operator allows it.
+#[test]
+fn dependency_exporting_an_unsafe_macro_is_refused() {
+    let main = "fn main() {\n    let p: *const u32 = std::ptr::null();\n    let v = evil_macro::read_raw!(p);\n    println!(\"{v}\");\n}\n";
+    let fx = Fixture::new("dep-macro", main).unwrap();
+    with_dependency(&fx, "evil-macro").unwrap();
+    vendor_crate(
+        &fx,
+        "evil-macro",
+        "",
+        "#[macro_export]\nmacro_rules! read_raw {\n    ($p:expr) => { unsafe { *$p } };\n}\n",
     )
     .unwrap();
-    let direct = corten(&fx, &[]).unwrap();
-    assert_eq!(direct.code, Some(1), "{}", direct.stderr);
+    // Control: plain cargo builds it.
+    let mut plain = Command::new(env!("CARGO"));
+    plain
+        .arg("check")
+        .current_dir(&fx.dir)
+        .env("CARGO_TARGET_DIR", fx.target());
+    assert_eq!(outcome(&mut plain).unwrap().code, Some(0));
+
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(out.stderr.contains("dependency policy"), "{}", out.stderr);
+    assert!(
+        out.stderr.contains(
+            "evil-macro@0.1.0: local code uses exported macros that expand to unsafe: read_raw"
+        ),
+        "{}",
+        out.stderr
+    );
+
+    // Allowed by the operator, the original bypass is back: the profile's
+    // lint does not see the expansion. Allowing a dependency is accepting
+    // that.
+    let allowed = corten(&fx, &[("CORTEN_ALLOW_DEPS", "evil-macro")]).unwrap();
+    assert_eq!(allowed.code, Some(0), "{}", allowed.stderr);
+}
+
+#[test]
+fn procedural_macro_dependency_is_refused() {
+    let fx = Fixture::new("dep-proc-macro", "derive_it::nothing!();\nfn main() {}\n").unwrap();
+    with_dependency(&fx, "derive-it").unwrap();
+    vendor_crate(
+        &fx,
+        "derive-it",
+        "\n[lib]\nproc-macro = true\n",
+        "extern crate proc_macro;\n#[proc_macro]\npub fn nothing(_i: proc_macro::TokenStream) -> proc_macro::TokenStream {\n    proc_macro::TokenStream::new()\n}\n",
+    ).unwrap();
+    // Control: plain cargo builds it.
+    let mut plain = Command::new(env!("CARGO"));
+    plain
+        .arg("check")
+        .current_dir(&fx.dir)
+        .env("CARGO_TARGET_DIR", fx.target());
+    assert_eq!(outcome(&mut plain).unwrap().code, Some(0));
+
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(
+        out.stderr
+            .contains("derive-it@0.1.0: procedural macro used by local code (nothing)"),
+        "{}",
+        out.stderr
+    );
+
+    // The same dependency, unused by local code, is accepted: the policy
+    // judges what the crate can reach and uses.
+    fx.write("src/main.rs", "fn main() {}\n").unwrap();
+    let unused = corten(&fx, &[]).unwrap();
+    assert_eq!(unused.code, Some(0), "{}", unused.stderr);
+}
+
+#[test]
+fn dependency_with_only_safe_macros_is_accepted() {
+    let fx = Fixture::new(
+        "dep-safe",
+        "fn main() {\n    println!(\"{}\", tidy::double!(2u32));\n}\n",
+    )
+    .unwrap();
+    with_dependency(&fx, "tidy").unwrap();
+    vendor_crate(
+        &fx,
+        "tidy",
+        "",
+        "#[macro_export]\nmacro_rules! double {\n    ($v:expr) => { $v.saturating_mul(2) };\n}\n/// Mentions unsafe { only } in a comment and a \"string with unsafe\".\npub fn note() -> &'static str { \"unsafe\" }\n",
+    ).unwrap();
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(0), "{}", out.stderr);
 }
 
 #[test]
 fn usage_errors_exit_2() {
     let out = Command::new(env!("CARGO_BIN_EXE_cargo-corten"))
-        .args(["corten", "build"])
+        .args(["corten", "install"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2));

@@ -77,12 +77,68 @@ pub struct Capabilities {
     execs: BTreeMap<String, ExecCap>,
 }
 
-enum Entry {
-    Dir(String, PathBuf),
-    Exec(String, PathBuf),
+/// One verified manifest entry. A grant is data: holding one confers no
+/// authority (the application has no ambient API that takes a path). The
+/// runtime sandbox (`corten-sandbox --manifest`) turns grants into kernel
+/// rules; [`Capabilities::load`] turns them into capabilities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Grant {
+    /// `dir NAME PATH`: read and write beneath `PATH`.
+    Dir {
+        /// Manifest name.
+        name: String,
+        /// Absolute path.
+        path: PathBuf,
+    },
+    /// `exec NAME PATH`: run the program at `PATH`.
+    Exec {
+        /// Manifest name.
+        name: String,
+        /// Absolute path.
+        path: PathBuf,
+    },
 }
 
-fn parse(text: &str) -> Result<Vec<Entry>, ManifestError> {
+impl Grant {
+    fn name(&self) -> &str {
+        match self {
+            Self::Dir { name, .. } | Self::Exec { name, .. } => name,
+        }
+    }
+}
+
+/// Verifies the signature, then parses the manifest and checks names are
+/// unique. Nothing is opened.
+///
+/// # Errors
+///
+/// [`ManifestError`]; nothing is parsed unless the signature is valid.
+pub fn verify(
+    manifest: &[u8],
+    signature: &[u8],
+    public_key: &[u8],
+) -> Result<Vec<Grant>, ManifestError> {
+    if manifest.len() > MAX_MANIFEST {
+        return Err(ManifestError::TooLarge);
+    }
+    let key =
+        ed25519_compact::PublicKey::from_slice(public_key).map_err(|_| ManifestError::Signature)?;
+    let sig =
+        ed25519_compact::Signature::from_slice(signature).map_err(|_| ManifestError::Signature)?;
+    key.verify(manifest, &sig)
+        .map_err(|_| ManifestError::Signature)?;
+    let text = std::str::from_utf8(manifest).map_err(|_| ManifestError::Syntax(1))?;
+    let grants = parse(text)?;
+    let mut seen = std::collections::BTreeSet::new();
+    for g in &grants {
+        if !seen.insert(g.name()) {
+            return Err(ManifestError::Duplicate(g.name().to_owned()));
+        }
+    }
+    Ok(grants)
+}
+
+fn parse(text: &str) -> Result<Vec<Grant>, ManifestError> {
     let mut lines = (1usize..).zip(text.lines());
     match lines.next() {
         Some((_, HEADER)) => {}
@@ -107,8 +163,14 @@ fn parse(text: &str) -> Result<Vec<Entry>, ManifestError> {
             return Err(ManifestError::Syntax(number));
         }
         entries.push(match kind {
-            "dir" => Entry::Dir(name.to_owned(), path.to_path_buf()),
-            "exec" => Entry::Exec(name.to_owned(), path.to_path_buf()),
+            "dir" => Grant::Dir {
+                name: name.to_owned(),
+                path: path.to_path_buf(),
+            },
+            "exec" => Grant::Exec {
+                name: name.to_owned(),
+                path: path.to_path_buf(),
+            },
             _ => return Err(ManifestError::Syntax(number)),
         });
     }
@@ -127,33 +189,17 @@ impl Capabilities {
         signature: &[u8],
         public_key: &[u8],
     ) -> Result<Self, ManifestError> {
-        if manifest.len() > MAX_MANIFEST {
-            return Err(ManifestError::TooLarge);
-        }
-        let key = ed25519_compact::PublicKey::from_slice(public_key)
-            .map_err(|_| ManifestError::Signature)?;
-        let sig = ed25519_compact::Signature::from_slice(signature)
-            .map_err(|_| ManifestError::Signature)?;
-        key.verify(manifest, &sig)
-            .map_err(|_| ManifestError::Signature)?;
-        let text = std::str::from_utf8(manifest).map_err(|_| ManifestError::Syntax(1))?;
         let mut caps = Self::default();
-        for entry in parse(text)? {
-            match entry {
-                Entry::Dir(name, path) => {
-                    if caps.dirs.contains_key(&name) || caps.execs.contains_key(&name) {
-                        return Err(ManifestError::Duplicate(name));
-                    }
+        for grant in verify(manifest, signature, public_key)? {
+            match grant {
+                Grant::Dir { name, path } => {
                     let dir = DirCap::open_root(&path).map_err(|error| ManifestError::Dir {
                         name: name.clone(),
                         error,
                     })?;
                     caps.dirs.insert(name, dir);
                 }
-                Entry::Exec(name, path) => {
-                    if caps.dirs.contains_key(&name) || caps.execs.contains_key(&name) {
-                        return Err(ManifestError::Duplicate(name));
-                    }
+                Grant::Exec { name, path } => {
                     caps.execs.insert(name.clone(), ExecCap::new(name, path));
                 }
             }

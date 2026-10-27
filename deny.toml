@@ -11,7 +11,9 @@ yanked = "deny"
 [licenses]
 version = 2
 # Permissive only. Adding a licence here is a policy decision, not a fix.
-allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "CC0-1.0"]
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "CC0-1.0", "Unicode-3.0"]
+# Unicode-3.0: owner decision 2026-10-27 (spec section 8, question 11). It
+# reaches the build only through unicode-ident, used by proc-macro crates.
 confidence-threshold = 0.93
 # The list is the policy, not an inventory of what is in use today.
 unused-allowed-license = "allow"

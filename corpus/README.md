@@ -17,6 +17,7 @@ Each file is a whole `src/main.rs`. Header lines configure it:
 | `//@ kind: checker` or `//@ kind: language` | Overrides the row's `proof_kind` for this file. `checker`: plain cargo must build it and the checker must reject it. `language`: plain cargo must reject it. |
 | `//@ edition: 2021` | Edition of the case crate (default 2024). |
 | `//@ deps: corten-std` | The case crate depends on the workspace's `corten-std`. |
+| `//@ fake-dep: NAME` | The case crate depends on an empty stub package `NAME` 1.0.0, served from a vendored directory source, so the dependency policy sees the name without a download. Repeatable. |
 | `//@ absent` | The bad program uses syntax Rust does not have; reported separately as the weakest evidence. |
 
 ## Rules for adding a case

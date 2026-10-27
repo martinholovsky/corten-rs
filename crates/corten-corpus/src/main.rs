@@ -97,6 +97,9 @@ struct Directives {
     absent: bool,
     /// Rust edition of the case crate (default 2024).
     edition: Option<String>,
+    /// Stub crates the case depends on, served from a directory source so
+    /// cargo treats them as registry crates (the dependency policy's input).
+    fake_deps: Vec<String>,
 }
 
 fn directives(source: &str) -> Directives {
@@ -119,6 +122,8 @@ fn directives(source: &str) -> Directives {
             d.absent = true;
         } else if let Some(edition) = rest.strip_prefix("edition:") {
             d.edition = Some(edition.trim().to_owned());
+        } else if let Some(name) = rest.strip_prefix("fake-dep:") {
+            d.fake_deps.push(name.trim().to_owned());
         }
     }
     d
@@ -185,14 +190,42 @@ impl Runner<'_> {
             fs::remove_dir_all(dir)?;
         }
         fs::create_dir_all(dir.join("src"))?;
-        let deps = if corten_std {
+        let mut deps: Vec<String> = Vec::new();
+        if corten_std {
             let std_path = fs::canonicalize(self.opts.root.join("crates/corten-std"))?;
-            format!(
-                "\n[dependencies]\ncorten-std = {{ path = {:?} }}\n",
+            deps.push(format!(
+                "corten-std = {{ path = {:?} }}",
                 std_path.display().to_string()
-            )
-        } else {
+            ));
+        }
+        for name in &d.fake_deps {
+            let stub = dir.join("vendor").join(name);
+            fs::create_dir_all(stub.join("src"))?;
+            fs::write(
+                stub.join("Cargo.toml"),
+                format!("[package]\nname = {name:?}\nversion = \"1.0.0\"\nedition = \"2021\"\n"),
+            )?;
+            fs::write(stub.join("src/lib.rs"), "pub fn stub() {}\n")?;
+            fs::write(
+                stub.join(".cargo-checksum.json"),
+                "{\"files\":{},\"package\":null}",
+            )?;
+            deps.push(format!("{name} = \"1.0.0\""));
+        }
+        if !d.fake_deps.is_empty() {
+            fs::create_dir_all(dir.join(".cargo"))?;
+            fs::write(
+                dir.join(".cargo/config.toml"),
+                format!(
+                    "[source.crates-io]\nreplace-with = \"vendored\"\n[source.vendored]\ndirectory = {:?}\n",
+                    dir.join("vendor").display().to_string()
+                ),
+            )?;
+        }
+        let deps = if deps.is_empty() {
             String::new()
+        } else {
+            format!("\n[dependencies]\n{}\n", deps.join("\n"))
         };
         let manifest = format!(
             "[package]\nname = \"case\"\nversion = \"0.0.0\"\nedition = \"{edition}\"\n\n[workspace]\n{deps}"
@@ -294,6 +327,8 @@ impl Runner<'_> {
         let good_d = directives(&good);
         let work = self.work.join(row.id);
         let mut absent_only = true;
+        let mut missed = Vec::new();
+        let mut controls = Vec::new();
         for (i, file) in bad_files.iter().enumerate() {
             let source = fs::read_to_string(file)?;
             let d = directives(&source);
@@ -309,13 +344,12 @@ impl Runner<'_> {
             absent_only &= d.absent;
             let dir = work.join(format!("bad-{i}"));
             self.write_crate(&dir, &source, &d)?;
-            if let Some(verdict) = self.check_bad(row.proof_kind, &dir, target, &d)? {
-                let verdict = match verdict {
-                    Verdict::NotDetected(why) => Verdict::NotDetected(format!("{name}: {why}")),
-                    Verdict::ControlFailed(why) => Verdict::ControlFailed(format!("{name}: {why}")),
-                    other => other,
-                };
-                return Ok((verdict, false));
+            // Every variant is evaluated, so the report names each miss.
+            match self.check_bad(row.proof_kind, &dir, target, &d)? {
+                None => {}
+                Some(Verdict::NotDetected(why)) => missed.push(format!("{name}: {why}")),
+                Some(Verdict::ControlFailed(why)) => controls.push(format!("{name}: {why}")),
+                Some(other) => return Ok((other, false)),
             }
         }
         let good_dir = work.join("good");
@@ -323,6 +357,12 @@ impl Runner<'_> {
         let accepted = self.corten(&good_dir, target)?;
         if !accepted.ok() {
             return Ok((Verdict::FalseRejection(excerpt(&accepted.output)), false));
+        }
+        if !controls.is_empty() {
+            return Ok((Verdict::ControlFailed(controls.join(" ; ")), false));
+        }
+        if !missed.is_empty() {
+            return Ok((Verdict::NotDetected(missed.join(" ; ")), false));
         }
         fs::remove_dir_all(&work)?;
         Ok((Verdict::Pass, absent_only))
@@ -617,6 +657,7 @@ mod tests {
                 kind: Some("language".to_owned()),
                 absent: true,
                 edition: None,
+                fake_deps: Vec::new(),
             }
         );
     }
