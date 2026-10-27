@@ -213,6 +213,7 @@ pub const REQUIRED_COLUMNS: &[&str] = &[
     "tcb_assumption",
     "prelude_only",
     "proof_test",
+    "review",
     "status",
 ];
 
@@ -330,6 +331,11 @@ impl Ledger {
                         "{id}: proof_kind {kind:?} is not one of {PROOF_KINDS:?}"
                     ));
                 }
+                if status == "verified" && self.get(row, "review") == "required" {
+                    problems.push(format!(
+                        "{id}: verified, but its encoder still needs the independent review the Phase 2 gate requires"
+                    ));
+                }
             } else if status == "verified" {
                 problems.push(format!(
                     "{id}: only E rows carry a proof, but status is verified"
@@ -360,6 +366,7 @@ impl Ledger {
                 phase: self.get(r, "phase"),
                 proof_kind: self.get(r, "proof_kind"),
                 proof_test: self.get(r, "proof_test"),
+                review: self.get(r, "review"),
                 status: self.get(r, "status"),
             })
             .collect()
@@ -421,6 +428,9 @@ pub struct ERow<'a> {
     pub proof_kind: &'a str,
     /// Path of the compile-fail case, relative to the repository root.
     pub proof_test: &'a str,
+    /// `required` when an independent review of the encoder must precede
+    /// verification; empty otherwise.
+    pub review: &'a str,
     /// `unverified` or `verified`.
     pub status: &'a str,
 }
@@ -492,7 +502,7 @@ mod tests {
         Ledger::from_records(parse_csv(&text).unwrap()).unwrap()
     }
 
-    const GOOD_E: &str = "CWE-1,E,E,,1,checker,m,t,no,corpus/CWE-1,unverified";
+    const GOOD_E: &str = "CWE-1,E,E,,1,checker,m,t,no,corpus/CWE-1,,unverified";
 
     #[test]
     fn complete_e_row_passes() {
@@ -501,13 +511,13 @@ mod tests {
 
     #[test]
     fn e_row_without_proof_test_fails() {
-        let problems = ledger(&["CWE-1,E,E,,1,checker,m,t,no,,unverified"]).check();
+        let problems = ledger(&["CWE-1,E,E,,1,checker,m,t,no,,,unverified"]).check();
         assert_eq!(problems, ["CWE-1: E row with empty proof_test"]);
     }
 
     #[test]
     fn move_without_reason_fails() {
-        let problems = ledger(&["CWE-2,E,C,,,,,,,,unverified"]).check();
+        let problems = ledger(&["CWE-2,E,C,,,,,,,,,unverified"]).check();
         assert_eq!(
             problems,
             ["CWE-2: bucket differs from drafted_bucket without a bucket_reason"]
@@ -521,6 +531,14 @@ mod tests {
     }
 
     #[test]
+    fn verified_row_awaiting_review_fails() {
+        let row = "CWE-4,E,E,,2,language,m,t,yes,corpus/CWE-4,required,verified";
+        assert_eq!(ledger(&[row]).check().len(), 1);
+        let reviewed = "CWE-4,E,E,,2,language,m,t,yes,corpus/CWE-4,docs/reviews/x.md,verified";
+        assert_eq!(ledger(&[reviewed]).check(), Vec::<String>::new());
+    }
+
+    #[test]
     fn formula_leading_cell_fails() {
         let problems = ledger(&[&GOOD_E.replace(",m,", ",=cmd(),")]).check();
         assert_eq!(problems.len(), 1, "{problems:?}");
@@ -530,7 +548,7 @@ mod tests {
 
     #[test]
     fn verified_non_e_row_fails() {
-        let problems = ledger(&["CWE-3,C,C,,,,,,,,verified"]).check();
+        let problems = ledger(&["CWE-3,C,C,,,,,,,,,verified"]).check();
         assert_eq!(problems.len(), 1, "{problems:?}");
     }
 
@@ -564,7 +582,7 @@ mod tests {
 
     #[test]
     fn totals_count_moves_and_phases() {
-        let t = ledger(&[GOOD_E, "CWE-2,E,C,why,,,,,,,unverified"]).totals();
+        let t = ledger(&[GOOD_E, "CWE-2,E,C,why,,,,,,,,unverified"]).totals();
         assert_eq!(t.rows, 2);
         assert_eq!(t.by_bucket.get("E"), Some(&1));
         assert_eq!(t.moves.get("E->C"), Some(&1));

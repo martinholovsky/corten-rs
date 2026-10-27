@@ -2,7 +2,7 @@
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-> Status: **Phases 0 and 1 implemented, Phase 1 gate partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. 85 E claims are verified by the compile-fail corpus, with 0 false rejections. One known bypass (a dependency's macro can inject `unsafe`) is open; see [`docs/gates/phase-1.md`](docs/gates/phase-1.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
+> Status: **Phases 0 to 2 implemented; the Phase 1 and 2 gates are partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. `corten-std` provides directory capabilities on `openat2`, typed SQL, HTML, process, log, header, CSV, LDAP and XPath sinks with compile-time templates, `Secret`, and a signed capability manifest. 135 E claims are verified by the compile-fail corpus, with 0 false rejections; 25 more pass but wait for an independent review of the encoders. Open gaps are in [`docs/gates/phase-1.md`](docs/gates/phase-1.md) and [`docs/gates/phase-2.md`](docs/gates/phase-2.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
 
 ## What Corten is
 
@@ -16,7 +16,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Today it's a ratified design with its first phase implemented.
+- **Not finished.** Phases 0 to 2 of five are implemented, and their gates are not all passed.
 
 ## Why "Corten"
 
@@ -45,7 +45,7 @@ Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids
 
 Restricted to the 853 weaknesses that apply to Rust, the drafted split is E 168 / C 659 / O 26.
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **85 of the 175 are verified** (Phase 1). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 157 / C 670 / O 26 of the 853 that apply to Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **135 of the 175 are verified** (Phases 1 and 2). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 
@@ -66,7 +66,7 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself; its README lists what it overrides and its known gaps |
 | [`crates/corten-corpus`](crates/corten-corpus) | Runs the corpus; reports detection beside false rejection and marks verified rows |
 | [`crates/corten-ledger`](crates/corten-ledger) | `corten-ledger check` (the ledger gate, run in CI) and `corten-ledger totals` |
-| [`crates/corten-std`](crates/corten-std) | Placeholder for the closed prelude (spec section 9, Phase 1) |
+| [`crates/corten-std`](crates/corten-std) | The capability prelude: `DirCap`, typed sinks, `Secret`, the signed manifest |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 

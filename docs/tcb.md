@@ -10,7 +10,8 @@ Status: Phase 0 specification, 2026-10-26. Required by the ratification amendmen
 | Rust `std` (safe API) | Be sound: no undefined behaviour reachable from safe code | Ownership claims |
 | `cargo-corten` (the checker) | Supply its own flags and lint configuration and override every configuration source the checked repository controls (crate README) | All `checker` claims |
 | Clippy | Implement each lint the checker turns on as documented | Claims whose mechanism names a Clippy lint |
-| `corten-std` | Implement the DirCap monitor (docs/pathseg.md), the typed sinks' encoders, `Secret<T>`, and the broker protocol correctly | Path, sink and broker claims (`prelude_only = yes`) |
+| `corten-std` | Implement the DirCap monitor (docs/pathseg.md), the typed sinks' encoders, `Secret<T>`, and the broker protocol correctly. Encoder-backed rows carry `review = required` until an independent review is recorded | Path, sink and broker claims (`prelude_only = yes`) |
+| `corten-std`'s dependencies: `rustix` 1.1.5 (Linux syscalls, including `openat2`), `region` 3.0.2 (`mlock`), `zeroize` 1.9.1, `subtle` 2.6.1, `ed25519-compact` 2.6.0 (no default features, no further dependencies) | Be correct; each is a dependency of every application that uses the prelude | Path, secret and manifest claims |
 | Linux kernel | Implement `openat2` resolve flags, Landlock and seccomp as documented | Path and broker claims |
 | Wasm runtime, if a broker uses one | Enforce the module's memory and import isolation | Broker claims |
 | Cryptographic provider | Implement the primitives it offers correctly | None yet; cryptography is C |

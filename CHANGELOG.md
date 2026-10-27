@@ -6,6 +6,10 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Phase 2, `corten-std`: `PathSeg`/`RelPath` per docs/pathseg.md; `DirCap` on `openat2` (Linux; refused elsewhere) with exclusive 0600 temp files; typed sinks with compile-time templates and no raw constructors (`sql!`, `html!`, `process!`, `log_record!`, `text!`, `ldap_filter!`, `ldap_dn!`, `xpath!`, `xquery!`, `HeaderValue`, `SetCookie`, `CsvCell`) and driver traits that accept only them; `Secret`; the Ed25519-signed capability manifest.
+- Corpus: 76 Phase 2 cases (path, process and sink rows), 0 false rejections; 50 rows newly verified (135 of 175 in all). Ledger column `review`: 26 encoder-backed rows wait for an independent review.
+- Corpus runner: per-worker target directories; `//@ edition:`; review-aware `--mark-verified`.
+- `docs/gates/phase-2.md`: three defects found and fixed during the phase (`<{}>` in `html!`, check-time evaluation of template assertions, `openat2` mode), and the known `from_template` check-versus-build gap.
 - Phase 1 profile in `cargo corten check`: clippy-driver wraps every local crate; forbidden lints `unsafe_code`, `unused_must_use`, `disallowed_methods`/`disallowed_types` (ambient `std` authority, `catch_unwind`, destructor-skipping APIs), `arithmetic_side_effects`, `as_conversions`, `let_underscore_must_use`, `mem_forget`; `overflow-checks=on`; a checker-owned `clippy.toml` in a private directory.
 - Overrides found by measurement: forced `[env]` `CLIPPY_CONF_DIR` and `RUSTC_BOOTSTRAP` pinned with `cargo --config`; a repository `clippy.toml` ignored; local path dependencies outside the workspace linted. Each has a test with a live control.
 - `corten-corpus` and `corpus/`: 93 cases; 85 E rows verified with 0 false rejections; `docs/gates/phase-1.md` with the bypass hunt (two bypasses found: `thread::join` as a catch-all, and `unsafe` from a dependency's macro, recorded on the 43 rows it affects).
