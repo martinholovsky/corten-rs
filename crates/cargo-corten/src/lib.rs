@@ -6,7 +6,11 @@
 //! (`docs/spec.md` section 10, `AGENTS.md` rule 3). The crate README lists
 //! what is neutralised today and what is not.
 
+pub mod deps;
+pub mod json;
 pub mod profile;
+pub mod provenance;
+pub mod sha256;
 
 use std::ffi::OsString;
 use std::fmt;
@@ -171,21 +175,9 @@ fn pin_env(name: &str, value: &str) -> [String; 4] {
     ]
 }
 
-/// The `cargo check` invocation that builds a crate under the Corten profile,
-/// with Clippy reading its configuration from `conf_dir` (which must hold the
-/// checker's `clippy.toml`).
-///
-/// The command inherits stdio; the caller runs it and reads its status.
-///
-/// # Errors
-///
-/// Returns [`ConfDirError`] if `conf_dir` cannot be written into a TOML
-/// literal string.
-pub fn check_command(
-    toolchain: &Toolchain,
-    manifest_path: Option<&Path>,
-    conf_dir: &Path,
-) -> Result<Command, ConfDirError> {
+/// A cargo command with the checker's environment and `--config` pins,
+/// before the subcommand: `cargo --config ... <args>`.
+fn pinned_cargo(toolchain: &Toolchain, conf_dir: &Path) -> Result<Command, ConfDirError> {
     let conf = conf_dir
         .to_str()
         .filter(|s| !s.contains(['\'', '\n', '\r']))
@@ -198,13 +190,6 @@ pub fn check_command(
             RUSTC_BOOTSTRAP_OFF
         };
         cmd.args(pin_env(name, value));
-    }
-    cmd.args(["check", "--workspace", "--all-targets"]);
-    if let Some(path) = manifest_path {
-        // One argument, so a path beginning with `-` cannot be read as a flag.
-        let mut arg = OsString::from("--manifest-path=");
-        arg.push(path);
-        cmd.arg(arg);
     }
     for name in REMOVED_ENV {
         cmd.env_remove(name);
@@ -227,6 +212,205 @@ pub fn check_command(
         "CARGO_ENCODED_RUSTFLAGS",
         profile_rustflags().join(ENCODED_FLAG_SEPARATOR),
     );
+    Ok(cmd)
+}
+
+/// One argument, so a path beginning with `-` cannot be read as a flag.
+fn manifest_arg(path: &Path) -> OsString {
+    let mut arg = OsString::from("--manifest-path=");
+    arg.push(path);
+    arg
+}
+
+/// The `cargo check` invocation that builds a crate under the Corten profile,
+/// with Clippy reading its configuration from `conf_dir` (which must hold the
+/// checker's `clippy.toml`).
+///
+/// The command inherits stdio; the caller runs it and reads its status.
+/// With `sandbox`, cargo runs inside `corten-sandbox` from vendored sources
+/// (`--locked --offline`), as [`build_command`] does, so build scripts and
+/// procedural macros are confined during a check too.
+///
+/// # Errors
+///
+/// Returns [`ConfDirError`] if `conf_dir` cannot be written into a TOML
+/// literal string.
+pub fn check_command(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf_dir: &Path,
+    sandbox: Option<&BuildSandbox>,
+) -> Result<Command, ConfDirError> {
+    let inner = pinned_cargo(toolchain, conf_dir)?;
+    let mut cmd = match sandbox {
+        None => inner,
+        Some(s) => sandboxed(&inner, s, conf_dir),
+    };
+    cmd.args(["check", "--workspace", "--all-targets"]);
+    if sandbox.is_some() {
+        cmd.args(["--locked", "--offline"]);
+    }
+    if let Some(path) = manifest_path {
+        cmd.arg(manifest_arg(path));
+    }
+    Ok(cmd)
+}
+
+/// Where a hermetic build may read and write (Linux, `corten-sandbox`).
+///
+/// Where a sandboxed check or build runs. Dependencies are vendored into
+/// the target directory first (`cargo vendor`, outside the sandbox), so the sandboxed cargo reads only
+/// the workspace, the vendored sources and the toolchain, uses a private
+/// `CARGO_HOME` inside the target directory, and never sees the user's
+/// `~/.cargo`, where a build script could otherwise plant a program.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildSandbox {
+    /// The `corten-sandbox` binary.
+    pub sandbox: PathBuf,
+    /// The toolchain root (cargo, rustc, clippy-driver and their libraries).
+    pub toolchain_root: PathBuf,
+    /// The workspace being built (read-only).
+    pub workspace_root: PathBuf,
+    /// Further read-only paths: local path dependencies outside the
+    /// workspace, and the `Cargo.toml` files cargo reads above them to find
+    /// their own workspace.
+    pub local_paths: Vec<PathBuf>,
+    /// The target directory (read-write; holds the vendored sources, the
+    /// private cargo home and the temporary directory).
+    pub target_dir: PathBuf,
+    /// The source-replacement configuration `cargo vendor` printed.
+    pub vendor_config: PathBuf,
+}
+
+impl BuildSandbox {
+    /// The private `CARGO_HOME`.
+    #[must_use]
+    pub fn cargo_home(&self) -> PathBuf {
+        self.target_dir.join("corten-home")
+    }
+
+    /// The private temporary directory.
+    #[must_use]
+    pub fn tmp_dir(&self) -> PathBuf {
+        self.target_dir.join("corten-tmp")
+    }
+}
+
+/// `inner` run inside `corten-sandbox` with the grants a cargo run needs:
+/// the system directories, execute on the toolchain, read-only on the
+/// workspace and `conf_dir`, read-write on the target directory, no network.
+/// `inner`'s environment carries over, with a private `TMPDIR` and
+/// `CARGO_HOME`, and cargo reads the vendored sources through
+/// `--config <vendor_config>`.
+fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
+    let mut outer = Command::new(&s.sandbox);
+    outer
+        .arg("--system")
+        .arg("--exec")
+        .arg(&s.toolchain_root)
+        .arg("--ro")
+        .arg(&s.workspace_root)
+        .arg("--ro")
+        .arg(conf_dir);
+    for path in &s.local_paths {
+        outer.arg("--ro").arg(path);
+    }
+    outer
+        // cargo reads /proc/self and random bytes, and gives children
+        // /dev/null; it reads nothing else of the host (strace, 2026-10-27).
+        .args(["--ro", "/proc", "--ro", "/dev/urandom", "--rw", "/dev/null"])
+        .arg("--rw")
+        .arg(&s.target_dir)
+        .arg("--")
+        .arg(inner.get_program())
+        .args(inner.get_args())
+        .arg("--config")
+        .arg(&s.vendor_config);
+    for (key, value) in inner.get_envs() {
+        match value {
+            Some(v) => outer.env(key, v),
+            None => outer.env_remove(key),
+        };
+    }
+    outer.env("TMPDIR", s.tmp_dir());
+    outer.env("CARGO_HOME", s.cargo_home());
+    outer
+}
+
+/// `cargo build --workspace --release --locked --offline` under the profile.
+/// With `sandbox`, cargo runs inside `corten-sandbox`: no network, the
+/// toolchain, registry cache and sources read-only, only the target
+/// directory writable. Build scripts and procedural macros run inside it.
+///
+/// # Errors
+///
+/// As [`check_command`].
+pub fn build_command(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf_dir: &Path,
+    sandbox: Option<&BuildSandbox>,
+) -> Result<Command, ConfDirError> {
+    let inner = pinned_cargo(toolchain, conf_dir)?;
+    let mut cmd = match sandbox {
+        None => inner,
+        Some(s) => sandboxed(&inner, s, conf_dir),
+    };
+    cmd.args(["build", "--workspace", "--release", "--locked", "--offline"]);
+    if let Some(path) = manifest_path {
+        cmd.arg(manifest_arg(path));
+    }
+    Ok(cmd)
+}
+
+/// `cargo vendor --versioned-dirs DIR`, outside the sandbox: copies every
+/// dependency's source into `vendor_dir` and prints the source-replacement
+/// configuration for the sandboxed, offline run. With `locked`, a lock file
+/// that needs updating is an error (a build); without it, cargo writes the
+/// lock file as a plain `cargo check` would (a check).
+///
+/// # Errors
+///
+/// As [`check_command`].
+pub fn vendor_command(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf_dir: &Path,
+    vendor_dir: &Path,
+    locked: bool,
+) -> Result<Command, ConfDirError> {
+    let mut cmd = pinned_cargo(toolchain, conf_dir)?;
+    cmd.arg("vendor");
+    if locked {
+        cmd.arg("--locked");
+    }
+    // --respect-source-config: vendor from the same sources a plain build of
+    // this repository would use (mirrors, directory sources).
+    cmd.args(["--versioned-dirs", "--respect-source-config"])
+        .arg(vendor_dir);
+    if let Some(path) = manifest_path {
+        cmd.arg(manifest_arg(path));
+    }
+    Ok(cmd)
+}
+
+/// The `cargo metadata` invocation the dependency policy reads, under the
+/// same environment as the check (so the repository's configuration cannot
+/// run a program here either).
+///
+/// # Errors
+///
+/// As [`check_command`].
+pub fn metadata_command(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf_dir: &Path,
+) -> Result<Command, ConfDirError> {
+    let mut cmd = pinned_cargo(toolchain, conf_dir)?;
+    cmd.args(["metadata", "--format-version", "1"]);
+    if let Some(path) = manifest_path {
+        cmd.arg(manifest_arg(path));
+    }
     Ok(cmd)
 }
 
@@ -260,7 +444,7 @@ mod tests {
     }
 
     fn command(manifest: Option<&Path>) -> Command {
-        check_command(&toolchain(), manifest, Path::new("/conf")).unwrap()
+        check_command(&toolchain(), manifest, Path::new("/conf"), None).unwrap()
     }
 
     #[test]
@@ -341,7 +525,7 @@ mod tests {
     fn conf_dir_that_breaks_toml_is_refused() {
         for bad in ["/a'b", "/a\nb"] {
             assert!(
-                check_command(&toolchain(), None, Path::new(bad)).is_err(),
+                check_command(&toolchain(), None, Path::new(bad), None).is_err(),
                 "{bad:?}"
             );
         }

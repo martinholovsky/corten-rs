@@ -6,6 +6,16 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Phase 3, `corten-runtime`: a supervision tree (`one_for_one`, `Permanent`/`Transient`/`Temporary`, a restart-intensity limit, cooperative shutdown) that contains a panic without `catch_unwind`.
+- Phase 3, `corten-sandbox`: a Landlock launcher (ABI v4 required, exit 3 otherwise) with `--ro`/`--rw`/`--exec`/`--system`/`--allow-net`, and a layer 5 mode that turns a signed capability manifest into the rules. Owner decision 11: the `landlock` crate, with Unicode-3.0 allowed in `deny.toml`.
+- Phase 3, `corten-broker`: a process broker (deadline, input and output quotas, cleared environment, no descriptors), a Wasm broker on `wasmi` 2.0.0 (owner decision 12; no imports, fuel, memory and output limits) and size-checked IPC frames.
+- `cargo corten build` (Linux): profile and dependency policy, then `cargo vendor`, then an offline `cargo build --release` inside `corten-sandbox`; `--sbom` (CycloneDX 1.5) and `--provenance` (unsigned in-toto v1 / SLSA v1, with a dependency-free SHA-256). `scripts/hermetic-smoke.sh` tests it end to end and runs in CI.
+- Layer 3 dependency policy in `cargo corten check` and `build`: reachable dependencies whose `unsafe` macros or proc macros the local code uses are refused, as is a ban list (backtracking regex engines, `libxml`); fail closed on scan limits; operator allowlist `--allow-dep` / `CORTEN_ALLOW_DEPS`. Closes the Phase 1 dependency-macro bypass except for allowlisted packages.
+- Layer 4: `action.yml`, a composite GitHub Action running `cargo corten check` or `build`; a CI self-test builds a fresh crate with it.
+- `cargo corten check` runs inside `corten-sandbox` on Linux, like `build` (owner decision); off Linux it warns. Local path dependencies outside the workspace are granted read-only.
+- `corten-sandbox` refuses to start while a descriptor above 2 lacks close-on-exec (owner decision), after CI showed the runner's leaked descriptors reaching the sandboxed child. `scripts/close-leaked-fds.sh` closes them; CI and the action use it.
+- Corpus: five Phase 3 cases and the `//@ fake-dep:` directive; CWE-403 verified (136 of 175). `docs/gates/phase-3.md`, with the defects found during the phase.
+- Spec open questions 11 and 12 decided, and question 10 set to a Phase 3b trial.
 - Phase 2, `corten-std`: `PathSeg`/`RelPath` per docs/pathseg.md; `DirCap` on `openat2` (Linux; refused elsewhere) with exclusive 0600 temp files; typed sinks with compile-time templates and no raw constructors (`sql!`, `html!`, `process!`, `log_record!`, `text!`, `ldap_filter!`, `ldap_dn!`, `xpath!`, `xquery!`, `HeaderValue`, `SetCookie`, `CsvCell`) and driver traits that accept only them; `Secret`; the Ed25519-signed capability manifest.
 - Corpus: 76 Phase 2 cases (path, process and sink rows), 0 false rejections; 50 rows newly verified (135 of 175 in all). Ledger column `review`: 26 encoder-backed rows wait for an independent review.
 - Corpus runner: per-worker target directories; `//@ edition:`; review-aware `--mark-verified`.

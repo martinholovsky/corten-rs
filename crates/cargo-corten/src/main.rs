@@ -1,38 +1,68 @@
 //! `cargo corten`: builds a crate under the Corten profile.
 //!
-//! Exit status: 0 when the build passes, 1 when it fails (a rule or an
-//! ordinary compile error), 2 for a usage or environment error.
+//! Exit status: 0 when the check passes, 1 when it fails (a dependency the
+//! policy refuses, a profile rule, or an ordinary compile error), 2 for a
+//! usage or environment error.
 
+use std::collections::BTreeSet;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{ExitCode, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cargo_corten::{Toolchain, check_command, profile};
+use cargo_corten::json::Json;
+use cargo_corten::provenance::{Artifact, BuildFacts};
+use cargo_corten::{
+    BuildSandbox, Toolchain, build_command, check_command, deps, metadata_command, profile,
+    profile_rustflags, provenance, sha256, vendor_command,
+};
 
 const USAGE: &str = "\
 Build a crate under the Corten profile, with flags the checker supplies itself.
 
-Usage: cargo corten check [--manifest-path <PATH>]
+Usage: cargo corten check [--manifest-path <PATH>] [--allow-dep <NAME>]...
+       cargo corten build [--manifest-path <PATH>] [--allow-dep <NAME>]...
+                          [--sbom <FILE>] [--provenance <FILE>]
+
+`build` builds --release --locked --offline inside corten-sandbox (Linux):
+no network, sources and toolchain read-only, only the target directory
+writable. It refuses to run where the sandbox cannot be enforced.
 
 Options:
       --manifest-path <PATH>  Path to Cargo.toml (default: search from the current directory)
+      --allow-dep <NAME>      Accept a dependency the policy refuses (NAME or NAME@VERSION);
+                              also read, comma-separated, from CORTEN_ALLOW_DEPS
+      --sbom <FILE>           build: write a CycloneDX SBOM
+      --provenance <FILE>     build: write an unsigned in-toto/SLSA provenance statement
   -h, --help                  Print help
   -V, --version               Print version
 
-Exit status: 0 passed, 1 build failed, 2 usage or environment error.
+Exit status: 0 passed, 1 refused or failed to build, 2 usage or environment error.
 ";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 
+/// Largest `cargo metadata` output read.
+const MAX_METADATA_BYTES: usize = 256 * 1024 * 1024;
+
+#[derive(Debug, PartialEq, Eq)]
 enum Invocation {
     Help,
     Version,
-    Check { manifest_path: Option<PathBuf> },
+    Check {
+        manifest_path: Option<PathBuf>,
+        allow_deps: Vec<String>,
+    },
+    Build {
+        manifest_path: Option<PathBuf>,
+        allow_deps: Vec<String>,
+        sbom: Option<PathBuf>,
+        provenance: Option<PathBuf>,
+    },
 }
 
 fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String> {
@@ -43,6 +73,9 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
     }
     let mut subcommand = None;
     let mut manifest_path = None;
+    let mut allow_deps = Vec::new();
+    let mut sbom = None;
+    let mut provenance = None;
     while let Some(arg) = args.next() {
         let Some(text) = arg.to_str() else {
             return Err(format!("unexpected argument {}", arg.display()));
@@ -58,13 +91,37 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
                 let value = text.trim_start_matches("--manifest-path=");
                 manifest_path = Some(PathBuf::from(value));
             }
-            "check" if subcommand.is_none() => subcommand = Some(()),
+            "--allow-dep" => {
+                let value = args.next().ok_or("--allow-dep needs a value")?;
+                let value = value.to_str().ok_or("--allow-dep value must be UTF-8")?;
+                allow_deps.push(value.to_owned());
+            }
+            _ if text.starts_with("--allow-dep=") => {
+                allow_deps.push(text.trim_start_matches("--allow-dep=").to_owned());
+            }
+            "--sbom" => sbom = Some(PathBuf::from(args.next().ok_or("--sbom needs a file")?)),
+            "--provenance" => {
+                provenance = Some(PathBuf::from(
+                    args.next().ok_or("--provenance needs a file")?,
+                ));
+            }
+            "check" | "build" if subcommand.is_none() => subcommand = Some(text.to_owned()),
             _ => return Err(format!("unexpected argument '{text}'")),
         }
     }
-    match subcommand {
-        Some(()) => Ok(Invocation::Check { manifest_path }),
-        None => Err("missing subcommand; the only one is `check`".to_owned()),
+    match subcommand.as_deref() {
+        Some("check") if sbom.is_none() && provenance.is_none() => Ok(Invocation::Check {
+            manifest_path,
+            allow_deps,
+        }),
+        Some("check") => Err("--sbom and --provenance belong to `build`".to_owned()),
+        Some(_) => Ok(Invocation::Build {
+            manifest_path,
+            allow_deps,
+            sbom,
+            provenance,
+        }),
+        None => Err("missing subcommand: `check` or `build`".to_owned()),
     }
 }
 
@@ -115,40 +172,279 @@ impl Drop for ConfDir {
     }
 }
 
-fn main() -> ExitCode {
-    let invocation = match parse(env::args_os().skip(1)) {
-        Ok(invocation) => invocation,
-        Err(message) => {
-            eprintln!("error: {message}\n\n{USAGE}");
-            return ExitCode::from(EXIT_USAGE);
-        }
+/// Layer 3: refuses dependencies the policy does not accept. `Ok(true)`
+/// means the check may go on.
+fn dependency_policy(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &Path,
+    allow: &BTreeSet<String>,
+) -> Result<(bool, Json), String> {
+    let mut cmd = metadata_command(toolchain, manifest_path, conf).map_err(|e| e.to_string())?;
+    let out = cmd
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|e| format!("could not run cargo metadata: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("cargo metadata failed ({})", out.status));
+    }
+    if out.stdout.len() > MAX_METADATA_BYTES {
+        return Err("cargo metadata output is too large".to_owned());
+    }
+    let text = String::from_utf8(out.stdout)
+        .map_err(|_| "cargo metadata output is not UTF-8".to_owned())?;
+    let metadata = Json::parse(&text).map_err(|e| e.to_string())?;
+    let findings =
+        deps::audit(&metadata, allow, deps::Limits::default()).map_err(|e| e.to_string())?;
+    if findings.is_empty() {
+        return Ok((true, metadata));
+    }
+    eprintln!(
+        "cargo corten check: dependency policy (layer 3) refused {} package(s):",
+        findings.len()
+    );
+    for finding in &findings {
+        eprintln!("  {finding}");
+    }
+    eprintln!("Accept one with --allow-dep <NAME> or CORTEN_ALLOW_DEPS after reviewing it.");
+    Ok((false, metadata))
+}
+
+/// The `corten-sandbox` to build in: `CORTEN_SANDBOX`, or the one installed
+/// next to this binary.
+fn find_sandbox() -> Result<PathBuf, String> {
+    if !cfg!(target_os = "linux") {
+        return Err(
+            "hermetic builds need Linux (Landlock); refusing to build unconfined".to_owned(),
+        );
+    }
+    let path = match env::var_os("CORTEN_SANDBOX") {
+        Some(p) => PathBuf::from(p),
+        None => env::current_exe()
+            .map_err(|e| e.to_string())?
+            .with_file_name("corten-sandbox"),
     };
-    let manifest_path = match invocation {
-        Invocation::Help => {
-            print!("{USAGE}");
-            return ExitCode::SUCCESS;
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(format!(
+            "{} not found; install corten-sandbox or set CORTEN_SANDBOX",
+            path.display()
+        ))
+    }
+}
+
+fn str_field<'a>(j: &'a Json, key: &str) -> Result<&'a str, String> {
+    j.get(key)
+        .and_then(Json::as_str)
+        .ok_or_else(|| format!("cargo metadata has no {key}"))
+}
+
+/// Binaries the workspace members produce, with their digests.
+fn artifacts(metadata: &Json, target_dir: &Path) -> Vec<Artifact> {
+    let members: BTreeSet<&str> = metadata
+        .get("workspace_members")
+        .and_then(Json::as_array)
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(Json::as_str)
+        .collect();
+    let mut out = Vec::new();
+    for pkg in metadata
+        .get("packages")
+        .and_then(Json::as_array)
+        .unwrap_or(&[])
+    {
+        if !pkg
+            .get("id")
+            .and_then(Json::as_str)
+            .is_some_and(|id| members.contains(id))
+        {
+            continue;
         }
-        Invocation::Version => {
-            println!("cargo-corten {}", env!("CARGO_PKG_VERSION"));
-            return ExitCode::SUCCESS;
+        for target in pkg.get("targets").and_then(Json::as_array).unwrap_or(&[]) {
+            let is_bin = target
+                .get("kind")
+                .and_then(Json::as_array)
+                .unwrap_or(&[])
+                .iter()
+                .any(|k| k.as_str() == Some("bin"));
+            let Some(name) = target.get("name").and_then(Json::as_str) else {
+                continue;
+            };
+            let rel = format!("release/{name}{}", env::consts::EXE_SUFFIX);
+            if is_bin && let Ok(bytes) = fs::read(target_dir.join(&rel)) {
+                out.push(Artifact {
+                    name: rel,
+                    sha256: sha256::hex_digest(&bytes),
+                });
+            }
         }
-        Invocation::Check { manifest_path } => manifest_path,
+    }
+    out
+}
+
+struct BuildRequest<'a> {
+    toolchain: &'a Toolchain,
+    manifest_path: Option<&'a Path>,
+    conf: &'a Path,
+    metadata: &'a Json,
+    sbom: Option<&'a Path>,
+    provenance: Option<&'a Path>,
+}
+
+/// Local packages (no `source`) outside `workspace_root`, and every
+/// `Cargo.toml` above each of them: cargo reads those to find the package's
+/// own workspace, for inherited fields. Registry and git packages are
+/// vendored and need no grant.
+fn local_paths(metadata: &Json, workspace_root: &Path) -> Vec<PathBuf> {
+    let mut out = BTreeSet::new();
+    for pkg in metadata
+        .get("packages")
+        .and_then(Json::as_array)
+        .unwrap_or(&[])
+    {
+        if pkg.get("source").is_some_and(|s| *s != Json::Null) {
+            continue;
+        }
+        let Some(dir) = pkg
+            .get("manifest_path")
+            .and_then(Json::as_str)
+            .and_then(|m| Path::new(m).parent())
+        else {
+            continue;
+        };
+        if dir.starts_with(workspace_root) {
+            continue;
+        }
+        out.insert(dir.to_path_buf());
+        for ancestor in dir.ancestors().skip(1) {
+            let manifest = ancestor.join("Cargo.toml");
+            if manifest.is_file() {
+                out.insert(manifest);
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// Vendors the dependencies (outside the sandbox: the only step with
+/// network access) and returns where a sandboxed check or build runs.
+/// `locked` is passed to `cargo vendor`.
+fn prepare_sandbox(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &Path,
+    metadata: &Json,
+    locked: bool,
+) -> Result<BuildSandbox, String> {
+    let sandbox = find_sandbox()?;
+    let workspace_root = PathBuf::from(str_field(metadata, "workspace_root")?);
+    let target_dir = PathBuf::from(str_field(metadata, "target_directory")?);
+    let toolchain_root = toolchain
+        .cargo
+        .parent()
+        .and_then(Path::parent)
+        .ok_or("cannot find the toolchain root")?
+        .to_path_buf();
+    let vendor_dir = target_dir.join("corten-vendor");
+    let mut vendor = vendor_command(toolchain, manifest_path, conf, &vendor_dir, locked)
+        .map_err(|e| e.to_string())?;
+    let vendored = vendor
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|e| format!("cannot run cargo vendor: {e}"))?;
+    if !vendored.status.success() {
+        return Err(format!("cargo vendor failed ({})", vendored.status));
+    }
+    let vendor_config = target_dir.join("corten-vendor.toml");
+    fs::write(&vendor_config, &vendored.stdout)
+        .map_err(|e| format!("{}: {e}", vendor_config.display()))?;
+    let local_paths = local_paths(metadata, &workspace_root);
+    let plan = BuildSandbox {
+        sandbox,
+        toolchain_root,
+        workspace_root,
+        local_paths,
+        target_dir,
+        vendor_config,
     };
-    let toolchain = match Toolchain::from_env(env::var_os("CARGO"), env::var_os("RUSTC")) {
-        Ok(toolchain) => toolchain,
-        Err(e) => {
-            eprintln!("error: {e}");
-            return ExitCode::from(EXIT_USAGE);
+    for dir in [plan.cargo_home(), plan.tmp_dir()] {
+        fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    Ok(plan)
+}
+
+/// Vendor, then build inside the sandbox, then write the SBOM and provenance.
+fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
+    let plan = prepare_sandbox(
+        req.toolchain,
+        req.manifest_path,
+        req.conf,
+        req.metadata,
+        true,
+    )?;
+    let (workspace_root, target_dir) = (&plan.workspace_root, &plan.target_dir);
+    let mut build = build_command(req.toolchain, req.manifest_path, req.conf, Some(&plan))
+        .map_err(|e| e.to_string())?;
+    let build_status = build
+        .status()
+        .map_err(|e| format!("cannot run the sandboxed build: {e}"))?;
+    if !build_status.success() {
+        return Err(format!("sandboxed build failed ({build_status})"));
+    }
+
+    if let Some(path) = req.sbom {
+        fs::write(path, provenance::sbom(req.metadata))
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    if let Some(path) = req.provenance {
+        let lock =
+            fs::read(workspace_root.join("Cargo.lock")).map_err(|e| format!("Cargo.lock: {e}"))?;
+        let rustc = std::process::Command::new(&req.toolchain.rustc)
+            .arg("-vV")
+            .output()
+            .map_err(|e| format!("rustc -vV: {e}"))?;
+        let flags = profile_rustflags();
+        let facts = BuildFacts {
+            checker: env!("CARGO_PKG_VERSION"),
+            rustc: &String::from_utf8_lossy(&rustc.stdout),
+            profile_flags: &flags,
+            lock_sha256: &sha256::hex_digest(&lock),
+            sandboxed: true,
+        };
+        let statement = provenance::statement(&artifacts(req.metadata, target_dir), &facts);
+        fs::write(path, statement).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// `cargo corten check` after the dependency policy passed.
+fn run_check(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &ConfDir,
+    metadata: &Json,
+) -> ExitCode {
+    // On Linux the check runs inside the sandbox, as the build does: build
+    // scripts and procedural macros execute during a check. Elsewhere there
+    // is no sandbox, and the check says so.
+    let plan = if cfg!(target_os = "linux") {
+        match prepare_sandbox(toolchain, manifest_path, conf.path(), metadata, false) {
+            Ok(plan) => Some(plan),
+            Err(e) => {
+                // Fail closed: no sandbox, no check.
+                eprintln!("cargo corten check: {e}");
+                return ExitCode::from(EXIT_FAILED);
+            }
         }
+    } else {
+        eprintln!(
+            "warning: no sandbox on this platform: build scripts and procedural macros run with your privileges"
+        );
+        None
     };
-    let conf = match ConfDir::create() {
-        Ok(conf) => conf,
-        Err(e) => {
-            eprintln!("error: could not create the Clippy configuration directory: {e}");
-            return ExitCode::from(EXIT_USAGE);
-        }
-    };
-    let mut command = match check_command(&toolchain, manifest_path.as_deref(), conf.path()) {
+    let mut command = match check_command(toolchain, manifest_path, conf.path(), plan.as_ref()) {
         Ok(command) => command,
         Err(e) => {
             eprintln!("error: {e}");
@@ -170,6 +466,91 @@ fn main() -> ExitCode {
     }
 }
 
+fn main() -> ExitCode {
+    let invocation = match parse(env::args_os().skip(1)) {
+        Ok(invocation) => invocation,
+        Err(message) => {
+            eprintln!("error: {message}\n\n{USAGE}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+    let (manifest_path, mut allow_deps, build) = match invocation {
+        Invocation::Help => {
+            print!("{USAGE}");
+            return ExitCode::SUCCESS;
+        }
+        Invocation::Version => {
+            println!("cargo-corten {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        Invocation::Check {
+            manifest_path,
+            allow_deps,
+        } => (manifest_path, allow_deps, None),
+        Invocation::Build {
+            manifest_path,
+            allow_deps,
+            sbom,
+            provenance,
+        } => (manifest_path, allow_deps, Some((sbom, provenance))),
+    };
+    if let Some(list) = env::var_os("CORTEN_ALLOW_DEPS") {
+        let Some(list) = list.to_str() else {
+            eprintln!("error: CORTEN_ALLOW_DEPS must be UTF-8");
+            return ExitCode::from(EXIT_USAGE);
+        };
+        allow_deps.extend(
+            list.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
+        );
+    }
+    let allow: BTreeSet<String> = allow_deps.into_iter().collect();
+    let toolchain = match Toolchain::from_env(env::var_os("CARGO"), env::var_os("RUSTC")) {
+        Ok(toolchain) => toolchain,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+    let conf = match ConfDir::create() {
+        Ok(conf) => conf,
+        Err(e) => {
+            eprintln!("error: could not create the Clippy configuration directory: {e}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+    let metadata =
+        match dependency_policy(&toolchain, manifest_path.as_deref(), conf.path(), &allow) {
+            Ok((true, metadata)) => metadata,
+            Ok((false, _)) => return ExitCode::from(EXIT_FAILED),
+            Err(e) => {
+                // Fail closed: a policy that could not run did not pass.
+                eprintln!("error: dependency policy could not run: {e}");
+                return ExitCode::from(EXIT_FAILED);
+            }
+        };
+    if let Some((sbom, provenance)) = build {
+        let req = BuildRequest {
+            toolchain: &toolchain,
+            manifest_path: manifest_path.as_deref(),
+            conf: conf.path(),
+            metadata: &metadata,
+            sbom: sbom.as_deref(),
+            provenance: provenance.as_deref(),
+        };
+        return match hermetic_build(&req) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("cargo corten build: {e}");
+                ExitCode::from(EXIT_FAILED)
+            }
+        };
+    }
+    run_check(&toolchain, manifest_path.as_deref(), &conf, &metadata)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,33 +561,68 @@ mod tests {
 
     #[test]
     fn accepts_cargo_subcommand_form() {
-        assert!(matches!(
+        assert_eq!(
             run(&["corten", "check"]),
             Ok(Invocation::Check {
-                manifest_path: None
+                manifest_path: None,
+                allow_deps: Vec::new()
             })
-        ));
+        );
     }
 
     #[test]
-    fn accepts_both_manifest_path_forms() {
-        for args in [
-            &["check", "--manifest-path", "a/Cargo.toml"][..],
-            &["check", "--manifest-path=a/Cargo.toml"][..],
-        ] {
-            let Ok(Invocation::Check { manifest_path }) = run(args) else {
-                panic!("{args:?} did not parse");
-            };
-            assert_eq!(manifest_path, Some(PathBuf::from("a/Cargo.toml")));
-        }
+    fn accepts_both_manifest_path_and_allow_dep_forms() {
+        let parsed = run(&[
+            "check",
+            "--manifest-path",
+            "a/Cargo.toml",
+            "--allow-dep",
+            "serde_derive",
+            "--allow-dep=x@1.0.0",
+        ]);
+        assert_eq!(
+            parsed,
+            Ok(Invocation::Check {
+                manifest_path: Some(PathBuf::from("a/Cargo.toml")),
+                allow_deps: vec!["serde_derive".to_owned(), "x@1.0.0".to_owned()]
+            })
+        );
+        let Ok(Invocation::Check { manifest_path, .. }) =
+            run(&["check", "--manifest-path=b/Cargo.toml"])
+        else {
+            panic!("did not parse");
+        };
+        assert_eq!(manifest_path, Some(PathBuf::from("b/Cargo.toml")));
+    }
+
+    #[test]
+    fn parses_build_with_outputs() {
+        assert_eq!(
+            run(&[
+                "corten",
+                "build",
+                "--sbom",
+                "s.json",
+                "--provenance",
+                "p.json"
+            ]),
+            Ok(Invocation::Build {
+                manifest_path: None,
+                allow_deps: Vec::new(),
+                sbom: Some(PathBuf::from("s.json")),
+                provenance: Some(PathBuf::from("p.json")),
+            })
+        );
+        assert!(run(&["check", "--sbom", "s.json"]).is_err());
     }
 
     #[test]
     fn rejects_unknown_and_missing_arguments() {
         assert!(run(&["check", "--release"]).is_err());
-        assert!(run(&["build"]).is_err());
+        assert!(run(&["install"]).is_err());
         assert!(run(&["corten"]).is_err());
         assert!(run(&["check", "--manifest-path"]).is_err());
+        assert!(run(&["check", "--allow-dep"]).is_err());
         assert!(run(&["check", "check"]).is_err());
     }
 }

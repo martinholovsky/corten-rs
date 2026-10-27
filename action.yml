@@ -1,0 +1,76 @@
+# Layer 4 (spec section 4.15): run `cargo corten` in a caller's workflow.
+#
+# Builds cargo-corten (and, for `build`, corten-sandbox) from this action's
+# own checkout with the action's lockfile, then runs it in the caller's
+# workspace. Inputs reach the shell through the environment, never through
+# expression interpolation, so a crafted input cannot inject shell.
+name: corten
+description: Check a Rust workspace against the Corten profile, or build it hermetically with an SBOM and provenance.
+inputs:
+  command:
+    description: "`check` or `build`."
+    required: false
+    default: check
+  manifest-path:
+    description: Path to the caller's Cargo.toml.
+    required: false
+    default: Cargo.toml
+  allow-deps:
+    description: Comma-separated dependency names the operator accepts despite layer 3 (CORTEN_ALLOW_DEPS).
+    required: false
+    default: ""
+  out-dir:
+    description: Directory for sbom.json and provenance.json (`build` only).
+    required: false
+    default: corten-out
+outputs:
+  sbom:
+    description: Path of the CycloneDX SBOM (`build` only).
+    value: ${{ steps.run.outputs.sbom }}
+  provenance:
+    description: Path of the unsigned in-toto statement (`build` only); sign it with an attestation step.
+    value: ${{ steps.run.outputs.provenance }}
+runs:
+  using: composite
+  steps:
+    - name: Build cargo-corten
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        TOOLS_TARGET: ${{ runner.temp }}/corten-tools
+      run: |
+        set -euo pipefail
+        cd "$ACTION_PATH"
+        rustup toolchain install
+        cargo build --release --locked --target-dir "$TOOLS_TARGET" -p cargo-corten -p corten-sandbox
+        printf '%s\n' "$TOOLS_TARGET/release" >> "$GITHUB_PATH"
+    - name: Run cargo corten
+      id: run
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CORTEN_COMMAND: ${{ inputs.command }}
+        CORTEN_MANIFEST: ${{ inputs.manifest-path }}
+        CORTEN_ALLOW_DEPS: ${{ inputs.allow-deps }}
+        CORTEN_OUT: ${{ inputs.out-dir }}
+      run: |
+        set -euo pipefail
+        # corten-sandbox refuses to start while a descriptor without
+        # close-on-exec is open; the runner leaks some into every step.
+        corten() { bash "$ACTION_PATH/scripts/close-leaked-fds.sh" cargo corten "$@"; }
+        case "$CORTEN_COMMAND" in
+          check)
+            corten check --manifest-path "$CORTEN_MANIFEST"
+            ;;
+          build)
+            mkdir -p "$CORTEN_OUT"
+            corten build --manifest-path "$CORTEN_MANIFEST" \
+              --sbom "$CORTEN_OUT/sbom.json" --provenance "$CORTEN_OUT/provenance.json"
+            printf 'sbom=%s\n' "$CORTEN_OUT/sbom.json" >> "$GITHUB_OUTPUT"
+            printf 'provenance=%s\n' "$CORTEN_OUT/provenance.json" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            printf 'command must be check or build, got: %s\n' "$CORTEN_COMMAND" >&2
+            exit 2
+            ;;
+        esac
