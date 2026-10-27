@@ -2,7 +2,7 @@
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
 
-> Status: **Phases 0 to 3 implemented; the Phase 1 to 3 gates are partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. `corten-std` provides directory capabilities on `openat2`, typed SQL, HTML, process, log, header, CSV, LDAP and XPath sinks with compile-time templates, `Secret`, and a signed capability manifest. Phase 3 adds a supervision tree, process and Wasm brokers, a Landlock sandbox, a dependency policy, and `cargo corten build`: a sandboxed build on Linux with an SBOM and provenance. Phase 3b adds Corten's own lints as a rustc driver on a pinned nightly, which the checker requires ([`docs/gates/phase-3b.md`](docs/gates/phase-3b.md)). 141 E claims are verified by the compile-fail corpus, with 0 false rejections; 25 more pass but wait for an independent review of the encoders. Open gaps are in [`docs/gates/phase-1.md`](docs/gates/phase-1.md), [`phase-2.md`](docs/gates/phase-2.md) and [`phase-3.md`](docs/gates/phase-3.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
+> Status: **Phases 0 to 4 implemented; the Phase 1 to 3 gates are partly passed.** `cargo corten check` builds a crate under the Phase 1 profile (no `unsafe`, checked arithmetic, no `as` casts, no discarded results, no ambient `std` authority) with a configuration the checked repository cannot switch off. `corten-std` provides directory capabilities on `openat2`, typed SQL, HTML, process, log, header, CSV, LDAP and XPath sinks with compile-time templates, `Secret`, and a signed capability manifest. Phase 3 adds a supervision tree, process and Wasm brokers, a Landlock sandbox, a dependency policy, and `cargo corten build`: a sandboxed build on Linux with an SBOM and provenance. Phase 3b adds Corten's own lints as a rustc driver on a pinned nightly, which the checker requires ([`docs/gates/phase-3b.md`](docs/gates/phase-3b.md)). Phase 4 adds range refinements, confidentiality labels and lock-order contracts to `corten-std` ([`docs/gates/phase-4.md`](docs/gates/phase-4.md)). 141 E claims are verified by the compile-fail corpus, with 0 false rejections; 25 more pass but wait for an independent review of the encoders. Open gaps are in [`docs/gates/phase-1.md`](docs/gates/phase-1.md), [`phase-2.md`](docs/gates/phase-2.md) and [`phase-3.md`](docs/gates/phase-3.md). Every "impossible to write" claim in this repository is a target to be proven by tests, not a property you get today.
 
 ## What Corten is
 
@@ -16,7 +16,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Phases 0 to 3 of five are implemented, and their gates are not all passed.
+- **Not finished.** All five phases are implemented, the earlier gates are not all passed, and Phase 4's mechanisms back C rows only.
 
 ## Why "Corten"
 

@@ -4,7 +4,7 @@ Corten's capability-oriented prelude (spec sections 4.3 to 4.10; Phase 2). Under
 
 | Module | Gives | Weaknesses (ledger) |
 | --- | --- | --- |
-| `manifest` | `Capabilities::load`: the signed manifest, the only source of a root `DirCap` or an `ExecCap` | |
+| `manifest` | `Capabilities::load`: the signed manifest, the only source of a root `DirCap`, an `ExecCap` or a `DeclassifyCap` | |
 | `path`, `fs` | `PathSeg`, `RelPath`, `DirCap`, `CapFile`: opens beneath a granted directory via `openat2`; refused off Linux | CWE-22 to 40, 42 to 57, 59, 61, 64, 66, 67, 69, 72, 363, 378, 626, 1386 |
 | `process` | `ExecCap`, `ProcessInvocation`, `process!`: argv, no shell, no `PATH` search, operands after `--` | CWE-77, 78, 426 to 428 |
 | `sql` | `SqlQuery`, `sql!`, `SqlExecutor` | CWE-89, 564, 943 |
@@ -16,6 +16,9 @@ Corten's capability-oriented prelude (spec sections 4.3 to 4.10; Phase 2). Under
 | `ldap` | `LdapFilter`, `LdapDn`, `ldap_filter!`, `ldap_dn!`, `LdapSearcher` | CWE-90 |
 | `xpath` | `XPathExpr`, `XQueryExpr`, `xpath!`, `xquery!`, evaluators | CWE-91, 643, 652 |
 | `secret` | `Secret`: wiped, locked, unprintable, constant-time compare | (C: CWE-14, 316) |
+| `refine` | `Bounded<MIN, MAX>`, `bounded!` (proved at check time), `Bounded::new` and `copy_into` (runtime checks): the three-outcome rule (Phase 4) | (C) |
+| `label` | `Labeled<T, L>` over `Public < Internal < Confidential < Secret`; only `Public` reaches a sink; `declassify` needs a manifest-granted `DeclassifyCap` and is logged (Phase 4) | (C) |
+| `sync` | `lock_order!`, `OrderedMutex`, `LockRoot`: locks against the declared order do not compile (Phase 4) | (C) |
 
 ## Using the sinks
 

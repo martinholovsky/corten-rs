@@ -296,7 +296,7 @@ Done items (Phase 0, 2026-10-26) point to where the work lives: the ledger and `
 - [ ] **Mandatory resource budgets** (D). No unbounded parse, decode or allocate entry point in the prelude; budget types are required parameters.
 - [ ] **Named safe-deserialization profile** (D). No blanket `Deserialize`; every wire type declares version, nesting bound and size bound; unknown forms are rejected, not ignored (CWE-502).
 - [ ] **No ambient configuration** (D). Configuration enters only through a `ConfigCap` with a schema and provenance label; no string-keyed lookup (CWE-15, CWE-73).
-- [ ] **Flow-sensitive labels** (D). Information-flow labels are checked on `write`, `log`, `respond` and `serialize`, and propagate through parse and transcode paths.
+- [ ] **Flow-sensitive labels** (D). Information-flow labels are checked on `write`, `log`, `respond` and `serialize`, and propagate through parse and transcode paths. Partly done (Phase 4): `corten_std::label` checks them at the sinks and propagates them through `map` and `join`; tracking across control flow is not done.
 - [ ] **Every wipe intrinsic is observable** (C). Any explicit wipe, not only `Secret<T>`'s, is a side effect the optimizer must keep. CWE-14, 244, 733 and 1037 stay C.
 - [ ] **Secret spill control** (B). `Secret<T>` allocations use `mlock` and `madvise(MADV_DONTDUMP)` equivalents and LLVM attributes that forbid spilling, to address CWE-316.
 
@@ -463,9 +463,11 @@ Start without forking the compiler (tools and their versions are in section 10):
 
 ### Phase 4 — refinements and information flow (post-MVP)
 
-- [ ] Decidable refinements with the three-outcome rule (prove, runtime check, reject).
-- [ ] Flow-sensitive labels checked at write, log, respond and serialize.
-- [ ] Lock-order contracts.
+- [x] Decidable refinements with the three-outcome rule (prove, runtime check, reject): `corten_std::refine`, integer ranges and lengths.
+- [x] Labels checked at write, log, respond and serialize: `corten_std::label`, with declassification by a manifest-granted capability, recorded. Per value and over a fixed chain of levels, not flow-sensitive and without principal sets.
+- [x] Lock-order contracts: `corten_std::sync`.
+
+**Result (2026-10-27).** All three are libraries whose rules the type checker enforces, so `cargo check` and the checker see them. 11 rejection fixtures each fail with their exact message and 3 good programs pass, also under `cargo corten check`; 7 of 7 mutations are caught. They back C rows only, and no ledger row moves. Report: [`docs/gates/phase-4.md`](gates/phase-4.md).
 
 ### How each claim gets verified
 
