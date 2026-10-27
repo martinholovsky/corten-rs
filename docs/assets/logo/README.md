@@ -12,4 +12,4 @@ The mark is original. It is not derived from the Rust logo: the Rust Foundation'
 | `social-preview.svg`, `social-preview.png` | GitHub social preview, 1280×640. Upload the PNG in the repository's Settings, Social preview: GitHub has no API for it |
 | `render.sh` | Regenerates every PNG and the favicon |
 
-Palette, outer shield to core: `#B5541E`, `#8B3A1A`, `#6E2A12`, `#3A160A`; plate gradient `#F0A060` → `#D2702A` → `#A9481B`. Wordmark: Archivo ExtraBold, lower case; tagline Archivo Medium. Archivo is under the SIL Open Font License; `render.sh` takes the two TTF files as arguments.
+Palette, outer shield to core: `#B5541E`, `#8B3A1A`, `#6E2A12`, `#3A160A`; plate gradient `#F0A060` → `#D2702A` → `#A9481B`. Wordmark: Archivo ExtraBold, lower case; tagline Archivo Medium. Archivo is under the SIL Open Font License and must be installed to render; `render.sh` takes no arguments and stops if the text would render in a substitute font (it compares Archivo with a family that does not exist).
