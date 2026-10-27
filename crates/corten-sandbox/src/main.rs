@@ -97,6 +97,8 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
         match grant {
             corten_std::manifest::Grant::Dir { path, .. } => plan.read_write.push(path),
             corten_std::manifest::Grant::Exec { path, .. } => plan.execute.push(path),
+            // Not a filesystem grant: nothing for Landlock.
+            corten_std::manifest::Grant::Declassify { .. } => {}
         }
     }
     Ok(())

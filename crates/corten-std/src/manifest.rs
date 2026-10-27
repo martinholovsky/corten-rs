@@ -1,5 +1,5 @@
 //! The signed capability manifest (spec 4.3): the only source of a root
-//! [`DirCap`] or an [`ExecCap`].
+//! [`DirCap`], an [`ExecCap`] or a [`DeclassifyCap`].
 //!
 //! Format, UTF-8, one entry per line:
 //!
@@ -7,9 +7,12 @@
 //! corten-manifest 1
 //! dir uploads /srv/app/uploads
 //! exec tar /usr/bin/tar
+//! declassify report
 //! ```
 //!
-//! Names follow the `PathSeg` grammar; paths are absolute. The deployer signs
+//! Names follow the `PathSeg` grammar; paths are absolute. `declassify NAME`
+//! (Phase 4) grants the right to release a labelled value as public
+//! (`crate::label`); it names no path. The deployer signs
 //! the exact bytes with Ed25519. [`Capabilities::load`] checks the signature
 //! before it parses anything, refuses a manifest over [`MAX_MANIFEST`] bytes,
 //! and opens every directory up front, so a missing directory or a platform
@@ -18,6 +21,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
+
+use crate::label::DeclassifyCap;
 
 use crate::fs::{DirCap, FsError};
 use crate::path::PathSeg;
@@ -75,6 +80,7 @@ impl std::error::Error for ManifestError {}
 pub struct Capabilities {
     dirs: BTreeMap<String, DirCap>,
     execs: BTreeMap<String, ExecCap>,
+    declassify: BTreeMap<String, DeclassifyCap>,
 }
 
 /// One verified manifest entry. A grant is data: holding one confers no
@@ -97,12 +103,17 @@ pub enum Grant {
         /// Absolute path.
         path: PathBuf,
     },
+    /// `declassify NAME`: release labelled values as public, recorded.
+    Declassify {
+        /// Manifest name.
+        name: String,
+    },
 }
 
 impl Grant {
     fn name(&self) -> &str {
         match self {
-            Self::Dir { name, .. } | Self::Exec { name, .. } => name,
+            Self::Dir { name, .. } | Self::Exec { name, .. } | Self::Declassify { name } => name,
         }
     }
 }
@@ -159,7 +170,7 @@ fn parse(text: &str) -> Result<Vec<Grant>, ManifestError> {
             continue;
         }
         let mut parts = line.split(' ');
-        let (Some(kind), Some(name), Some(path), None) =
+        let (Some(kind), Some(name), path, None) =
             (parts.next(), parts.next(), parts.next(), parts.next())
         else {
             return Err(ManifestError::Syntax(number));
@@ -167,6 +178,17 @@ fn parse(text: &str) -> Result<Vec<Grant>, ManifestError> {
         if PathSeg::parse(name).is_err() {
             return Err(ManifestError::Syntax(number));
         }
+        // `declassify NAME` names no path; every other kind needs one.
+        let path = match (kind, path) {
+            ("declassify", None) => {
+                entries.push(Grant::Declassify {
+                    name: name.to_owned(),
+                });
+                continue;
+            }
+            (_, Some(path)) => path,
+            (_, None) => return Err(ManifestError::Syntax(number)),
+        };
         let path = Path::new(path);
         if !path.is_absolute() || path.to_str().is_none_or(|p| p.contains('\0')) {
             return Err(ManifestError::Syntax(number));
@@ -221,6 +243,15 @@ impl Capabilities {
                         return Err(ManifestError::Duplicate(name));
                     }
                 }
+                Grant::Declassify { name } => {
+                    if caps
+                        .declassify
+                        .insert(name.clone(), DeclassifyCap::new(name.clone()))
+                        .is_some()
+                    {
+                        return Err(ManifestError::Duplicate(name));
+                    }
+                }
             }
         }
         Ok(caps)
@@ -234,6 +265,11 @@ impl Capabilities {
     /// Takes the program capability named `name`, once.
     pub fn take_exec(&mut self, name: &str) -> Option<ExecCap> {
         self.execs.remove(name)
+    }
+
+    /// Takes the declassification capability named `name`, once.
+    pub fn take_declassify(&mut self, name: &str) -> Option<DeclassifyCap> {
+        self.declassify.remove(name)
     }
 }
 
@@ -263,6 +299,22 @@ mod tests {
             Some("tar")
         );
         assert!(caps.take_exec("tar").is_none());
+    }
+
+    #[test]
+    fn declassify_grant_is_taken_once() {
+        let kp = keys();
+        let m = b"corten-manifest 1\ndeclassify report\n";
+        let mut caps =
+            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())).unwrap();
+        assert_eq!(
+            caps.take_declassify("report")
+                .map(|c| c.name().to_owned())
+                .as_deref(),
+            Some("report")
+        );
+        assert!(caps.take_declassify("report").is_none());
+        assert!(caps.take_exec("report").is_none());
     }
 
     #[test]
@@ -296,6 +348,14 @@ mod tests {
             (b"corten-manifest 1\nnet x /y\n", Some(2)),
             (b"corten-manifest 1\nexec tar /a /b\n", Some(2)),
             (b"corten-manifest 1\nexec tar /a\nexec tar /b\n", None),
+            // `declassify` takes a name and nothing else; `dir` still needs a path.
+            (b"corten-manifest 1\ndeclassify report /etc\n", Some(2)),
+            (b"corten-manifest 1\ndir data\n", Some(2)),
+            (b"corten-manifest 1\ndeclassify ../up\n", Some(2)),
+            (
+                b"corten-manifest 1\ndeclassify tar\nexec tar /bin/tar\n",
+                None,
+            ),
         ] {
             let r = Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref()));
             match want_line {

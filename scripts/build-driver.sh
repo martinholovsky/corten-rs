@@ -14,5 +14,8 @@ done
 # Reads rust-toolchain.toml in this directory.
 rustup toolchain install >&2
 # An explicit target directory, so CARGO_TARGET_DIR cannot move the binary.
-cargo build --locked --target-dir "$PWD/target" "$@" >&2
-printf '%s\n' "$PWD/target/$profile/corten-driver"
+# CORTEN_LINTS_TARGET_DIR overrides it, e.g. for a container sharing this
+# checkout with the host, whose binary it would otherwise overwrite.
+target=${CORTEN_LINTS_TARGET_DIR:-$PWD/target}
+cargo build --locked --target-dir "$target" "$@" >&2
+printf '%s\n' "$target/$profile/corten-driver"
