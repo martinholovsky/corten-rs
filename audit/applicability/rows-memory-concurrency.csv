@@ -1,0 +1,141 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-7,no,no,none,No J2EE deployment descriptor or web.xml error-page construct exists in Rust; error pages are ordinary code (CWE-756).
+CWE-12,no,no,none,No ASP.NET web.config customErrors construct exists in Rust; error pages are ordinary code (CWE-756).
+CWE-119,yes,no,CWE-119.rs CWE-119.safe.rs,"Raw-pointer and get_unchecked accesses skip bounds checks in unsafe; safe slices and arrays are bounds-checked and panic, and safe code cannot dereference raw pointers."
+CWE-120,yes,no,CWE-120.rs CWE-120.safe.rs,ptr::copy_nonoverlapping copies without a size check only in unsafe; safe copy_from_slice asserts equal lengths and panics instead of overflowing.
+CWE-121,yes,no,CWE-121.rs CWE-121.safe.rs,Writing past a stack array needs a raw-pointer write in unsafe; indexing a stack array in safe Rust is bounds-checked.
+CWE-122,yes,no,CWE-122.rs CWE-122.safe.rs,Heap overflow needs set_len or raw writes in unsafe; safe Vec growth reallocates and safe indexing is bounds-checked.
+CWE-123,yes,no,CWE-123.rs CWE-123.safe.rs,"Casting an integer to a pointer is safe but writing through it requires unsafe, so an arbitrary write exists only in unsafe code."
+CWE-124,yes,no,CWE-124.rs CWE-124.safe.rs,Slice indices are usize and bounds-checked; writing before the start needs raw-pointer sub/offset and a dereference in unsafe.
+CWE-125,yes,no,CWE-125.rs CWE-125.safe.rs,"Safe indexing is bounds-checked and panics (that is CWE-129/248, not a read outside); get_unchecked or raw-pointer reads in unsafe can read out of bounds."
+CWE-126,yes,no,CWE-126.rs CWE-126.safe.rs,slice::from_raw_parts with an attacker length over-reads only in unsafe; a safe sub-slice with an excessive length panics.
+CWE-127,yes,no,CWE-127.rs CWE-127.safe.rs,Reading before a buffer needs a raw pointer offset dereferenced in unsafe; safe usize indices cannot go below zero.
+CWE-128,yes,yes,CWE-128.rs,With overflow-checks off (the release default) integer addition wraps silently; wrapping_add is also safe. Ledger says unsafe-only.
+CWE-129,yes,yes,CWE-129.rs,"Indexing with an unvalidated request index compiles; the bounds check turns it into a panic (DoS) rather than memory corruption, but the missing validation remains."
+CWE-131,yes,yes,CWE-131.rs,"A miscomputed buffer size compiles in safe Rust; the later write panics on the bounds check instead of overflowing, but the size calculation is still wrong. Ledger says unsafe-only."
+CWE-134,yes,no,CWE-134.printf.rs CWE-134.rs,format! and println! accept only a string-literal format checked at compile time; an external format string reaches C printf only through an unsafe FFI call. Ledger says applies.
+CWE-135,yes,yes,CWE-135.rs,str::len counts UTF-8 bytes while chars().count() counts scalars; mixing them compiles and the mismatched copy panics or truncates. Ledger says unsafe-only.
+CWE-179,yes,yes,CWE-179.rs,Validating before a later transformation is an ordering decision in program logic; no compiler of any language knows which transforms must precede the check.
+CWE-180,yes,yes,CWE-180.rs,Checking a path before canonicalising it is a logic order error; no type system distinguishes raw from canonical paths unless the programmer builds one.
+CWE-181,yes,yes,CWE-181.rs,Filtering after validation is an ordering choice in logic; the compiler cannot know the filter can reconstruct forbidden input.
+CWE-188,yes,yes,CWE-188.rs,Assuming fixed protocol offsets (a 20-byte IPv4 header) is a parsing decision; slicing is safe and bounds-checked but no type system knows the wire layout.
+CWE-190,yes,yes,CWE-190.rs,Arithmetic overflow wraps silently in release builds because overflow-checks is off by default; checked_* is opt-in.
+CWE-191,yes,yes,CWE-191.rs,Unsigned subtraction below zero wraps to a huge value in release builds; only debug builds panic.
+CWE-193,yes,yes,CWE-193.rs,Off-by-one bounds in comparisons or ranges compile; indexing errors panic but logical boundaries like an extra allowed attempt pass silently.
+CWE-198,yes,yes,CWE-198.rs,u32::from_ne_bytes on network data compiles; Rust provides from_be_bytes but does not force the choice of byte order.
+CWE-244,yes,yes,CWE-244.rs,"Vec growth reallocates and frees the old block without zeroing, and std never zeroes on drop, so a secret in a growing Vec lingers in freed heap. Ledger says unsafe-only."
+CWE-248,yes,yes,CWE-248.rs,unwrap/expect panic on bad input and an uncaught panic kills the thread or process; catching is opt-in via catch_unwind.
+CWE-252,yes,yes,CWE-252.rs,"Result is #[must_use] but `let _ =` discards it, and the byte count from write() is a plain usize that is easy to ignore."
+CWE-362,yes,yes,CWE-362.rs,"Send/Sync prevent data races, not logical races: separate atomic load and store, or check and act in separate operations, still race."
+CWE-363,yes,yes,CWE-363.rs,"Checking symlink_metadata and then writing are separate syscalls; std offers no atomic check-and-open, so the file-system race remains."
+CWE-364,yes,no,CWE-364.rs CWE-364.safe.rs,"Rust std has no signal API; installing a handler is an unsafe FFI call to signal/sigaction, so a handler racing with the main path on shared state exists only with unsafe."
+CWE-366,yes,yes,CWE-366.rs,A load-then-store on a shared atomic loses updates; it is race-free memory access but a logical race the type system allows.
+CWE-367,yes,yes,CWE-367.rs,path.exists() then File::create is a classic TOCTOU; the file system state is outside the borrow checker's reach.
+CWE-368,yes,yes,CWE-368.rs,A process-global privilege flag switched non-atomically is visible to other threads mid-switch; the switching sequence is logic.
+CWE-369,yes,yes,CWE-369.rs,Integer division by a zero divisor from input panics (DoS) and float division yields inf/NaN; the type system does not exclude zero.
+CWE-382,no,no,none,"No J2EE container exists in Rust; the closest analogue, library code calling std::process::exit, is covered by CWE-705."
+CWE-390,yes,yes,CWE-390.rs,`if let Err(_) = r {}` detects the error and does nothing; it compiles without warning.
+CWE-391,yes,yes,CWE-391.rs,.ok() or let _ = silently converts an error into nothing; must_use is satisfied.
+CWE-394,yes,yes,CWE-394.rs,read() legitimately returns short counts or 0; ignoring the count compiles because it is a plain usize.
+CWE-395,no,no,none,"Rust has no NullPointerException: references are never null and a null raw-pointer dereference is undefined behaviour, not a catchable exception."
+CWE-396,yes,yes,CWE-396.rs,catch_unwind catches every panic and `Err(_)` arms handle every error alike; Rust has no exceptions but both broad-catch forms compile.
+CWE-397,yes,yes,CWE-397.rs,"Returning Result<_, Box<dyn Error>> erases the failure kind exactly like a generic throws clause."
+CWE-401,yes,yes,CWE-401.forget.rs CWE-401.rs,Leaking is safe: std::mem::forget and Box::leak are safe functions and Rc cycles are never freed; Rust's guarantees exclude leak freedom.
+CWE-408,yes,yes,CWE-408.rs,Doing expensive work before authentication is an ordering decision in logic that no compiler can judge.
+CWE-412,yes,yes,CWE-412.rs,A lock file in a world-writable directory is file-system policy; no language controls who can create it.
+CWE-413,yes,yes,CWE-413.rs,"Mutex<T> guards T, but a lock protecting an external resource (a file) by convention can be bypassed in safe code."
+CWE-414,yes,yes,CWE-414.rs,An operation that ignores an advisory lock flag compiles; only data owned by a Mutex is forced through the lock.
+CWE-415,yes,no,CWE-415.rs CWE-415.safe.rs,"Drop consumes the owner, so a second drop is a use of a moved value (E0382); two Box::from_raw on one pointer in unsafe double-free."
+CWE-416,yes,no,CWE-416.rs CWE-416.safe.rs,The borrow checker refuses to drop a value while a reference into it lives (E0505); a raw pointer read after drop in unsafe is a use after free.
+CWE-430,yes,yes,CWE-430.rs,Dispatching to the wrong handler (a default arm that executes) is a logic choice; match exhaustiveness does not know which handler is right.
+CWE-431,yes,yes,CWE-431.rs,"Exhaustive match forces an arm per enum variant, but a wildcard `_ => {}` or unregistered callback still leaves events unhandled."
+CWE-432,yes,no,CWE-432.rs CWE-432.safe.rs,"Rust std has no signal API; installing a handler is an unsafe FFI call to signal/sigaction, so a shared handler left unmasked during sensitive work needs unsafe. Ledger says applies."
+CWE-455,yes,yes,CWE-455.rs,Falling back with unwrap_or_default after a failed security initialisation compiles; Result makes the error visible but does not force exit.
+CWE-466,yes,no,CWE-466.rs CWE-466.safe.rs,Safe code can form an out-of-range raw pointer with wrapping_add but can never dereference it; references are bounds-checked. Using the pointer requires unsafe.
+CWE-467,yes,yes,CWE-467.rs,"size_of_val(&key) on a reference measures the pointer, compiles in safe code and silently truncates the key. Ledger says unsafe-only."
+CWE-468,yes,no,CWE-468.rs CWE-468.safe.rs,ptr::add already scales by element size; double scaling matters only when the pointer is dereferenced in unsafe. Slice indexing scales automatically and is checked.
+CWE-469,yes,yes,CWE-469.rs,"Pointers cast to usize can be subtracted in safe code; a difference across allocations becomes a bogus length, causing a panic or wrong slice. Ledger says unsafe-only."
+CWE-479,yes,no,CWE-479.rs CWE-479.safe.rs,"Rust std has no signal API; installing a handler is an unsafe FFI call to signal/sigaction, so a handler calling non-reentrant code (println!, allocation) needs unsafe to exist."
+CWE-480,yes,yes,CWE-480.rs,"`|` and `&` on bool are valid non-short-circuit operators, so a wrong operator type-checks."
+CWE-481,no,no,CWE-481.rs,"Assignment has type () and conditions must be bool, so `if x = 0` is a type error (E0308) in safe and unsafe code alike. Ledger says applies."
+CWE-482,yes,yes,CWE-482.rs,"A statement `x == 0;` compiles with only an unused-comparison warning, so the intended assignment never happens. Ledger says unsafe-only."
+CWE-483,no,no,CWE-483.rs,"Rust's grammar requires braces around every if/else/loop body, so an undelimited multi-statement block does not parse in any Rust. Ledger says unsafe-only."
+CWE-543,yes,yes,CWE-543.rs,"Statics must be Sync so the singleton slot cannot data-race, but OnceLock get-then-set or a flag check still constructs the instance twice. Ledger says unsafe-only."
+CWE-544,yes,yes,CWE-544.rs,"Mixing sentinels, panics and Option across a codebase compiles; Result is conventional, not mandatory."
+CWE-558,yes,no,CWE-558.rs CWE-558.safe.rs,std has no getlogin; calling the libc function and reading its static buffer requires unsafe FFI and CStr::from_ptr.
+CWE-562,yes,no,CWE-562.rs CWE-562.safe.rs,Returning a reference to a local is E0515; a raw pointer to a local can escape safely but dereferencing it after return needs unsafe.
+CWE-567,yes,no,CWE-567.rs CWE-567.safe.rs,"Send/Sync reject sharing unsynchronised data across threads (Rc, RefCell, Cell statics); `static mut` access from threads needs unsafe. Ledger says applies."
+CWE-572,no,no,none,Rust threads have no separate run()/start(): std::thread::spawn always starts the closure on a new thread.
+CWE-574,no,no,none,"No EJB container or EJB specification exists in Rust, so the prohibition on synchronization primitives has nothing to apply to."
+CWE-584,no,no,none,"Rust has no try/finally; Drop cannot return a value or replace the function's result, so a return inside finally cannot discard a panic. Ledger says applies."
+CWE-587,yes,no,CWE-587.rs CWE-587.safe.rs,"Casting a constant to a raw pointer compiles in safe code, but reading or writing through it requires unsafe, so the fixed address is only used in unsafe."
+CWE-590,yes,no,CWE-590.rs CWE-590.safe.rs,Safe code never frees explicitly; ownership frees what it allocated. Handing a stack address to Box::from_raw or dealloc requires unsafe.
+CWE-591,yes,yes,CWE-591.rs,"std has no mlock; secrets in ordinary heap memory can be swapped to disk, and locking memory needs OS calls outside std."
+CWE-600,no,no,none,No Servlet construct exists in Rust; uncaught panics in a handler are CWE-248.
+CWE-609,yes,yes,CWE-609.rs,Double-checked locking with Relaxed atomics compiles; a reader can see the ready flag yet a stale value. Memory ordering is the programmer's choice.
+CWE-617,yes,yes,CWE-617.rs,"assert! on attacker-controlled data compiles and panics, giving the attacker a crash."
+CWE-663,yes,yes,CWE-663.rs,"A function keeping intermediate state in a Mutex-guarded static across two lock acquisitions is non-reentrant; each access is synchronised, the sequence is not."
+CWE-667,yes,yes,CWE-667.rs,Lock misuse such as mem::forget on a MutexGuard (safe) never releases the lock; RAII does not stop leaking the guard.
+CWE-670,yes,yes,CWE-670.rs,"A control-flow path that never matches the algorithm (returning inside the first loop iteration) is valid Rust; the compiler checks types, not intent."
+CWE-674,yes,yes,CWE-674.rs,Recursion depth driven by input compiles; Rust has no recursion limit and stack overflow aborts the process.
+CWE-680,yes,no,CWE-680.rs CWE-680.safe.rs,"The size multiplication can wrap in safe code, but safe Vec writes grow or are bounds-checked; the overflow into the short buffer needs raw writes or set_len in unsafe."
+CWE-682,yes,yes,CWE-682.rs,"Wrong formulas, such as dividing before multiplying, are ordinary arithmetic the compiler accepts."
+CWE-689,yes,yes,CWE-689.rs,Writing the copy then calling set_permissions leaves a window with umask permissions; std has no atomic create-with-mode in fs::write.
+CWE-690,yes,no,CWE-690.rs CWE-690.safe.rs,"Safe APIs return Option or Result instead of null, and unwrap panics rather than dereferencing null; an unchecked null from alloc dereferenced in unsafe is reachable."
+CWE-691,yes,yes,CWE-691.rs,The ? operator returns early and skips later statements; state not restored by a Drop guard stays wrong.
+CWE-696,yes,yes,CWE-696.rs,Performing an action before its prerequisite check is statement ordering the compiler accepts.
+CWE-698,yes,yes,CWE-698.rs,"A redirect is just a value; without an explicit return the handler keeps executing, and no compiler knows the redirect should end it."
+CWE-703,yes,yes,CWE-703.rs,unwrap_or(0) and similar defaults turn an exceptional condition into a normal value; the compiler cannot judge the default.
+CWE-705,yes,yes,CWE-705.rs,std::process::exit in library code compiles and bypasses the caller; control-flow scoping is a design choice.
+CWE-754,yes,yes,CWE-754.rs,if let Ok(..) that skips the check on Err fails open; the compiler accepts the unhandled branch.
+CWE-755,yes,yes,CWE-755.rs,"An Err arm that returns success compiles; Result forces acknowledging errors, not handling them correctly."
+CWE-756,yes,yes,CWE-756.rs,Sending the Debug form of an error to the client is ordinary code; no language feature enforces a custom error page.
+CWE-761,yes,no,CWE-761.rs CWE-761.safe.rs,Ownership always frees the allocation's start; freeing an interior pointer needs Box::from_raw or dealloc in unsafe.
+CWE-762,yes,no,CWE-762.rs CWE-762.safe.rs,Drop pairs each allocation with its own deallocator; mismatching alloc/dealloc layouts or allocators needs unsafe calls.
+CWE-763,yes,no,CWE-763.rs CWE-763.safe.rs,Release happens only via the owner's Drop; passing an arbitrary pointer to dealloc requires unsafe.
+CWE-764,yes,yes,CWE-764.rs,Locking a std Mutex twice on one thread compiles; std documents it may deadlock or panic.
+CWE-765,yes,yes,CWE-765.rs,"std guards unlock exactly once via Drop, but a hand-rolled lock or semaphore with an explicit release can be released twice in safe code."
+CWE-768,yes,yes,CWE-768.rs,"&& and || short-circuit, so a side effect in the right operand is skipped; this is defined behaviour the compiler accepts."
+CWE-783,yes,yes,CWE-783.rs,"Rust fixed C's & versus == precedence, but `1 << bits - 1` and `-x.pow(2)` still parse differently from intent."
+CWE-786,yes,no,CWE-786.rs CWE-786.safe.rs,Safe usize indexing cannot address before a buffer (pos-1 underflow panics on the bounds check); pointer offset with a negative value needs unsafe.
+CWE-787,yes,no,CWE-787.rs CWE-787.safe.rs,Safe writes are bounds-checked and panic; get_unchecked_mut or raw-pointer writes in unsafe write out of bounds.
+CWE-788,yes,no,CWE-788.rs CWE-788.safe.rs,buf[buf.len()] panics in safe Rust; a raw read one past the end needs unsafe.
+CWE-789,yes,yes,CWE-789.rs,vec![0; n] with an attacker-chosen n compiles; allocation failure aborts and nothing caps the size.
+CWE-799,yes,yes,CWE-799.rs,"Missing rate limiting is an absent policy, not a construct any compiler can require."
+CWE-805,yes,no,CWE-805.rs CWE-805.safe.rs,Safe slice copies assert matching lengths; ptr::copy with an incorrect length is unsafe.
+CWE-806,yes,no,CWE-806.rs CWE-806.safe.rs,copy_from_slice checks both lengths; copying src.len() bytes into a smaller destination needs ptr::copy_nonoverlapping in unsafe.
+CWE-820,yes,yes,CWE-820.rs,Send/Sync cover in-memory data only; threads can read-modify-write a shared file or other external resource with no synchronisation.
+CWE-821,yes,yes,CWE-821.rs,"Splitting a check and update across two lock acquisitions compiles; the Mutex is used, but the critical section is wrong."
+CWE-822,yes,no,CWE-822.rs CWE-822.safe.rs,"Turning an untrusted integer into a pointer is safe, but dereferencing any raw pointer requires unsafe."
+CWE-823,yes,no,CWE-823.rs CWE-823.safe.rs,wrapping_offset is safe yet its result is unusable without unsafe; offset/add and the dereference are unsafe. Safe slices bound-check every index.
+CWE-824,yes,no,CWE-824.rs CWE-824.safe.rs,Every binding must be initialised before use (E0381) and references cannot be null; MaybeUninit::assume_init in unsafe yields an uninitialised pointer.
+CWE-825,yes,no,CWE-825.rs CWE-825.safe.rs,The borrow checker forbids mutating a Vec while a reference into it lives (E0502); a raw pointer kept across reallocation is dereferenced only in unsafe.
+CWE-828,yes,no,CWE-828.rs CWE-828.safe.rs,"Rust std has no signal API; installing a handler is an unsafe FFI call to signal/sigaction, so a handler doing non-async-signal-safe work needs unsafe. Ledger says applies."
+CWE-831,yes,no,CWE-831.rs CWE-831.safe.rs,"Rust std has no signal API; installing a handler is an unsafe FFI call to signal/sigaction, so one handler registered for several signals needs unsafe. Ledger says applies."
+CWE-832,yes,yes,CWE-832.rs,"std guards cannot unlock an unheld Mutex, but a hand-rolled lock with an explicit unlock can be released without being acquired."
+CWE-833,yes,yes,CWE-833.rs,"Acquiring two Mutexes in opposite orders compiles; Rust has no lock-order checking, so deadlock is possible."
+CWE-834,yes,yes,CWE-834.rs,Iteration counts taken from input compile; loops have no built-in bound.
+CWE-835,yes,yes,CWE-835.rs,"`while i <= 255` on a u8 never exits; rustc only warns about the comparison, and loops with unreachable exits are valid."
+CWE-837,yes,yes,CWE-837.rs,Not marking a one-time action as used is missing state logic; Rust has no affine type that a stored coupon must be consumed by.
+CWE-841,yes,yes,CWE-841.rs,Workflow steps not enforced by state checks compile; typestate can encode workflows but nothing requires it.
+CWE-1058,yes,no,CWE-1058.rs CWE-1058.safe.rs,"A static must be Sync, so mutable static data shared by threads is atomic or locked; an unsynchronised `static mut` needs unsafe. Ledger says applies."
+CWE-1088,yes,yes,CWE-1088.rs,TcpStream::connect and read have no timeout by default; set_read_timeout is opt-in.
+CWE-1096,yes,yes,CWE-1096.rs,OnceLock get-then-set or an unsynchronised flag check lets two threads construct the singleton; get_or_init is correct but not required.
+CWE-1190,n/a,n/a,none,"SoC hardware design: which IP blocks power up DMA-capable before boot firmware runs is decided in silicon and boot architecture, not in program code."
+CWE-1193,n/a,n/a,none,"SoC hardware boot architecture: enabling untrusted cores before fabric access control is a hardware design weakness, not source code."
+CWE-1223,n/a,n/a,none,Hardware register design: write-once register programmability ordering between trusted and untrusted agents is silicon behaviour.
+CWE-1232,n/a,n/a,none,Hardware: lock bits that become writable after power-state transitions are a register/power-management design weakness.
+CWE-1234,n/a,n/a,none,Hardware: debug or internal modes overriding lock protection is a hardware design weakness.
+CWE-1247,n/a,n/a,none,"Physical/hardware: protection against voltage and clock glitches is circuit design, not code."
+CWE-1261,n/a,n/a,none,Physical/hardware: single event upsets are radiation-induced bit flips handled by hardware design.
+CWE-1264,n/a,n/a,none,Hardware logic forwarding data before the security check completes is an RTL design weakness.
+CWE-1265,yes,yes,CWE-1265.rs,With Cell/RefCell interior mutability a callback can re-enter a method through &self; the borrow checker blocks only &mut reentrancy.
+CWE-1280,n/a,n/a,none,"Describes hardware-based access control logic checking after the asset is accessed: a hardware design (RTL) weakness, not program code."
+CWE-1281,n/a,n/a,none,"Processor ISA/microarchitecture design weakness: instruction combinations locking the CPU are a property of the hardware, not of programs."
+CWE-1298,n/a,n/a,none,"Race conditions in hardware logic are a circuit/RTL design weakness, not program code."
+CWE-1322,yes,yes,CWE-1322.rs,std::thread::sleep and std::fs calls are allowed inside async fn; nothing marks or rejects blocking calls in async contexts.
+CWE-1332,n/a,n/a,none,Hardware: missing circuitry or sensors to detect instruction skips is a chip design weakness.
+CWE-1335,yes,yes,CWE-1335.rs,A runtime shift amount >= the bit width is masked in release builds (debug panics); only constant over-shifts are rejected by the arithmetic_overflow lint.
+CWE-1339,yes,yes,CWE-1339.rs,"f32/f64 follow IEEE 754; summing money in floats compiles and loses precision, std has no decimal type."
+CWE-1351,n/a,n/a,none,Physical/hardware: behaviour in exceptionally cold environments is a hardware property.
+CWE-1384,n/a,n/a,none,Physical/hardware: handling physical or environmental conditions is a hardware design weakness.

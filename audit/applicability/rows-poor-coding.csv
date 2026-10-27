@@ -1,0 +1,143 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-11,no,no,none,ASP.NET web.config debug compilation is an ASP.NET construct absent from Rust; shipping a Rust debug profile build is covered by CWE-489.
+CWE-103,no,no,none,Struts validator forms and validate()/super.validate() are a Java framework construct absent from Rust; nothing in Rust can omit them.
+CWE-104,no,no,none,Struts form beans extending ValidatorForm are a Java framework construct absent from Rust.
+CWE-107,no,no,none,Struts validation.xml forms are a Java framework construct absent from Rust.
+CWE-110,no,no,none,Struts validator field definitions are a Java framework construct absent from Rust.
+CWE-111,yes,no,CWE-111.rs CWE-111.safe.rs,"Rust FFI is the JNI analog and inherits C weaknesses; edition 2024 requires `unsafe extern` blocks and unsafe calls, so safe Rust cannot call foreign code."
+CWE-242,yes,no,CWE-242.rs CWE-242.safe.rs,std has no gets()-style function that can never be used safely; reaching libc gets needs an unsafe extern declaration and unsafe call.
+CWE-245,no,no,none,J2EE container-managed connections are a Java EE contract absent from Rust; no container forbids direct connection management.
+CWE-246,no,no,none,J2EE container restriction on sockets is a Java EE contract absent from Rust.
+CWE-253,yes,yes,CWE-253.rs,Result forces handling errors but not reading values correctly; checking only is_ok() on Write::write ignores short writes and compiles.
+CWE-358,yes,yes,none,Implementing a standard security check incompletely is protocol logic; no type system knows a protocol specification.
+CWE-383,no,no,none,J2EE prohibition of thread management in web containers is a Java EE contract absent from Rust.
+CWE-392,yes,yes,CWE-392.rs,Result exists but nothing forces a function to return it; ok()/unwrap_or swallow the error into a default value in safe code.
+CWE-393,yes,yes,CWE-393.rs,Returning Ok(()) on a failure path type-checks; Result types the status but cannot check it is the true one.
+CWE-440,yes,yes,CWE-440.rs,"Trait contracts such as Ord total order are documentation, not checked by rustc; a safe impl can violate them."
+CWE-446,yes,yes,none,UI feedback misrepresenting a security setting is application logic; no compiler checks UI state against configuration.
+CWE-448,yes,yes,none,Failing to warn about an obsolete UI function is product logic; no language prevents it.
+CWE-449,yes,yes,none,A UI performing the wrong action is application logic; no type system knows user intent.
+CWE-451,yes,yes,none,UI misrepresentation of critical information is presentation logic; no compiler prevents it.
+CWE-462,yes,yes,CWE-462.rs,A Vec of key/value pairs used as an association list accepts duplicate keys; lookup returns the first silently.
+CWE-474,yes,yes,CWE-474.rs,"std documents platform-specific behavior, e.g. fs::rename when the target exists differs between Unix and Windows; safe calls compile on all."
+CWE-475,yes,no,CWE-475.rs CWE-475.safe.rs,"Safe std APIs are defined for all inputs; APIs with UB preconditions (from_utf8_unchecked, get_unchecked) are unsafe fn and need an unsafe block."
+CWE-476,yes,no,CWE-476.option.rs CWE-476.raw.rs CWE-476.rs,References are never null and Option<&T> cannot be dereferenced without handling None; only raw-pointer dereference in unsafe can hit null.
+CWE-477,yes,yes,CWE-477.rs,#[deprecated] std functions such as str::trim_left still compile; rustc only warns.
+CWE-484,no,no,CWE-484.rs,match arms never fall through and Rust has no switch-level break; the C spelling is refused and no construct reproduces an omitted break.
+CWE-489,yes,yes,none,Leaving debug endpoints or logging enabled in a release build is a build/deployment choice; no compiler prevents it.
+CWE-506,yes,yes,none,Malicious code is intent expressed in any Turing-complete language; type and memory safety do not constrain purpose.
+CWE-507,yes,yes,none,A trojan horse is hidden intended behavior; safe Rust can express any such logic.
+CWE-508,yes,yes,none,Non-replicating malicious code is program intent; no language feature prevents it.
+CWE-509,yes,yes,none,"Self-replicating code needs only file and network I/O, which safe std provides."
+CWE-510,yes,yes,none,A trapdoor is an extra authentication branch; no compiler distinguishes it from legitimate logic.
+CWE-511,yes,yes,none,A time or logic bomb is a conditional on clock or state; safe std provides both.
+CWE-512,yes,yes,none,Collecting user data without consent is policy; safe std has the file and network access it needs.
+CWE-546,yes,yes,none,Comments such as FIXME or TODO hack are free text; rustc does not inspect comment content.
+CWE-547,yes,yes,none,Hard-coding security values as literals instead of named consts is a design choice; rustc accepts both.
+CWE-560,yes,no,CWE-560.rs CWE-560.safe.rs,"std has no umask; calling libc umask needs an unsafe extern declaration and unsafe call, where the chmod-style value can be passed."
+CWE-561,yes,yes,CWE-561.rs,"Unreachable or never-called code compiles; rustc only warns (dead_code, unreachable_code)."
+CWE-563,yes,yes,CWE-563.rs,Dead stores compile; rustc only warns (unused_assignments).
+CWE-570,yes,yes,CWE-570.rs,Always-false comparisons such as u32 < 0 compile; rustc only warns (unused_comparisons).
+CWE-571,yes,yes,CWE-571.rs,Always-true comparisons such as u32 >= 0 compile; rustc only warns.
+CWE-573,yes,yes,CWE-573.rs,std documents logic-error preconditions (mutating a HashSet key via Cell) that safe code can break without unsafe; results are unspecified though not UB.
+CWE-575,no,no,none,EJB restrictions on AWT/Swing are an Enterprise JavaBeans contract absent from Rust.
+CWE-576,no,no,none,EJB restrictions on java.io are an Enterprise JavaBeans contract absent from Rust.
+CWE-577,no,no,none,EJB restrictions on sockets are an Enterprise JavaBeans contract absent from Rust.
+CWE-578,no,no,none,EJB class-loader restrictions are an Enterprise JavaBeans contract; Rust has no class loader.
+CWE-579,no,no,none,HttpSession attributes and Java serializability are J2EE constructs absent from Rust.
+CWE-581,yes,yes,CWE-581.rs,rustc does not check Hash agrees with a manual PartialEq; derived Hash with case-insensitive eq compiles (only a clippy lint).
+CWE-585,yes,yes,CWE-585.rs,"Rust has no synchronized block, but a Mutex<()> guarding external state can be locked in an empty scope, leaving the protected work unsynchronized."
+CWE-586,yes,no,CWE-586.rs CWE-586.safe.rs,Calling Drop::drop directly is refused (E0040) and drop() moves the value; ptr::drop_in_place in unsafe runs the destructor twice.
+CWE-589,yes,yes,CWE-589.rs,std APIs such as Metadata::created return Err on platforms lacking support; safe code compiles everywhere and fails at run time.
+CWE-594,no,no,none,J2EE container persistence of unserializable objects is a Java EE construct absent from Rust.
+CWE-605,yes,yes,CWE-605.rs,"std sets SO_REUSEADDR on TCP listeners outside Windows; measured on macOS, safe bind of 127.0.0.1:PORT succeeds while 0.0.0.0:PORT is held."
+CWE-628,yes,yes,CWE-628.rs,"Types cannot tell same-typed arguments apart; clamp(hi, lo) compiles and is always wrong."
+CWE-675,yes,yes,CWE-675.rs,Locking the same std Mutex twice on one thread compiles and deadlocks or panics; the borrow checker does not track lock state.
+CWE-676,yes,yes,CWE-676.rs,"unsafe marks only memory-dangerous functions; safe std still has functions dangerous when misused, e.g. Path::join replacing the base with an absolute argument."
+CWE-683,yes,yes,CWE-683.rs,"Same-typed parameters can be swapped; fs::copy(bak, live) type-checks and overwrites the live file."
+CWE-684,yes,yes,none,Code not matching its published specification is a logic error; no compiler knows the specification.
+CWE-685,yes,no,CWE-685.rs CWE-685.safe.rs,"Rust calls are arity-checked (E0061) and format macros check argument counts; only C-variadic foreign functions, called in unsafe, accept a wrong count."
+CWE-686,yes,yes,CWE-686.rs,"No implicit conversions, but generic parameters accept any type: drop(&guard) passes a reference, compiles with a warning, and the lock stays held."
+CWE-687,yes,yes,CWE-687.rs,"A wrong value of the right type, such as seconds passed to Duration::from_millis, type-checks."
+CWE-688,yes,yes,CWE-688.rs,Passing the wrong variable of the right type compiles; the type system cannot tell user_key from server_key.
+CWE-695,yes,yes,none,"A framework prohibiting low-level calls (blocking threads, raw sockets) is policy outside the language; rustc cannot see framework rules."
+CWE-710,yes,yes,none,Coding-standard adherence is a project policy; rustc enforces only the language.
+CWE-758,yes,yes,CWE-758.rs,"Safe Rust has unspecified behavior (HashMap iteration order, repr(Rust) layout, usize width) that code can rely on."
+CWE-766,yes,yes,CWE-766.rs,"Fields are private by default but `pub` makes critical data writable by any code; rustc enforces visibility, not policy."
+CWE-785,yes,no,CWE-785.rs CWE-785.safe.rs,std::fs::canonicalize returns an allocated PathBuf; a fixed-size output buffer is only possible with libc realpath via an unsafe call.
+CWE-912,yes,yes,none,Undocumented functionality is a design and disclosure issue; any language can implement it.
+CWE-1007,yes,yes,none,Rendering identifiers without distinguishing homoglyphs is UI logic; Rust strings are Unicode and rustc cannot know display intent.
+CWE-1041,yes,yes,none,Duplicated code is a maintenance issue; rustc does not detect it.
+CWE-1043,yes,yes,none,A struct with many non-primitive fields compiles; rustc imposes no aggregation limit.
+CWE-1044,yes,yes,none,Architectural layering is design; the module system does not enforce a layer count.
+CWE-1045,no,no,CWE-1045.rs,"Rust has no class inheritance or virtual destructors; trait-object vtables always include the concrete drop glue, so a destructor cannot be non-virtual."
+CWE-1047,yes,yes,CWE-1047.rs,Modules within a crate may reference each other cyclically; only crate-level cycles are refused by Cargo.
+CWE-1048,yes,yes,none,High fan-out is a complexity metric; rustc places no limit on calls per function.
+CWE-1053,n/a,n/a,none,"Missing design documentation is a process artifact, not program code."
+CWE-1054,yes,yes,none,Calls that skip architectural layers are design; module visibility can be pub across layers.
+CWE-1055,no,no,CWE-1055.rs,"Rust has no implementation inheritance; types implement traits, which carry no fields, so multiple concrete-class inheritance cannot be written."
+CWE-1056,yes,no,CWE-1056.rs CWE-1056.safe.rs,Rust function definitions cannot be variadic on stable; only foreign C-variadic declarations in unsafe extern can. macro_rules repetition is expanded and type-checked at compile time.
+CWE-1057,yes,yes,none,Bypassing a designated data-manager component is architecture; nothing in Rust prevents direct access.
+CWE-1059,n/a,n/a,none,"Insufficient technical documentation is a process artifact, not code."
+CWE-1060,yes,yes,none,Issuing many inefficient queries is application design; no language prevents it.
+CWE-1061,yes,yes,CWE-1061.rs,pub fields expose internal invariants to callers; Rust privacy is opt-out per field and rustc accepts it.
+CWE-1062,yes,yes,CWE-1062.rs,"Traits are the parent analog; a trait may name a specific implementor in its interface, and rustc accepts it."
+CWE-1064,yes,yes,CWE-1064.rs,rustc accepts functions with any number of parameters; only clippy lints arity.
+CWE-1065,yes,yes,none,An app-server-style framework forbidding direct resource management is policy outside the language; rustc cannot see it.
+CWE-1066,yes,yes,none,Serialization is library-defined (serde derive); a derived impl with no custom control serializes every field including secrets.
+CWE-1068,yes,yes,none,Implementation diverging from design documentation is a process issue; no compiler reads the design.
+CWE-1069,yes,yes,CWE-1069.rs,"No exceptions, but an empty Err arm or ignored Result swallows errors exactly like an empty catch block; it compiles."
+CWE-1070,no,no,CWE-1070.rs,Serialization is trait-based; a serializable type containing a non-serializable field fails trait resolution at compile time rather than at run time.
+CWE-1071,yes,yes,CWE-1071.rs,Empty blocks compile; rustc does not warn on an empty if body.
+CWE-1074,yes,yes,CWE-1074.rs,"No class inheritance, but supertrait chains can be arbitrarily deep; rustc sets no limit."
+CWE-1075,yes,yes,CWE-1075.rs,"No goto, but labeled `break` out of blocks and loops is an unconditional jump outside any match."
+CWE-1076,yes,yes,none,Expected conventions are project policy; rustc lints are warnings only.
+CWE-1078,yes,yes,none,Source formatting is unconstrained by rustc; rustfmt is optional.
+CWE-1079,no,no,none,Rust has no class inheritance or virtual destructors; dropping through Box<dyn Trait> always runs the concrete type drop.
+CWE-1080,yes,yes,none,rustc imposes no limit on file length.
+CWE-1082,yes,no,CWE-1082.rs CWE-1082.safe.rs,Safe code cannot destroy an object through a borrow of it (cannot move out of *self); `delete this` needs Box::from_raw on self in unsafe.
+CWE-1083,yes,yes,none,Accessing data outside the designated data manager is architecture; no language prevents it.
+CWE-1085,yes,yes,none,Commented-out code is free text; rustc ignores comments.
+CWE-1086,yes,yes,CWE-1086.rs,Traits are the parent analog; a trait may have any number of implementors and rustc sets no limit.
+CWE-1087,no,no,none,"Rust has no virtual destructors: every trait object vtable carries drop_in_place for the concrete type, so dyn dispatch never skips a destructor."
+CWE-1090,yes,yes,CWE-1090.rs,"Methods can read another type's pub (or same-module) fields directly; privacy is per module, not per type."
+CWE-1092,yes,yes,none,Reusing one function across layers is design; Rust visibility permits it.
+CWE-1093,yes,yes,none,Overly complex data representations compile; this is design.
+CWE-1095,yes,yes,CWE-1095.rs,A while-loop index can be modified in the body; rustc does not restrict loop variables.
+CWE-1097,no,no,CWE-1097.rs,"Rust types have no default identity equality; without PartialEq, == does not compile, and HashMap/sort require Hash/Eq/Ord at compile time."
+CWE-1098,yes,no,CWE-1098.rs CWE-1098.safe.rs,"Owning pointers (Box, Vec) are not Copy and Clone deep-copies; a shallow-copied raw pointer that is freed twice needs unsafe."
+CWE-1099,yes,yes,CWE-1099.rs,Mixed naming conventions compile; rustc only warns (non_snake_case).
+CWE-1100,yes,yes,none,Mixing cfg(target_os) code throughout instead of isolating it is design; rustc accepts it.
+CWE-1101,yes,yes,none,"Generated code (build.rs, proc macros) can depend on a runtime support crate; this is a build design choice."
+CWE-1102,yes,yes,CWE-1102.rs,usize width and native byte order (to_ne_bytes) vary by target; safe code can persist them.
+CWE-1103,yes,yes,none,Depending on crates without equivalent support on all platforms is a dependency choice; no language prevents it.
+CWE-1105,yes,yes,none,"Machine-dependent code (cfg(target_arch), endianness) can be scattered unencapsulated; rustc accepts it."
+CWE-1106,yes,yes,none,Literal constants instead of named consts compile; this is style.
+CWE-1107,yes,yes,none,Scattering const definitions across modules is code organization; rustc accepts it.
+CWE-1108,yes,yes,CWE-1108.rs,"static mut needs unsafe, but safe globals (static Mutex, atomics, thread_local) allow the same global-state reliance."
+CWE-1109,yes,yes,CWE-1109.rs,A mutable variable can be reused for unrelated values of the same type; rustc accepts it.
+CWE-1110,n/a,n/a,none,"Incomplete design documentation is a process artifact, not code."
+CWE-1111,n/a,n/a,none,"Incomplete I/O documentation is a process artifact, not code."
+CWE-1112,n/a,n/a,none,"Incomplete documentation of program execution is a process artifact, not code."
+CWE-1113,yes,yes,none,Comment style is source text; rustc does not check comment format.
+CWE-1114,yes,yes,none,Whitespace style is source text; rustc ignores it and rustfmt is optional.
+CWE-1115,yes,yes,none,A missing standard file prologue is source text; rustc does not require headers.
+CWE-1116,yes,yes,none,Inaccurate comments are source text; rustc does not check comments against code.
+CWE-1117,yes,yes,none,A function signature and doc comment can under-describe behavior; rustc only lints missing docs optionally.
+CWE-1118,n/a,n/a,none,"Error-handling documentation is a process artifact, not code."
+CWE-1119,yes,yes,CWE-1119.rs,"No goto, but labeled break/continue are unconditional jumps; rustc places no limit on their number."
+CWE-1120,yes,yes,none,Code complexity is a metric; rustc does not limit it.
+CWE-1121,yes,yes,none,Cyclomatic complexity is a metric; rustc does not limit it.
+CWE-1122,yes,yes,none,Halstead complexity is a metric; rustc does not limit it.
+CWE-1123,yes,yes,CWE-1123.rs,"Code pages are not writable through safe pointers, but on Linux safe std can write /proc/self/mem, which std docs place outside Rust safety guarantees."
+CWE-1124,yes,yes,none,Deep nesting compiles; rustc imposes no nesting limit.
+CWE-1125,yes,yes,none,Attack surface size is a design measure; no language bounds it.
+CWE-1126,yes,yes,CWE-1126.rs,Declaring a variable wider than its use compiles; rustc does not narrow scopes.
+CWE-1127,yes,yes,CWE-1127.rs,Crate-level #![allow(...)] silences lints and rustc accepts it; most warnings are not errors by default.
+CWE-1164,yes,yes,CWE-1164.rs,Statements with no effect (computed and discarded values) compile; rustc warns only in some cases.
+CWE-1177,yes,yes,none,Using a prohibited function or crate is project policy; rustc does not know the prohibition.
+CWE-1209,n/a,n/a,none,"Reserved bits in a hardware design are a silicon/HDL issue, not software code."
+CWE-1245,n/a,n/a,none,"Faulty finite state machines in hardware logic are an HDL/silicon issue, not software code."
+CWE-1341,yes,no,CWE-1341.rs CWE-1341.safe.rs,Ownership drops a handle exactly once and a second drop is a use of a moved value; closing one fd twice needs File::from_raw_fd in unsafe.
+CWE-1357,yes,yes,none,Depending on an insufficiently trusted crate or component is a supply-chain choice; no language prevents it.
+CWE-1434,yes,yes,none,Configuring a model's inference parameters badly is application configuration; no compiler checks it.

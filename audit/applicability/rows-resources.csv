@@ -1,0 +1,125 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-98,no,no,CWE-98.rs,"No runtime source inclusion exists: include!/include_str! splice a file at compile time and accept only a string literal, so request data cannot choose code to include."
+CWE-118,yes,yes,CWE-118.rs,"Bounds checks stop allocation overruns, but not indexes outside a logical sub-range of a shared buffer or file; reading a neighbouring record is plain safe indexing."
+CWE-178,yes,yes,CWE-178.rs,"String == is exact; nothing in the type system knows another component compares case-insensitively, so a case-variant bypasses the check."
+CWE-192,yes,yes,CWE-192.rs,`as` integer casts are safe and wrap silently on narrowing; overflow checks do not apply to casts.
+CWE-194,yes,yes,CWE-194.rs,Widening a signed integer with `as` sign-extends in safe Rust; no lint or check fires by default.
+CWE-195,yes,yes,CWE-195.rs,`i32 as usize` is safe and maps negatives to huge values; only try_from/TryInto would catch it.
+CWE-196,yes,yes,CWE-196.rs,"`u32 as i32` is safe and turns large values negative, defeating upper-bound checks; try_from is opt-in."
+CWE-197,yes,yes,CWE-197.rs,"Narrowing `as` casts truncate high bits silently in safe Rust, in debug and release builds alike."
+CWE-212,yes,yes,CWE-212.rs,Which fields leave the process is a design decision; no type system knows a field is sensitive unless the programmer encodes it.
+CWE-221,yes,yes,none,Recording too little security-relevant information is a logging-design omission; no compiler can tell which events matter.
+CWE-226,yes,yes,CWE-226.rs,Drop never zeroes memory and pooled buffers are reused as-is; safe code can resend stale bytes from a reused buffer.
+CWE-243,yes,yes,CWE-243.rs,"std::os::unix::fs::chroot is a safe std function and does not chdir, so the jail-without-chdir mistake needs no unsafe."
+CWE-372,yes,yes,CWE-372.rs,"Enums make states explicit, but nothing forces the programmer to model every security-relevant distinction; a conflated state compiles."
+CWE-385,yes,yes,CWE-385.rs,Slice and String equality short-circuit; constant-time comparison is not provided by std and must be chosen deliberately.
+CWE-386,yes,yes,CWE-386.rs,std::fs operates on path names that resolve anew on each call; the type system cannot pin a name to one file.
+CWE-400,yes,yes,CWE-400.rs,"std imposes no resource quotas; sizing allocations, loops or threads from input is safe code."
+CWE-404,yes,yes,CWE-404.rs,"RAII closes on drop, but mem::forget, leaks and Rc cycles are safe, so a destructor can be skipped."
+CWE-405,yes,yes,CWE-405.rs,Letting a cheap request trigger expensive work is a protocol-design flaw that no type system models.
+CWE-406,yes,yes,none,Replying with more traffic than requested is a network-protocol design choice beyond any compiler's view.
+CWE-407,yes,yes,CWE-407.rs,Algorithm choice is not checked by the compiler; quadratic loops over input compile fine.
+CWE-409,yes,yes,CWE-409.rs,Decompressors in safe Rust follow whatever lengths the input claims unless the programmer caps output.
+CWE-410,yes,yes,none,Pool sizing is a capacity-design decision; the language neither knows nor checks expected load.
+CWE-434,yes,yes,none,Validating uploaded file types is application logic; no language prevents storing a dangerous file.
+CWE-453,yes,yes,CWE-453.rs,Default impls and constructors can set any value; the compiler cannot judge a default insecure.
+CWE-454,yes,yes,CWE-454.rs,"Initialising trusted state from cookies, environment or files is a trust decision invisible to the type system."
+CWE-456,yes,no,CWE-456.rs CWE-456.unsafe.rs,Definite-initialisation analysis (E0381) rejects reading a variable not set on every path; skipping initialisation needs MaybeUninit::assume_init in unsafe.
+CWE-457,yes,no,CWE-457.rs CWE-457.unsafe.rs,rustc rejects reads of uninitialised locals (E0381); only unsafe MaybeUninit::assume_init or set_len can produce an uninitialised read.
+CWE-459,yes,yes,CWE-459.rs,"Drop cleans memory, not external state; a `?` or panic can skip manual cleanup such as deleting a temporary file."
+CWE-460,yes,yes,CWE-460.rs,"`?` and panics unwind past manual state resets; only Drop guards run, and nothing forces using them."
+CWE-470,yes,no,CWE-470.rs CWE-470.unsafe.rs,"Rust has no reflection or class loading by name; selecting code by runtime name needs dlsym and a fn-pointer transmute, both unsafe (E0133)."
+CWE-471,yes,yes,CWE-471.rs,"& immutability covers in-process memory; data round-tripped through clients (hidden fields, cookies) is mutable by attackers and trusting it compiles."
+CWE-473,no,no,none,"Rust has no register_globals or variable variables; request parameters cannot create or overwrite program variables, as all bindings are fixed at compile time."
+CWE-487,no,no,none,"Crates are closed at compile time; no code can be injected into a module at run time to reach pub(crate) items, unlike Java packages."
+CWE-495,yes,yes,CWE-495.rs,"Privacy is per-field, but a pub method returning &mut to a private collection is legal and lets callers modify it."
+CWE-496,yes,yes,CWE-496.rs,"Ownership moves prevent aliasing for plain Vec, but shared ownership with interior mutability (Rc<RefCell>) lets the caller keep modifying the stored list."
+CWE-501,yes,yes,none,Mixing trusted and untrusted data in one structure is a design decision; types are not trust-labelled by the language.
+CWE-502,yes,yes,CWE-502.rs,"Rust deserialisers do not instantiate arbitrary types or run gadgets, but trusting decoded fields such as is_admin is safe code."
+CWE-514,yes,yes,none,Covert channels arise from observable side effects of design; no compiler restricts information flow.
+CWE-515,yes,yes,none,Signalling through shared storage attributes is an information-flow property no compiler checks.
+CWE-568,no,no,CWE-568.rs,"No finalizers or inheritance; drop glue always drops every field after Drop::drop, and calling a destructor explicitly is refused (E0040)."
+CWE-580,no,no,none,"No inheritance or super.clone(); Clone is a trait implemented per type, so there is no superclass clone to omit."
+CWE-588,yes,no,CWE-588.rs CWE-588.unsafe.rs,"Reinterpreting a non-struct pointer as a struct requires a raw-pointer dereference, which safe Rust rejects (E0133)."
+CWE-607,yes,yes,CWE-607.rs,"A pub static is immutable as a binding, but a Mutex or atomic inside lets any crate mutate it without unsafe."
+CWE-610,yes,yes,none,"Letting input name a path, URL or resource is logic; std::fs and networking accept any reference the program passes."
+CWE-618,yes,yes,none,"Exposing a dangerous method to scripts is a component-interface design choice; with COM stubbed, the method itself can be safe Rust."
+CWE-662,yes,yes,CWE-662.rs,"Send/Sync forbid data races, not race conditions: separate lock acquisitions for check and act compile in safe Rust."
+CWE-664,yes,yes,CWE-664.rs,"Ownership governs memory, but leaking (Box::leak, mem::forget) and mismanaging external resources is safe."
+CWE-665,yes,yes,CWE-665.rs,"Every value is initialised, but to whatever the code chooses; Default and struct-update syntax can supply wrong values."
+CWE-666,yes,yes,CWE-666.rs,Typestate can encode lifecycle phases but is opt-in; a method usable before setup compiles.
+CWE-669,yes,yes,none,Moving data or resources between trust spheres wrongly is a design error; the type system has no sphere labels.
+CWE-672,yes,yes,CWE-672.rs,"The borrow checker blocks use after drop of owned values, but index or ID handles to released slots are plain integers that outlive release."
+CWE-673,yes,yes,none,Letting external actors define control spheres is an access-model design flaw with no language-level counterpart.
+CWE-681,yes,yes,CWE-681.rs,"`as` between numeric types is safe and lossy: floats saturate, NaN becomes 0, integers truncate."
+CWE-704,yes,yes,CWE-704.rs,"Unrelated-type casts are rejected, but `as` on numerics and char is safe and lossy, e.g. `char as u8` truncates."
+CWE-706,yes,yes,none,Name resolution against the file system or DNS happens at run time; the compiler cannot see what a name resolves to.
+CWE-749,yes,yes,none,Exposing a dangerous API is an interface-design decision; pub visibility is the programmer's choice.
+CWE-770,yes,yes,CWE-770.rs,"std imposes no limits on threads, allocations or connections; unthrottled allocation is safe code."
+CWE-771,yes,yes,CWE-771.rs,"Box::leak and mem::forget are safe, so the last reference to an allocation can be dropped without freeing it."
+CWE-772,yes,yes,CWE-772.rs,Leaking is memory-safe by std's own documentation; forgetting a guard or handle skips its release.
+CWE-773,yes,yes,CWE-773.rs,into_raw_fd is safe; discarding the returned integer loses the only reference to an open descriptor.
+CWE-774,yes,yes,CWE-774.rs,Opening files is unthrottled in std; holding unboundedly many File handles is safe code.
+CWE-775,yes,yes,CWE-775.rs,"File closes on drop, but storing it in a long-lived collection or forgetting it keeps the descriptor open indefinitely."
+CWE-776,yes,yes,CWE-776.rs,Recursion and expansion limits are parser logic; unbounded entity expansion compiles in safe Rust.
+CWE-779,yes,yes,none,How much to log is an operational design choice no compiler judges.
+CWE-782,yes,yes,CWE-782.rs,A missing caller-privilege check in an IOCTL handler is an authorisation omission; the handler body can be safe Rust with the kernel interface stubbed.
+CWE-826,yes,yes,CWE-826.rs,"Memory cannot be freed early, but logical resources (lock guards, leases, slots) can be dropped before the work they protect finishes."
+CWE-827,yes,yes,none,Whether an XML parser loads external DTDs is library configuration; no language prevents enabling it.
+CWE-829,yes,yes,none,std::process::Command runs any program path in safe code; including untrusted functionality is a trust decision.
+CWE-830,yes,yes,none,"Emitting a script tag pointing at an untrusted origin is output content, not something a compiler checks."
+CWE-843,yes,no,CWE-843.rs CWE-843.unsafe.rs,Enums are tag-checked and transmute or union reads are unsafe (E0133); type confusion needs unsafe.
+CWE-908,yes,no,CWE-908.rs CWE-908.unsafe.rs,rustc rejects use of uninitialised buffers (E0381); only unsafe set_len or MaybeUninit exposes uninitialised memory.
+CWE-909,yes,yes,CWE-909.rs,"Values are always initialised, but a critical resource can be left at its empty default (an unloaded rule table), which safe code then trusts."
+CWE-910,yes,no,CWE-910.rs CWE-910.unsafe.rs,"I/O safety: File/OwnedFd own their descriptor and FromRawFd is unsafe, so reusing a closed fd number needs unsafe (E0133)."
+CWE-911,yes,yes,CWE-911.rs,"Rc/Arc manage counts automatically, yet mem::forget of a clone leaves the count high (leak); over-decrement needs unsafe decrement_strong_count."
+CWE-913,yes,yes,CWE-913.rs,"No eval or reflection, but objects modelled as attribute maps are common; letting input write arbitrary keys is safe code."
+CWE-915,yes,yes,CWE-915.rs,"No reflective binding in std, but a generic form-to-struct binder that includes privileged fields is ordinary safe code."
+CWE-920,yes,yes,none,"Power budgeting (busy-waiting, polling) is a design property no compiler models."
+CWE-922,yes,yes,none,"Where and how secrets are stored (plain files, default permissions) is a design decision; std::fs writes whatever it is given."
+CWE-1042,no,no,CWE-1042.rs,"Rust has no static members: associated statics in impl blocks are refused, and module statics belong to no type."
+CWE-1046,yes,yes,CWE-1046.rs,"String is mutable, but format! or + on clones in a loop rebuilds the text each time, which compiles."
+CWE-1049,yes,yes,none,Query patterns against large tables are data-access design; the database is external to the language.
+CWE-1050,yes,yes,none,Acquiring platform resources inside loops is a performance design choice no compiler flags.
+CWE-1051,yes,yes,none,"Hard-coding addresses or hostnames in source is a configuration practice, legal in any language."
+CWE-1052,yes,yes,none,Literal-heavy initialisation is a maintainability style issue no compiler forbids.
+CWE-1063,yes,no,CWE-1063.rs CWE-1063.unsafe.rs,No static initialiser blocks: static initialisers must be const (E0015); running a constructor at load time needs an #[unsafe(link_section)] init-array entry.
+CWE-1067,yes,yes,none,Repeated linear searches are an algorithm choice; the compiler does not check query efficiency.
+CWE-1072,yes,yes,none,Whether database connections are pooled is architecture; std has no database layer to enforce it.
+CWE-1073,yes,yes,none,Counting data-resource accesses per function is a design metric outside any type system.
+CWE-1084,yes,yes,none,Excessive file or data accesses in one function is a design-quality issue no compiler checks.
+CWE-1089,yes,yes,none,"Index count on a database table is schema design, issued from Rust like any other DDL."
+CWE-1091,yes,yes,CWE-1091.rs,"Drop runs automatically, but mem::forget and ManuallyDrop are safe and skip the destructor."
+CWE-1094,yes,yes,none,Index range scan cost is a query-design property of the external database.
+CWE-1104,n/a,n/a,none,"Not about code: depending on unmaintained components is a supply-chain process issue, independent of what the language allows."
+CWE-1176,yes,yes,none,Inefficient computation is an algorithm choice; the compiler optimises but does not reject it.
+CWE-1188,yes,yes,CWE-1188.rs,Constructors and Default impls can choose insecure defaults; the type system cannot judge a value's security.
+CWE-1221,n/a,n/a,none,"Hardware design: register defaults in HDL code, not software the Rust language governs."
+CWE-1229,yes,yes,none,"Emergent resources arise from system behaviour design, not from any construct a compiler checks."
+CWE-1235,no,no,CWE-1235.rs,"No autoboxing: Rust never boxes implicitly, and a value where Box is expected is a type error, so allocations are always explicit."
+CWE-1239,n/a,n/a,none,Hardware design: clearing built-in registers when a hardware block changes user is a property of the hardware.
+CWE-1246,yes,yes,none,Wear levelling can be implemented in software (a flash translation layer); omitting or botching it is logic no compiler checks.
+CWE-1249,yes,yes,none,"An admin tool's model diverging from OS state is a design-completeness issue, with the OS a stub."
+CWE-1250,yes,yes,none,Keeping distributed copies consistent is a protocol-design property; the borrow checker governs one process only.
+CWE-1251,n/a,n/a,none,Hardware design: mirrored memory or register regions in a chip architecture.
+CWE-1258,n/a,n/a,none,Hardware design: the hardware clearing key material on debug-mode entry.
+CWE-1266,yes,yes,none,"A missing or incomplete data-scrubbing feature for decommissioning is product logic, writable in any language."
+CWE-1271,n/a,n/a,none,Hardware design: security logic and registers not set to known values on reset.
+CWE-1272,n/a,n/a,none,Hardware design: clearing sensitive state across power or debug state transitions of the device.
+CWE-1277,yes,yes,none,Firmware lacking an update path is a product-design omission; Rust firmware can omit it as easily as C.
+CWE-1279,yes,yes,none,"Using crypto before its inputs (e.g. entropy) are ready is sequencing logic, with the hardware a stub."
+CWE-1301,n/a,n/a,none,Hardware design: incomplete data removal inside hardware components.
+CWE-1310,n/a,n/a,none,Hardware design: ROM code patchability is fixed in silicon.
+CWE-1321,no,no,none,Rust has no prototypes or runtime-extensible objects; struct layouts and trait impls are fixed at compile time.
+CWE-1325,yes,yes,CWE-1325.rs,std imposes no aggregate allocation limit; per-item caps without a total cap compile in safe Rust.
+CWE-1329,yes,yes,none,Building a product around a non-updatable component is an architecture decision no language prevents.
+CWE-1330,n/a,n/a,none,Physical/hardware: data remanence in memory circuits after erase.
+CWE-1333,yes,yes,CWE-1333.rs,std has no regex; a backtracking matcher written in safe Rust is exponential just as in other languages.
+CWE-1342,n/a,n/a,none,Hardware design: the processor failing to clear microarchitectural state after transient execution.
+CWE-1386,yes,yes,CWE-1386.rs,std::fs follows junctions and mount points by path; check-then-use on a path is safe code.
+CWE-1389,yes,yes,CWE-1389.rs,"Radix interpretation is parser logic; Rust's parse is decimal, but disagreement with other components' octal or hex parsing compiles."
+CWE-1419,yes,yes,CWE-1419.rs,Initialisation is mandatory but its correctness is not; a resource initialised to a wrong value compiles.
+CWE-1420,n/a,n/a,none,Hardware design: transient execution is a processor weakness; software only hosts gadgets that a bounds check does not stop.
+CWE-1421,n/a,n/a,none,Hardware design: transient access to shared microarchitectural structures is a processor property.
+CWE-1422,n/a,n/a,none,Hardware design: stale-data forwarding to transient operations is a processor property.
+CWE-1423,n/a,n/a,none,Hardware design: shared predictor state across hardware boundaries is a processor property.
