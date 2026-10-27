@@ -38,6 +38,23 @@ pub const FORBIDDEN_CLIPPY_LINTS: &[&str] = &[
     "clippy::mem_forget",
 ];
 
+/// Corten's own lints, run by `corten-driver` in a second pass (Phase 3b
+/// trial, spec section 8 question 10). Each backs a ledger row: must-use on
+/// every return (CWE-252), labelled parameters (CWE-683), public interior-
+/// mutable statics (CWE-493, 500, 607), `unsafe` from a dependency's macro
+/// (the Phase 1 bypass), direct `from_template` calls (the Phase 2 gap),
+/// blocking inside async (CWE-1322) and Rc/Arc cycles of types with a
+/// destructor (CWE-1091).
+pub const FORBIDDEN_CORTEN_LINTS: &[&str] = &[
+    "corten_must_use_return",
+    "corten_labelled_params",
+    "corten_pub_interior_mut_static",
+    "corten_unsafe_from_macro",
+    "corten_direct_template",
+    "corten_blocking_in_async",
+    "corten_rc_cycle",
+];
+
 /// The `clippy.toml` the checker writes and points `CLIPPY_CONF_DIR` at.
 pub const CLIPPY_TOML: &str = r#"# Written by cargo corten check. The checked repository's clippy.toml is not read.
 

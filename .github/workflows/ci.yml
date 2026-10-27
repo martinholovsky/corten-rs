@@ -46,6 +46,12 @@ jobs:
       - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.150
+      # The checker requires corten-driver (owner decision 10); every later
+      # step finds it through CORTEN_DRIVER.
+      - name: Build corten-driver
+        run: |
+          driver=$(bash scripts/build-driver.sh)
+          printf 'CORTEN_DRIVER=%s\n' "$driver" >> "$GITHUB_ENV"
       # corten-sandbox refuses to start while a descriptor without close-on-exec
       # is open, and the runner leaks some into every step; the wrapper closes them.
       - run: bash scripts/close-leaked-fds.sh cargo nextest run --workspace --all-features --locked
@@ -79,6 +85,27 @@ jobs:
         run: |
           grep -q '"purl":"pkg:cargo/fixture@0.1.0"' "$SBOM"
           grep -q '"sandboxed":true' "$PROVENANCE"
+
+  lint-driver:
+    # Corten's own lints as a rustc driver on the nightly pinned in
+    # crates/corten-lints (spec section 8, question 10). The tests job builds
+    # it too and runs the checker with it.
+    name: lint driver (nightly)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      - name: Install the pinned nightly
+        working-directory: crates/corten-lints
+        run: rustup toolchain install
+      - name: fmt, clippy and UI tests
+        working-directory: crates/corten-lints
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
 
   supply-chain:
     name: cargo deny

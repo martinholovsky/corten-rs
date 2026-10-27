@@ -1,3 +1,5 @@
 /target
+# The lint driver is built outside the workspace, with its own target.
+/crates/corten-lints/target
 .DS_Store
 *.swp

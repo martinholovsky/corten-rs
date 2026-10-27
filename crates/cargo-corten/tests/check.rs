@@ -98,7 +98,23 @@ fn outcome(cmd: &mut Command) -> io::Result<Outcome> {
     })
 }
 
-/// `cargo corten check` on the fixture, with extra environment.
+/// The `corten-driver` the checker under test uses: `CORTEN_DRIVER`, or the
+/// one `scripts/build-driver.sh` builds. The checker requires it.
+fn driver() -> String {
+    if let Some(path) = std::env::var_os("CORTEN_DRIVER") {
+        return path.to_string_lossy().into_owned();
+    }
+    let built =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../corten-lints/target/debug/corten-driver");
+    assert!(
+        built.is_file(),
+        "corten-driver is not built: run scripts/build-driver.sh, or set CORTEN_DRIVER"
+    );
+    built.to_string_lossy().into_owned()
+}
+
+/// `cargo corten check` on the fixture, with extra environment (which may
+/// replace `CORTEN_DRIVER`).
 fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_cargo-corten"));
     cmd.args(["corten", "check", "--manifest-path"])
@@ -107,6 +123,7 @@ fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
         .env_remove("RUSTC")
         .current_dir(&fx.dir)
         .env("CARGO_TARGET_DIR", fx.target())
+        .env("CORTEN_DRIVER", driver())
         .envs(env.iter().copied());
     outcome(&mut cmd)
 }
@@ -466,11 +483,34 @@ fn dependency_exporting_an_unsafe_macro_is_refused() {
         out.stderr
     );
 
-    // Allowed by the operator, the original bypass is back: the profile's
-    // lint does not see the expansion. Allowing a dependency is accepting
-    // that.
+    // Allowed by the operator, the dependency passes layer 3, and Clippy's
+    // pass does not see the expansion (rustc drops `unsafe_code` in external
+    // macros). Corten's own lint does: the second pass refuses it.
     let allowed = corten(&fx, &[("CORTEN_ALLOW_DEPS", "evil-macro")]).unwrap();
-    assert_eq!(allowed.code, Some(0), "{}", allowed.stderr);
+    assert_eq!(allowed.code, Some(1), "{}", allowed.stderr);
+    assert!(
+        allowed
+            .stderr
+            .contains("`unsafe` block expanded from macro `evil_macro::read_raw`"),
+        "{}",
+        allowed.stderr
+    );
+}
+
+/// The driver is required (owner decision 10): without it the check refuses
+/// to report a pass.
+#[test]
+fn missing_driver_is_an_error() {
+    let fx = Fixture::new("no-driver", SAFE).unwrap();
+    let out = corten(&fx, &[("CORTEN_DRIVER", "/nonexistent/corten-driver")]).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(
+        out.stderr.contains("corten-driver is not installed"),
+        "{}",
+        out.stderr
+    );
+    // Control: the same program passes with the driver.
+    assert_eq!(corten(&fx, &[]).unwrap().code, Some(0));
 }
 
 #[test]

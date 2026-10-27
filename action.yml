@@ -43,6 +43,10 @@ runs:
         cd "$ACTION_PATH"
         rustup toolchain install
         cargo build --release --locked --target-dir "$TOOLS_TARGET" -p cargo-corten -p corten-sandbox
+        # corten-driver, on its pinned nightly, beside cargo-corten: the
+        # checker requires it.
+        driver=$(bash scripts/build-driver.sh --release)
+        cp "$driver" "$TOOLS_TARGET/release/corten-driver"
         printf '%s\n' "$TOOLS_TARGET/release" >> "$GITHUB_PATH"
     - name: Run cargo corten
       id: run

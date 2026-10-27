@@ -87,8 +87,12 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
     let signature =
         std::fs::read(&m.signature).map_err(|e| format!("{}: {e}", m.signature.display()))?;
     let key = hex_decode(&m.public_key).ok_or("--public-key must be hexadecimal")?;
-    let grants =
-        corten_std::manifest::verify(&manifest, &signature, &key).map_err(|e| e.to_string())?;
+    let grants = corten_std::manifest::verify(
+        &manifest,
+        corten_std::manifest::Signature(&signature),
+        corten_std::manifest::PublicKey(&key),
+    )
+    .map_err(|e| e.to_string())?;
     for grant in grants {
         match grant {
             corten_std::manifest::Grant::Dir { path, .. } => plan.read_write.push(path),

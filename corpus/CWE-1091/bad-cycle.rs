@@ -1,6 +1,6 @@
 //@ expect: cycle
-// CWE-1091 through an Rc cycle: the destructor never runs and no lint
-// sees it. Needs the no-cycles-of-linear-resources rule (not implemented).
+// CWE-1091 through an Rc cycle: the destructor never runs. Caught by the
+// Rc/Arc-cycle lint (corten-driver, Phase 3b), which decides on types.
 use std::cell::RefCell;
 use std::rc::Rc;
 struct Node {

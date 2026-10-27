@@ -54,6 +54,15 @@ impl fmt::Display for ArgError {
 
 impl std::error::Error for ArgError {}
 
+/// Literal options, written by the program's author: a label (spec 4.2), so
+/// runtime operands cannot be passed where options belong.
+#[derive(Debug, Clone, Copy)]
+pub struct Options<'a>(pub &'a [&'static str]);
+
+/// Runtime operands, placed after `--`: a label, as [`Options`].
+#[derive(Debug, Clone, Copy)]
+pub struct Operands<'a, 'b>(pub &'a [&'b str]);
+
 /// A program and its argv, ready for the process broker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessInvocation {
@@ -70,8 +79,8 @@ impl ProcessInvocation {
     /// [`ArgError::Nul`] if any argument contains NUL.
     pub fn new(
         exec: &ExecCap,
-        options: &[&'static str],
-        operands: &[&str],
+        Options(options): Options<'_>,
+        Operands(operands): Operands<'_, '_>,
     ) -> Result<Self, ArgError> {
         let mut argv = Vec::with_capacity(
             options
@@ -114,12 +123,16 @@ macro_rules! process {
     ($exec:expr $(, $opt:literal)* ; $($operand:expr),* $(,)?) => {
         $crate::process::ProcessInvocation::new(
             &$exec,
-            &[$($opt),*],
-            &[$(::core::convert::AsRef::<str>::as_ref(&$operand)),*],
+            $crate::process::Options(&[$($opt),*]),
+            $crate::process::Operands(&[$(::core::convert::AsRef::<str>::as_ref(&$operand)),*]),
         )
     };
     ($exec:expr $(, $opt:literal)* $(,)?) => {
-        $crate::process::ProcessInvocation::new(&$exec, &[$($opt),*], &[])
+        $crate::process::ProcessInvocation::new(
+            &$exec,
+            $crate::process::Options(&[$($opt),*]),
+            $crate::process::Operands(&[]),
+        )
     };
 }
 

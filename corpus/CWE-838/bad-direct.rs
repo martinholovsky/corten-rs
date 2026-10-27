@@ -1,11 +1,11 @@
-//@ kind: language
+//@ kind: checker
 //@ deps: corten-std
-//@ expect: html!: a placeholder is in a context
+//@ expect: called directly
 // CWE-838 bypass-hunt variant: calling Html::from_template directly with a
 // hand-written Template skips the macro's check-time assertion. The check
-// inside from_template still fails the build, but `cargo check` (and so
-// `cargo corten check`) does not evaluate it. Not detected under check;
-// recorded in docs/gates/phase-2.md.
+// inside from_template still fails the build, but `cargo check` does not
+// evaluate it (docs/gates/phase-2.md). The direct-template lint
+// (corten-driver, Phase 3b) refuses the call itself.
 struct Link;
 impl corten_std::template::Template for Link {
     const TEXT: &'static str = "<a href=\"{}\">x</a>";

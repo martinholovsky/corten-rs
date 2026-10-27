@@ -107,6 +107,15 @@ impl Grant {
     }
 }
 
+/// The Ed25519 signature over a manifest: a label, so it cannot be passed
+/// where the key belongs (spec 4.2).
+#[derive(Debug, Clone, Copy)]
+pub struct Signature<'a>(pub &'a [u8]);
+
+/// The deployer's Ed25519 public key: a label, as [`Signature`].
+#[derive(Debug, Clone, Copy)]
+pub struct PublicKey<'a>(pub &'a [u8]);
+
 /// Verifies the signature, then parses the manifest and checks names are
 /// unique. Nothing is opened.
 ///
@@ -115,8 +124,8 @@ impl Grant {
 /// [`ManifestError`]; nothing is parsed unless the signature is valid.
 pub fn verify(
     manifest: &[u8],
-    signature: &[u8],
-    public_key: &[u8],
+    Signature(signature): Signature<'_>,
+    PublicKey(public_key): PublicKey<'_>,
 ) -> Result<Vec<Grant>, ManifestError> {
     if manifest.len() > MAX_MANIFEST {
         return Err(ManifestError::TooLarge);
@@ -186,8 +195,8 @@ impl Capabilities {
     /// [`ManifestError`]; nothing is opened unless the signature is valid.
     pub fn load(
         manifest: &[u8],
-        signature: &[u8],
-        public_key: &[u8],
+        signature: Signature<'_>,
+        public_key: PublicKey<'_>,
     ) -> Result<Self, ManifestError> {
         let mut caps = Self::default();
         for grant in verify(manifest, signature, public_key)? {
@@ -197,10 +206,20 @@ impl Capabilities {
                         name: name.clone(),
                         error,
                     })?;
-                    caps.dirs.insert(name, dir);
+                    // verify() refused duplicate names; a second insert
+                    // would mean it did not.
+                    if caps.dirs.insert(name.clone(), dir).is_some() {
+                        return Err(ManifestError::Duplicate(name));
+                    }
                 }
                 Grant::Exec { name, path } => {
-                    caps.execs.insert(name.clone(), ExecCap::new(name, path));
+                    if caps
+                        .execs
+                        .insert(name.clone(), ExecCap::new(name.clone(), path))
+                        .is_some()
+                    {
+                        return Err(ManifestError::Duplicate(name));
+                    }
                 }
             }
         }
@@ -235,7 +254,8 @@ mod tests {
     fn signed_exec_manifest_loads_once() {
         let kp = keys();
         let m = b"corten-manifest 1\nexec tar /usr/bin/tar\n";
-        let mut caps = Capabilities::load(m, &sign(&kp, m), kp.pk.as_ref()).unwrap();
+        let mut caps =
+            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())).unwrap();
         assert_eq!(
             caps.take_exec("tar")
                 .map(|e| e.name().to_owned())
@@ -252,16 +272,16 @@ mod tests {
         let sig = sign(&kp, m);
         let tampered = b"corten-manifest 1\nexec tar /usr/bin/sh!\n";
         assert!(matches!(
-            Capabilities::load(tampered, &sig, kp.pk.as_ref()),
+            Capabilities::load(tampered, Signature(&sig), PublicKey(kp.pk.as_ref())),
             Err(ManifestError::Signature)
         ));
         let other = KeyPair::from_seed(Seed::new([8u8; 32]));
         assert!(matches!(
-            Capabilities::load(m, &sig, other.pk.as_ref()),
+            Capabilities::load(m, Signature(&sig), PublicKey(other.pk.as_ref())),
             Err(ManifestError::Signature)
         ));
         assert!(matches!(
-            Capabilities::load(m, &[0u8; 3], kp.pk.as_ref()),
+            Capabilities::load(m, Signature(&[0u8; 3]), PublicKey(kp.pk.as_ref())),
             Err(ManifestError::Signature)
         ));
     }
@@ -277,7 +297,7 @@ mod tests {
             (b"corten-manifest 1\nexec tar /a /b\n", Some(2)),
             (b"corten-manifest 1\nexec tar /a\nexec tar /b\n", None),
         ] {
-            let r = Capabilities::load(m, &sign(&kp, m), kp.pk.as_ref());
+            let r = Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref()));
             match want_line {
                 Some(line) => assert!(
                     matches!(r, Err(ManifestError::Syntax(l)) if l == line),
@@ -288,7 +308,7 @@ mod tests {
         }
         let big = vec![b'a'; MAX_MANIFEST.saturating_add(1)];
         assert!(matches!(
-            Capabilities::load(&big, &[0u8; 64], kp.pk.as_ref()),
+            Capabilities::load(&big, Signature(&[0u8; 64]), PublicKey(kp.pk.as_ref())),
             Err(ManifestError::TooLarge)
         ));
     }
@@ -300,15 +320,19 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let kp = keys();
         let m = format!("corten-manifest 1\ndir data {}\n", dir.display());
-        let mut caps =
-            Capabilities::load(m.as_bytes(), &sign(&kp, m.as_bytes()), kp.pk.as_ref()).unwrap();
+        let mut caps = Capabilities::load(
+            m.as_bytes(),
+            Signature(&sign(&kp, m.as_bytes())),
+            PublicKey(kp.pk.as_ref()),
+        )
+        .unwrap();
         assert!(caps.take_dir("data").is_some());
         let missing = "corten-manifest 1\ndir data /nonexistent/corten\n";
         assert!(matches!(
             Capabilities::load(
                 missing.as_bytes(),
-                &sign(&kp, missing.as_bytes()),
-                kp.pk.as_ref()
+                Signature(&sign(&kp, missing.as_bytes())),
+                PublicKey(kp.pk.as_ref())
             ),
             Err(ManifestError::Dir { .. })
         ));
@@ -321,7 +345,7 @@ mod tests {
         let kp = keys();
         let m = b"corten-manifest 1\ndir data /tmp\n";
         assert!(matches!(
-            Capabilities::load(m, &sign(&kp, m), kp.pk.as_ref()),
+            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())),
             Err(ManifestError::Dir {
                 error: FsError::Unsupported,
                 ..

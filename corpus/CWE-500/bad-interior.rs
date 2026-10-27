@@ -1,5 +1,5 @@
 //@ expect: interior
-// CWE-500 through interior mutability; lint not implemented (see 493).
+// CWE-500 through interior mutability (corten-driver lint, see 493).
 use std::sync::atomic::{AtomicU32, Ordering};
 pub static RETRIES: AtomicU32 = AtomicU32::new(3);
 fn main() {

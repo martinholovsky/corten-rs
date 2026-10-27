@@ -1,0 +1,7 @@
+# The lint driver links rustc's internals (`rustc_private`), which exist only
+# on nightly and change between nightlies, so the exact nightly is pinned
+# (spec section 8, question 10). rustc 1.101.0-nightly (76456a688 2026-10-25).
+[toolchain]
+channel = "nightly-2026-10-26"
+components = ["rustc-dev", "llvm-tools", "clippy", "rustfmt"]
+profile = "minimal"
