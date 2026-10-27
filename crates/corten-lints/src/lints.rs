@@ -59,10 +59,13 @@ fn callee(cx: &LateContext<'_>, expr: &Expr<'_>) -> Option<DefId> {
 // CWE-252
 
 declare_lint! {
-    /// CWE-252: every non-unit return value is must-use (spec 4.7). Fires on
-    /// `f();` and `let _ = f();` when `f` returns anything but `()` or `!`,
-    /// except a method returning a reference to its own receiver's type (a
-    /// builder: `cmd.arg(x);`), which carries no status.
+    /// CWE-252: a non-unit return value from a function defined in the
+    /// checked crate is must-use (spec 4.7, narrowed by owner decision 10).
+    /// Fires on `f();` and `let _ = f();` when `f` is local and returns
+    /// anything but `()` or `!`, except a method returning a reference to its
+    /// own receiver's type (a builder), which carries no status. Calls into
+    /// other crates (`map.insert(k, v);`) are left to rustc's
+    /// `unused_must_use`.
     pub CORTEN_MUST_USE_RETURN,
     Allow,
     "a non-unit return value is discarded"
@@ -74,6 +77,9 @@ fn discarded_value(cx: &LateContext<'_>, expr: &Expr<'_>) {
     if !matches!(expr.kind, ExprKind::Call(..) | ExprKind::MethodCall(..))
         || expr.span.in_external_macro(cx.sess().source_map())
     {
+        return;
+    }
+    if !callee(cx, expr).is_some_and(DefId::is_local) {
         return;
     }
     let ty = cx.typeck_results().expr_ty(expr);

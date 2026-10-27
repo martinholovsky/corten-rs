@@ -385,6 +385,16 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
         true,
     )?;
     let (workspace_root, target_dir) = (&plan.workspace_root, &plan.target_dir);
+    // Corten's own lints first: the build pass applies only Clippy's.
+    if !lint_pass(
+        req.toolchain,
+        req.manifest_path,
+        req.conf,
+        Some(&plan),
+        req.metadata,
+    )? {
+        return Err("Corten's own lints failed".to_owned());
+    }
     let mut build = build_command(req.toolchain, req.manifest_path, req.conf, Some(&plan))
         .map_err(|e| e.to_string())?;
     let build_status = build
@@ -490,9 +500,9 @@ fn find_driver() -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-/// The second pass, Corten's own lints (Phase 3b trial). `Ok(true)`: passed,
-/// or the driver is not installed, which is reported. Owner decision 10
-/// decides whether a missing driver becomes an error.
+/// The second pass, Corten's own lints. `Ok(true)`: passed. The driver is
+/// required (owner decision 10): without it the check has not run its whole
+/// profile, so a missing driver is an error.
 fn lint_pass(
     toolchain: &Toolchain,
     manifest_path: Option<&Path>,
@@ -501,11 +511,10 @@ fn lint_pass(
     metadata: &Json,
 ) -> Result<bool, String> {
     let Some(driver) = find_driver() else {
-        eprintln!(
-            "note: corten-driver is not installed: Corten's own lints ({}) did not run",
+        return Err(format!(
+            "corten-driver is not installed (set CORTEN_DRIVER or install it beside cargo-corten), so Corten's own lints ({}) cannot run",
             profile::FORBIDDEN_CORTEN_LINTS.join(", ")
-        );
-        return Ok(true);
+        ));
     };
     let out = std::process::Command::new(&driver)
         .args(["--print", "sysroot"])

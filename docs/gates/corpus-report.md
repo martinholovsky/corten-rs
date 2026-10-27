@@ -1,12 +1,12 @@
 Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 
-- Detection: 161 of 174 cases had every bad program rejected for the expected reason
+- Detection: 167 of 174 cases had every bad program rejected for the expected reason
 - False rejection: 0 of 174 matched good programs failed to build (limit: 5%)
 - Controls failed (plain cargo did not build a checker case's bad program): 0
 - Broken cases: 0
-- Passed: 161 of 174; of those, 12 rest only on syntax Rust does not have (weakest evidence)
+- Passed: 167 of 174; of those, 12 rest only on syntax Rust does not have (weakest evidence)
 
-- Passed but left unverified until the encoder is independently reviewed: 25
+- Passed but left unverified until the encoder is independently reviewed: 26
 
 | CWE | Proof kind | Result | Detail |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-1079 | language | pass |  |
 | CWE-1082 | language | pass |  |
 | CWE-1087 | language | pass |  |
-| CWE-1091 | checker | not detected | bad-cycle.rs: exit Some(0):  |
+| CWE-1091 | checker | pass |  |
 | CWE-1096 | checker | pass |  |
 | CWE-1098 | checker | pass |  |
 | CWE-111 | checker | pass |  |
@@ -27,7 +27,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-1235 | language | pass |  |
 | CWE-1236 | language | pass (awaiting encoder review) |  |
 | CWE-1321 | language | pass |  |
-| CWE-1322 | checker | not detected | bad.rs: exit Some(0):  |
+| CWE-1322 | checker | pass |  |
 | CWE-1333 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-1336 | language | pass (awaiting encoder review) |  |
 | CWE-134 | language | pass |  |
@@ -41,7 +41,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-242 | checker | pass |  |
 | CWE-243 | checker | pass |  |
 | CWE-25 | checker | pass |  |
-| CWE-252 | checker | not detected | bad-bool.rs: exit Some(0):  |
+| CWE-252 | checker | not detected | bad-std-status.rs: exit Some(0):  |
 | CWE-26 | checker | pass |  |
 | CWE-27 | checker | pass |  |
 | CWE-28 | checker | pass |  |
@@ -94,11 +94,11 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-484 | language | pass (construct absent) |  |
 | CWE-49 | checker | pass |  |
 | CWE-491 | language | pass (construct absent) |  |
-| CWE-493 | checker | not detected | bad-interior.rs: exit Some(0):  |
+| CWE-493 | checker | pass |  |
 | CWE-495 | language | pass |  |
 | CWE-496 | language | pass |  |
 | CWE-50 | checker | pass |  |
-| CWE-500 | checker | not detected | bad-interior.rs: exit Some(0):  |
+| CWE-500 | checker | pass |  |
 | CWE-51 | checker | pass |  |
 | CWE-52 | checker | pass |  |
 | CWE-53 | checker | pass |  |
@@ -124,7 +124,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-59 | checker | pass |  |
 | CWE-590 | checker | pass |  |
 | CWE-597 | language | pass |  |
-| CWE-607 | checker | not detected | bad.rs: exit Some(0):  |
+| CWE-607 | checker | pass |  |
 | CWE-61 | checker | pass |  |
 | CWE-611 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-621 | language | pass (construct absent) |  |
@@ -138,7 +138,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-652 | language | pass (awaiting encoder review) |  |
 | CWE-66 | checker | pass |  |
 | CWE-67 | checker | pass |  |
-| CWE-683 | checker | not detected | bad-private.rs: exit Some(0):  ; bad.rs: exit Some(0):  |
+| CWE-683 | checker | not detected | bad-private.rs: exit Some(0):  |
 | CWE-685 | language | pass |  |
 | CWE-686 | language | pass |  |
 | CWE-69 | checker | pass |  |
@@ -165,7 +165,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-827 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-83 | language | pass (awaiting encoder review) |  |
 | CWE-832 | checker | pass |  |
-| CWE-838 | language | not detected | bad-direct.rs: exit Some(0): warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks |
+| CWE-838 | language | pass (awaiting encoder review) |  |
 | CWE-84 | language | pass (awaiting encoder review) |  |
 | CWE-843 | checker | pass |  |
 | CWE-85 | language | pass (awaiting encoder review) |  |

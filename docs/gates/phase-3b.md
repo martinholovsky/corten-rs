@@ -2,7 +2,7 @@
 
 Date: 2026-10-27. Driver toolchain: `nightly-2026-10-26`, rustc 1.101.0-nightly (76456a688 2026-10-25), pinned in `crates/corten-lints/rust-toolchain.toml`. Checker toolchain: Rust 1.99.1. Platform: Linux (podman `rust:1.99.1-slim-bookworm`).
 
-Question 10 (spec section 8) asked whether the checker may depend on a pinned nightly for lints that stable Clippy cannot express. The owner chose to try it and decide on the results. This is the trial. **The decision is still open:** the lints run only where `corten-driver` is installed, CI's corpus runs without it, and no ledger row was marked verified on its strength.
+Question 10 (spec section 8) asked whether the checker may depend on a pinned nightly for lints that stable Clippy cannot express. The owner chose to try it and decide on the results; sections 1 to 6 are the trial. **Decision (section 7): adopted, with the must-use rule narrowed.**
 
 ## 1. What was built
 
@@ -66,8 +66,31 @@ The seven lints as warnings over the workspace's own library and binary code (`c
 
 ## 6. The decision this informs
 
-Question 10 stays open for the owner. The options this data supports:
+The options this data supported:
 
 1. **Adopt**: the driver ships with the checker, a missing driver becomes an error, and the six rows are verified on the next `--mark-verified` run.
 2. **Adopt without the must-use rule**, or with a narrower one (for example, only `Result`, `Option` and `bool` from functions in the checked crate), trading CWE-252's E claim for less churn.
 3. **Do not adopt**: the rows stay unverified until stable Clippy can express them, and the driver stays a trial.
+
+## 7. Decision and the adopted configuration
+
+The owner chose option 2 on 2026-10-27: adopt the driver, with the must-use rule narrowed so that `map.insert(k, v);` passes.
+
+- **Required.** `cargo corten check` and `cargo corten build` fail when `corten-driver` is not installed (`missing_driver_is_an_error`, with a control). `scripts/build-driver.sh` builds it; CI's tests job, the action and the test harness use it.
+- **The narrowed rule.** `corten_must_use_return` fires only when the called function is defined in the checked crate; a function from another crate is left to `#[must_use]` and rustc's `unused_must_use`. A local function's ignored status, including an integer code, is still refused (the UI fixture covers `bool`, `Option` and `i32`).
+- **What the narrowing gives up.** A standard-library status ignored, such as `seen.insert(id);` used as a duplicate check, passes. `corpus/CWE-252/bad-std-status.rs` records it, so CWE-252 stays unverified.
+
+Corpus with the adopted configuration (Linux container, driver required, `--mark-verified`):
+
+| Measure | Result |
+| --- | ---: |
+| Detection | 167 of 174 |
+| False rejection | **0 of 174** |
+| Controls failed, broken cases | 0, 0 |
+| Newly verified | CWE-493, 500, 607, 1091, 1322 |
+| Ledger rows verified | 141 of 175 (`corten-ledger totals`) |
+
+Not detected: CWE-252 (`bad-std-status.rs`), CWE-683 (`bad-private.rs`), CWE-396 (`bad-thread.rs`) and the four ban-list rows. CWE-838's direct-call variant is caught, and the row waits for the encoder review.
+
+The 43 ledger rows that carried the Phase 1 dependency-macro condition now name the two controls that close it: layer 3, and `corten_unsafe_from_macro` for allowlisted dependencies.
+
