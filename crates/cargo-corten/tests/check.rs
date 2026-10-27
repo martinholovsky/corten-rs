@@ -227,7 +227,18 @@ fn ban_list_resolves_and_safe_program_is_clean() {
         "{}",
         out.stderr
     );
-    assert!(!out.stderr.contains("warning"), "{}", out.stderr);
+    // Off Linux the checker itself warns that there is no sandbox; any other
+    // warning comes from the build.
+    let build_output: Vec<&str> = out
+        .stderr
+        .lines()
+        .filter(|l| !l.starts_with("warning: no sandbox on this platform"))
+        .collect();
+    assert!(
+        !build_output.iter().any(|l| l.contains("warning")),
+        "{}",
+        out.stderr
+    );
 }
 
 #[test]
