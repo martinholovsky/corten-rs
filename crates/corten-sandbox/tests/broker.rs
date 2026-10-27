@@ -202,16 +202,26 @@ fn open_descriptors_are_not_inherited() {
         fs::write(p, "x").unwrap();
         held.push(fs::File::open(p).unwrap());
     }
+    // Descriptors this process inherited from its own parent without
+    // close-on-exec (a CI runner leaks some) pass through the broker: closing
+    // a descriptor the process does not own needs `unsafe` (docs/gates/phase-3.md).
+    // The claim tested here is about descriptors the process opened itself.
+    let leaked = descriptors_without_cloexec();
     let mut p = policy();
     p.read_only.push(PathBuf::from("/proc"));
     let out = run(&invocation("/bin/ls", &["/proc/self/fd"]), &p, b"").unwrap();
     assert_eq!(out.code, Some(0), "{}", text(&out.stderr));
-    let fds: Vec<String> = text(&out.stdout)
+    let fds: Vec<i32> = text(&out.stdout)
         .split_whitespace()
-        .map(str::to_owned)
+        .map(|n| n.parse().unwrap())
+        .filter(|n| *n > 2 && !leaked.contains(n))
         .collect();
-    // 0, 1, 2 and the descriptor ls opened to list the directory.
-    assert!(fds.len() <= 4, "inherited descriptors: {fds:?}");
+    // At most the descriptor ls opened to list the directory; the five held
+    // files would add five.
+    assert!(
+        fds.len() <= 1,
+        "inherited descriptors: {fds:?}, leaked by the parent: {leaked:?}"
+    );
     let mut buf = String::new();
     held[0].read_to_string(&mut buf).unwrap();
     assert_eq!(buf, "x");
@@ -223,6 +233,31 @@ fn sandbox_refuses_a_missing_path() {
     p.read_only.push(PathBuf::from("/nonexistent/corten"));
     let out = run(&invocation("/bin/true", &[]), &p, b"").unwrap();
     assert_eq!(out.code, Some(3), "{}", text(&out.stderr));
+}
+
+/// This process's descriptors without `O_CLOEXEC`, from /proc/self/fdinfo.
+fn descriptors_without_cloexec() -> Vec<i32> {
+    const O_CLOEXEC: u32 = 0o2_000_000;
+    let mut out = Vec::new();
+    for entry in fs::read_dir("/proc/self/fdinfo").unwrap() {
+        let name = entry.unwrap().file_name();
+        let Ok(fd) = name.to_string_lossy().parse::<i32>() else {
+            continue;
+        };
+        // The descriptor read_dir holds may be gone by now.
+        let Ok(info) = fs::read_to_string(format!("/proc/self/fdinfo/{fd}")) else {
+            continue;
+        };
+        let flags = info
+            .lines()
+            .find_map(|l| l.strip_prefix("flags:"))
+            .and_then(|v| u32::from_str_radix(v.trim(), 8).ok())
+            .unwrap();
+        if flags & O_CLOEXEC == 0 {
+            out.push(fd);
+        }
+    }
+    out
 }
 
 fn hex(bytes: &[u8]) -> String {

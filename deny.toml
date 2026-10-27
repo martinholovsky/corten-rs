@@ -27,11 +27,13 @@ multiple-versions = "deny"
 wildcards = "deny"
 allow-wildcard-paths = true
 # region 3.0.2 (corten-std's only safe mlock wrapper) pins older majors of
-# these two crates. Each skip names the exact version and is removed when
-# region updates or is replaced.
+# bitflags and windows-sys, and landlock 0.4.7 builds with two majors of syn.
+# Each skip names the exact version and is removed when its dependent
+# updates or is replaced.
 skip = [
     { crate = "bitflags@1.3.2", reason = "region 3.0.2; rustix uses bitflags 2" },
     { crate = "windows-sys@0.52.0", reason = "region 3.0.2 on Windows targets only" },
+    { crate = "syn@2.0.119", reason = "landlock 0.4.7 (owner decision 11): enumflags2_derive uses syn 2, thiserror-impl syn 3; build-time only" },
 ]
 
 [sources]

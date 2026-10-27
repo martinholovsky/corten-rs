@@ -2,14 +2,14 @@
 
 Date: 2026-10-27. Toolchain: Rust 1.99.1. Platforms: macOS (development) and Linux (podman `rust:1.99.1-slim-bookworm`; CI on `ubuntu-24.04`). Gate, from spec section 9: "a panic in one component does not stop the service; a broker cannot exceed its declared capabilities."
 
-**Result: the gate's two tests pass on Linux; two Phase 3 items are not built.** A panicking child is restarted while its sibling keeps working. A brokered program is refused every read, write, TCP connection and inherited descriptor its grant does not name, and is stopped at its deadline and quotas. A hostile dependency build script is refused the network and writes outside `target/` under `cargo corten build`. Not built: mandatory resource budgets on every parse, decode and allocate entry point, and sandboxing for `cargo corten check` (section 4). The confinement is Linux only (Landlock): on other platforms `cargo corten build` refuses to build, and the process broker has no sandbox to run.
+**Result: the gate's two tests pass on Linux, the broker's on one condition; two Phase 3 items are not built.** The condition: the broker's own parent must not leak descriptors without close-on-exec, because those reach the brokered program (section 4). A panicking child is restarted while its sibling keeps working. A brokered program is refused every read, write and TCP connection its grant does not name, does not receive the descriptors its broker opened, and is stopped at its deadline and quotas. A hostile dependency build script is refused the network and writes outside `target/` under `cargo corten build`. Not built: mandatory resource budgets on every parse, decode and allocate entry point, and sandboxing for `cargo corten check` (section 4). The confinement is Linux only (Landlock): on other platforms `cargo corten build` refuses to build, and the process broker has no sandbox to run.
 
 ## 1. What Phase 3 built
 
 | Spec item | What exists | Where |
 | --- | --- | --- |
 | Supervision tree that isolates and restarts a panicked component | `Supervisor`, `ChildSpec`, `Restart` (`Permanent`, `Transient`, `Temporary`), a restart-intensity limit, cooperative `Shutdown`. Each attempt runs on its own thread; a panic is seen through the join result, without `catch_unwind` | `crates/corten-runtime` |
-| Process broker with quotas and deadlines | Runs a `corten_std::process::ProcessInvocation` under `corten-sandbox` with a deadline, input and output quotas, a cleared environment and no inherited descriptors | `crates/corten-broker/src/process.rs` |
+| Process broker with quotas and deadlines | Runs a `corten_std::process::ProcessInvocation` under `corten-sandbox` with a deadline, input and output quotas and a cleared environment. It does not close descriptors (section 4) | `crates/corten-broker/src/process.rs` |
 | Wasm broker | `wasmi` 2.0.0 (owner decision 12) with no imports, fuel, a memory limit and an output limit, on a 32 MiB-stack thread | `crates/corten-broker/src/wasm.rs` |
 | Schema-checked IPC | Length-prefixed frames; the per-type size limit is checked before allocation; the decoder must consume the whole frame | `crates/corten-broker/src/ipc.rs` |
 | Linux sandbox (layer 5) | `corten-sandbox`: Landlock ABI v4 as a hard requirement (exit 3 where the kernel cannot enforce it); `--ro`, `--rw`, `--exec`, `--system`, `--allow-net`; manifest mode turns a signed capability manifest into the rules | `crates/corten-sandbox` |
@@ -27,7 +27,7 @@ All on Linux, in the container; each confinement test first shows the action suc
 | Test | Result |
 | --- | --- |
 | `corten-runtime`: a panicking child is restarted while its sibling keeps working; the restart limit stops everything; a `Temporary` child is not restarted; the panic payload is reported | 4 of 4 pass |
-| `corten-sandbox/tests/broker.rs`: reading and writing outside the grant, TCP connect, the deadline, the output quota, the input quota, descriptor inheritance, a missing granted path (exit 3), manifest mode granting exactly the manifest | 9 of 9 pass. With Landlock's `apply` replaced by a no-op, 4 fail (mutation-checked during development) |
+| `corten-sandbox/tests/broker.rs`: reading and writing outside the grant, TCP connect, the deadline, the output quota, the input quota, descriptors the test process opened not reaching the child, a missing granted path (exit 3), manifest mode granting exactly the manifest | 9 of 9 pass. With Landlock's `apply` replaced by a no-op, 4 fail (mutation-checked during development) |
 | `corten-broker/tests/wasm.rs`: echo, a module with any import refused, fuel, memory limit, output limit, garbage | 6 of 6 pass, debug and release. The memory-limit test asserts the limit's trap with fuel set high, and has a roomy-limit control, after an earlier version passed on fuel exhaustion instead |
 | `scripts/hermetic-smoke.sh`: a benign crate builds and its provenance digest equals `sha256sum` of the binary; a dependency's build script that opens a TCP connection fails; one that writes outside `target/` fails and the file is not created | 3 of 3 pass. Each hostile case first shows plain `cargo build` lets the build script do it |
 | Whole workspace, `cargo test --workspace --all-features --locked` on Linux | 139 passed, 0 failed |
@@ -46,7 +46,7 @@ The smoke test runs in CI after the corpus.
 
 From [`corpus-report.md`](corpus-report.md) and `corten-ledger totals`.
 
-- **CWE-403** (descriptor leak): `dup` through FFI and `std::process::Command` are both refused by the profile; the good program opens through `DirCap`, which sets close-on-exec. Verified.
+- **CWE-403** (descriptor leak): `dup` through FFI and `std::process::Command` are both refused by the profile; the good program opens through `DirCap`, which sets close-on-exec. Verified: the claim is about the program's own descriptors, which it cannot create without close-on-exec. Descriptors its parent leaked into it are the gap in section 4.
 - **CWE-1333, 611, 776, 827**: the named crates (`fancy-regex`, `libxml`) are refused by the ban list. Each case also carries a `bad-unlisted.rs` variant: the same engine under a name the list does not know. A name-based ban cannot see it, so these rows stay "not detected" and unverified. Closing them needs either an allowlist of permitted parsers or a property of the code that can be checked, not a longer list.
 
 ## 4. Known gaps
@@ -54,6 +54,7 @@ From [`corpus-report.md`](corpus-report.md) and `corten-ledger totals`.
 | Gap | Measured | Consequence |
 | --- | --- | --- |
 | **`cargo corten check` runs dependency build scripts and proc macros on the host, outside the sandbox** | A vendored dependency whose build script writes a file outside the workspace: `cargo corten check` exits 0 and the file exists (Linux, 2026-10-27) | Checking an untrusted repository executes its dependencies' build code with the caller's authority. Only `build` is sandboxed. Fix: run `check` through the same vendor-then-sandbox path |
+| **Descriptors leaked into the broker reach the brokered child** | On the `ubuntu-24.04` runner the test process held descriptors 142 and 145 without close-on-exec, from the runner; the child sandboxed by `corten-sandbox` listed them in `/proc/self/fd` (CI run 40425104715, 2026-10-27). Reproduced in the container by opening fd 142 and 145 in the shell before the test | Landlock checks paths at open time, not descriptors already open, so a leaked writable descriptor is access outside the grant. Closing every descriptor above 2 before exec (`close_range`) needs `unsafe` or a dependency that wraps it: an owner decision, open. The test now excludes descriptors the process inherited without close-on-exec, read from `/proc/self/fdinfo` |
 | No sandbox off Linux | `find_sandbox` refuses off Linux ("refusing to build unconfined") | `cargo corten build` works on Linux only; `check` runs everywhere |
 | Resource budgets | Not built | Parsers and decoders in application code are not budgeted by construction |
 | The provenance statement is unsigned | By design: signing is layer 4's job | A consumer must get the statement from a signed attestation, not from the file |
