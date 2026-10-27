@@ -2,7 +2,9 @@
 
 Of the 944 weaknesses in MITRE CWE 4.20, **853 apply to Rust**: 794 directly and 59 only through `unsafe` code. Corten's drafted classification puts **168 of those 853 in E** (cannot be written), **659 in C** (checkable once the policy is stated) and **26 in O** (out of reach of any language). The other 69 weaknesses are specific to other languages or frameworks, and 22 are not coding weaknesses.
 
-After Phase 0 the ledger holds E 157 / C 670 / O 26 for these 853 (eleven drafted E ids moved to C, with reasons in the ledger); the per-category columns below are the drafted split. Every E claim is the design panel's, not yet proven by tests, and 78 of the 186 E ids across the full catalogue were disputed in ratification. Read E as the target, not the result.
+After Phase 0 the ledger holds E 157 / C 670 / O 26 for these 853 (eleven drafted E ids moved to C, with reasons in the ledger); the per-category columns below are the drafted split. 141 of the 175 E rows are now verified by compile-fail tests (`corten-ledger totals`, 2026-10-27); the rest are claims, and 78 of the 186 E ids across the full catalogue were disputed in ratification.
+
+**Status: under audit (2026-10-27, branch `rust-applicability-audit`).** The 853, 794 and 59 above are a classification, not a measurement: they come from MITRE's language tags plus 46 judgement calls, and MITRE's tags record where it documented a weakness, not where a language prevents it. At least one row is wrong: CWE-134 is classed as applying to Rust, but stock rustc rejects its corpus program. Derived from the ledger and corpus today: 853 for Rust including `unsafe`, at most 770 for safe Rust (minus the 59 `unsafe`-only rows and 24 more that stock rustc rejects in the corpus), and 700 for safe Rust with Corten (minus 70 more verified by Corten's checker). The audit tests the applicability rows one category at a time with a program per CWE under stock rustc.
 
 ## How each CWE was sorted
 
