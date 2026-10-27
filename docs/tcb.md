@@ -20,8 +20,9 @@ Status: Phase 0 specification, 2026-10-26. Required by the ratification amendmen
 **Not trusted, and outside every E claim:**
 
 - Dependencies' own code. Registry and git dependencies are built with `--cap-lints allow`, so the profile does not reach them. Layer 3 (spec section 10) and the dependency policy govern them; until then, a dependency can do anything Rust allows.
+- **Dependencies' macros, inside the checked crate.** Measured (docs/gates/phase-1.md): a `macro_rules!` exported by a registry dependency can expand to an `unsafe` block in the checked crate, and rustc does not report `unsafe_code` in external macro expansions. Every E claim that rests on the ban on `unsafe` therefore holds only while no dependency exports a macro (or procedural macro) that can emit `unsafe`; the ledger says so on each such row. Layer 3 must close this.
 - Known unsoundness in rustc. Bugs tracked under the `I-unsound` label can produce memory errors in safe code; any E claim fails for a program that exploits one. The bypass hunt records which ones were tried.
-- Build scripts and procedural macros run with the build's privileges (crates/cargo-corten/README.md).
+- Build scripts and procedural macros run with the build's privileges (crates/cargo-corten/README.md), and so does anything a repository's `[env]` table injects into the compiler process (for example `LD_PRELOAD`). The checker resists configuration that weakens the profile; it does not resist a repository that executes code during the build. Only a sandbox does (Phase 3, layer 4).
 
 ## 2. Fail closed
 

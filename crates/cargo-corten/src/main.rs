@@ -5,10 +5,13 @@
 
 use std::env;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use cargo_corten::{Toolchain, check_command};
+use cargo_corten::{Toolchain, check_command, profile};
 
 const USAGE: &str = "\
 Build a crate under the Corten profile, with flags the checker supplies itself.
@@ -65,6 +68,53 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
     }
 }
 
+/// A directory only this process created, holding the checker's
+/// `clippy.toml`; removed on drop.
+struct ConfDir(PathBuf);
+
+impl ConfDir {
+    fn create() -> io::Result<Self> {
+        let base = env::temp_dir();
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.subsec_nanos());
+        let mut last_err = None;
+        for attempt in 0..16u32 {
+            let dir = base.join(format!(
+                "cargo-corten-{}-{nanos}-{attempt}",
+                std::process::id()
+            ));
+            // create_dir fails if the name exists, so a planted directory or
+            // link is never reused.
+            let mut builder = fs::DirBuilder::new();
+            #[cfg(unix)]
+            std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+            match builder.create(&dir) {
+                Ok(()) => {
+                    let conf = Self(dir);
+                    fs::write(conf.0.join("clippy.toml"), profile::CLIPPY_TOML)?;
+                    return Ok(conf);
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => last_err = Some(e),
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last_err.unwrap_or_else(|| io::Error::other("no attempt made")))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for ConfDir {
+    fn drop(&mut self) {
+        if let Err(e) = fs::remove_dir_all(&self.0) {
+            eprintln!("warning: could not remove {}: {e}", self.0.display());
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let invocation = match parse(env::args_os().skip(1)) {
         Ok(invocation) => invocation,
@@ -91,9 +141,23 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    let conf = match ConfDir::create() {
+        Ok(conf) => conf,
+        Err(e) => {
+            eprintln!("error: could not create the Clippy configuration directory: {e}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+    let mut command = match check_command(&toolchain, manifest_path.as_deref(), conf.path()) {
+        Ok(command) => command,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
     // No deadline: this is an interactive build, and Ctrl-C reaches cargo
     // through the shared process group. `status` waits, so no child outlives us.
-    match check_command(&toolchain, manifest_path.as_deref()).status() {
+    match command.status() {
         Ok(status) if status.success() => ExitCode::SUCCESS,
         Ok(status) => {
             eprintln!("cargo corten check: failed ({status})");

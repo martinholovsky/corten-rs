@@ -369,7 +369,7 @@ Corten can enforce a wrong policy perfectly; mechanical enforcement is not evide
 
 ## 8. Open design decisions
 
-Nine questions split the panel and needed an owner decision; each one moves ids between buckets. The spec took the position in the middle column. On 2026-10-26 the owner kept the panel position on all nine. The 14 doubly disputed ids were then decided id by id in the ledger's `bucket_reason` column (section 6).
+Nine questions split the panel and needed an owner decision; each one moves ids between buckets. Question 10 arose during implementation. The spec took the position in the middle column. On 2026-10-26 the owner kept the panel position on all nine. The 14 doubly disputed ids were then decided id by id in the ledger's `bucket_reason` column (section 6).
 
 | # | Question | Joint-spec position | Alternative (who) | Decision |
 | --- | --- | --- | --- | --- |
@@ -382,6 +382,7 @@ Nine questions split the panel and needed an owner decision; each one moves ids 
 | 7 | Hardware and transient execution | N only where no code is the defect | N for transient leakage itself (C, F); N for all hardware-design entries (A) | Keep panel position (owner, 2026-10-26) |
 | 8 | Legacy-framework absence (J2EE, Struts, PHP, ActiveX) | By underlying property | E by inexpressibility (A, C); O for product configuration (B, D, F) | Keep panel position (owner, 2026-10-26) |
 | 9 | Any in-process `unsafe`? | None in application crates | `unsafe_trusted` with a Kani/Creusot proof or audited exception (B) | Keep panel position (owner, 2026-10-26) |
+| 10 | Custom lints need rustc internals (dylint or a rustc driver), so a pinned nightly toolchain inside the checker. Accept that? (Raised in Phase 1.) | Not covered by the joint spec | Yes: pin a nightly for the lint driver only, build what ships on stable. No: leave CWE-252, 493, 500, 607 and 683 unverified until stable Clippy can express them | Open |
 
 ## 9. Roadmap: making the claims true
 
@@ -420,11 +421,13 @@ Phases 0 to 3 make up the MVP; nothing moves to the next phase until its gate's 
 
 Start without forking the compiler (tools and their versions are in section 10): `no_std` plus a custom prelude crate, `clippy` disallowed-methods and disallowed-types lists, custom lints for the rules clippy lacks, and `cargo-deny` for dependency policy. These are standard Rust tools, but whether they can express every rule here is unverified.
 
-- [ ] Closed prelude with no ambient `std::fs`, `std::net`, `std::process` or `std::env`.
-- [ ] Lints: no `unsafe`, no FFI, must-use on every non-unit return, no implicit numeric casts, labelled same-typed parameters.
-- [ ] Checked arithmetic as the only integer arithmetic.
+- [x] Closed prelude with no ambient `std::fs`, `std::net`, `std::process` or `std::env`: as a checker-owned Clippy ban list (a denylist; the deny-by-default prelude is Phase 2's `corten-std`).
+- [ ] Lints: no `unsafe`, no FFI, must-use on every non-unit return, no implicit numeric casts, labelled same-typed parameters. Done: `unsafe`, FFI, `unused_must_use`, `as` casts. Not done: must-use on every return and labelled parameters (open question 10).
+- [x] Checked arithmetic as the only integer arithmetic (`arithmetic_side_effects` forbidden, `overflow-checks=on`).
 
 **Gate:** for each E id this phase claims, a program exhibiting the weakness fails to build, and a matched benign program builds. Report both rates.
+
+**Gate result (2026-10-26): 85 of 91 verified; not fully passed.** False rejection 0 of 91. The bypass hunt found two bypasses: `thread::join` as a catch-all (CWE-396), and `unsafe` injected by a dependency's macro, which reaches 41 claims and is recorded as a TCB condition on those rows. Kill thresholds not triggered (41 of 91 is under half). Full report: [`docs/gates/phase-1.md`](gates/phase-1.md).
 
 ### Phase 2 — capabilities and typed sinks
 
@@ -482,7 +485,7 @@ Supplying the flags is not enough on its own. **Measured, 2026-10-26, cargo 1.99
 | Same, and the checker also sets `RUSTC_WRAPPER` to the empty string | Build fails (E0453) |
 | The repository's config replaces `rustc` (`[build] rustc`) | The replacement runs, unless the checker sets `RUSTC` |
 
-Cargo reads that configuration from the working directory and its ancestors, so the checker must override every program and flag source cargo takes from configuration. What `cargo-corten` overrides today, and what it does not, is listed in [`crates/cargo-corten/README.md`](../crates/cargo-corten/README.md).
+Cargo reads that configuration from the working directory and its ancestors, so the checker must override every program and flag source cargo takes from configuration. Phase 1 found two more: a forced `[env]` entry for `CLIPPY_CONF_DIR` swaps in the repository's own Clippy configuration, and one for `RUSTC_BOOTSTRAP` enables nightly features on stable. Both are pinned with `cargo --config`, which outranks configuration files. What `cargo-corten` overrides today, and what it does not, is listed in [`crates/cargo-corten/README.md`](../crates/cargo-corten/README.md).
 
 ### Five layers
 
@@ -524,7 +527,7 @@ Layer 4 uses standard build-attestation tooling (Sigstore cosign, in-toto, GitHu
 
 `cargo corten check` (layers 2 and 3) plus a GitHub Action that runs it on a protected branch and signs the result (layer 4). Every later layer builds on that pair.
 
-Progress (2026-10-26): `crates/cargo-corten` runs `cargo check` with `-F unsafe_code` and the overrides above, with tests for each. The Clippy lint set, layer 3 and the GitHub Action are not built.
+Progress (2026-10-26): `crates/cargo-corten` runs the Phase 1 profile (Clippy as the compiler for every local crate, its own lint configuration, the overrides above) with tests for each. Layer 3 and the GitHub Action are not built.
 
 ## 11. Risks and kill criteria
 
