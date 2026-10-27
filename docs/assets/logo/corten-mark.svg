@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512" role="img" aria-labelledby="title">
+  <title id="title">Corten</title>
+  <!-- A weathering-steel plate with a C cut through it, centred on a
+       layered rust shield: the oxide layer is the protection. -->
+  <defs>
+    <path id="shield" d="M50 6 L88 18 V48 C88 72 72 88 50 96 C28 88 12 72 12 48 V18 Z"/>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F0A060"/>
+      <stop offset="0.55" stop-color="#D2702A"/>
+      <stop offset="1" stop-color="#A9481B"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect x="0" y="0" width="100" height="100" fill="#fff"/>
+      <path d="M68.4 31.6 A26 26 0 1 0 68.4 68.4" fill="none" stroke="#000" stroke-width="14"/>
+    </mask>
+  </defs>
+  <use href="#shield" fill="#B5541E"/>
+  <use href="#shield" fill="#8B3A1A" transform="translate(50 51) scale(0.84) translate(-50 -51)"/>
+  <use href="#shield" fill="#6E2A12" transform="translate(50 51) scale(0.68) translate(-50 -51)"/>
+  <use href="#shield" fill="#3A160A" transform="translate(50 51) scale(0.52) translate(-50 -51)"/>
+  <g transform="translate(35 34) scale(0.3)">
+    <g mask="url(#cut)">
+      <rect x="6" y="6" width="88" height="88" rx="6" fill="url(#plate)"/>
+    </g>
+  </g>
+</svg>

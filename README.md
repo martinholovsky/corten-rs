@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/logo/corten-mark.svg" alt="Corten logo: a weathered steel plate with a C cut through it, on a layered rust shield" width="160"></p>
+
 # Corten
 
 **Corten is a hardened Rust profile that makes whole classes of security bugs impossible to write, and makes the rest mechanically checkable.**
@@ -72,6 +74,7 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`crates/corten-sandbox`](crates/corten-sandbox) | Landlock launcher (Linux): grants by flag or by signed capability manifest |
 | [`action.yml`](action.yml), [`scripts/hermetic-smoke.sh`](scripts/hermetic-smoke.sh) | The layer 4 GitHub Action, and the end-to-end test of the sandboxed build |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
+| [`docs/assets/logo/`](docs/assets/logo) | The logo, favicon and GitHub social preview, with the script that renders them |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 
 ## Building

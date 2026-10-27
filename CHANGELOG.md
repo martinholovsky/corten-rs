@@ -6,6 +6,7 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Logo: a weathered-steel plate with a C cut through it on a layered rust shield (`docs/assets/logo/`), with PNG sizes, a favicon and a 1280×640 GitHub social preview; shown at the top of the README.
 - Phase 4, `corten-std`: `refine` (`Bounded`, `bounded!` proved at check time, runtime-checked `new`/`checked_add`/`copy_into`), `label` (`Labeled` over four levels; only `Public` reaches a sink; `declassify` needs a `DeclassifyCap` and writes a log record), `sync` (`lock_order!`, `OrderedMutex`; locks against the order do not compile). The manifest gains `declassify NAME`. 11 rejection fixtures with exact messages, 7 of 7 mutations caught. `docs/gates/phase-4.md`.
 - Phase 3b trial (question 10): `crates/corten-lints` builds `corten-driver`, rustc on a pinned nightly with seven lints (must-use on every return, labelled parameters on exported functions, public interior-mutable statics, `unsafe` from non-std macros, direct `from_template` calls, blocking calls in async, Rc/Arc cycles of types with a destructor). `cargo corten check` and `build` run them in a second pass and require the driver (owner decision 10, with the must-use rule narrowed to functions in the checked crate). `scripts/build-driver.sh`. Corpus: 167 of 174 detected, 0 of 174 falsely rejected; CWE-493, 500, 607, 1091 and 1322 verified (141 of 175). `docs/gates/phase-3b.md`.
 
