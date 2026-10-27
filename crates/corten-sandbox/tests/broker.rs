@@ -202,11 +202,6 @@ fn open_descriptors_are_not_inherited() {
         fs::write(p, "x").unwrap();
         held.push(fs::File::open(p).unwrap());
     }
-    // Descriptors this process inherited from its own parent without
-    // close-on-exec (a CI runner leaks some) pass through the broker: closing
-    // a descriptor the process does not own needs `unsafe` (docs/gates/phase-3.md).
-    // The claim tested here is about descriptors the process opened itself.
-    let leaked = descriptors_without_cloexec();
     let mut p = policy();
     p.read_only.push(PathBuf::from("/proc"));
     let out = run(&invocation("/bin/ls", &["/proc/self/fd"]), &p, b"").unwrap();
@@ -214,14 +209,11 @@ fn open_descriptors_are_not_inherited() {
     let fds: Vec<i32> = text(&out.stdout)
         .split_whitespace()
         .map(|n| n.parse().unwrap())
-        .filter(|n| *n > 2 && !leaked.contains(n))
+        .filter(|n| *n > 2)
         .collect();
     // At most the descriptor ls opened to list the directory; the five held
     // files would add five.
-    assert!(
-        fds.len() <= 1,
-        "inherited descriptors: {fds:?}, leaked by the parent: {leaked:?}"
-    );
+    assert!(fds.len() <= 1, "inherited descriptors: {fds:?}");
     let mut buf = String::new();
     held[0].read_to_string(&mut buf).unwrap();
     assert_eq!(buf, "x");
@@ -235,29 +227,30 @@ fn sandbox_refuses_a_missing_path() {
     assert_eq!(out.code, Some(3), "{}", text(&out.stderr));
 }
 
-/// This process's descriptors without `O_CLOEXEC`, from /proc/self/fdinfo.
-fn descriptors_without_cloexec() -> Vec<i32> {
-    const O_CLOEXEC: u32 = 0o2_000_000;
-    let mut out = Vec::new();
-    for entry in fs::read_dir("/proc/self/fdinfo").unwrap() {
-        let name = entry.unwrap().file_name();
-        let Ok(fd) = name.to_string_lossy().parse::<i32>() else {
-            continue;
-        };
-        // The descriptor read_dir holds may be gone by now.
-        let Ok(info) = fs::read_to_string(format!("/proc/self/fdinfo/{fd}")) else {
-            continue;
-        };
-        let flags = info
-            .lines()
-            .find_map(|l| l.strip_prefix("flags:"))
-            .and_then(|v| u32::from_str_radix(v.trim(), 8).ok())
-            .unwrap();
-        if flags & O_CLOEXEC == 0 {
-            out.push(fd);
-        }
-    }
-    out
+/// A descriptor the sandbox's parent left open without close-on-exec would
+/// reach the program, past Landlock; the sandbox refuses to run (exit 3).
+#[test]
+fn a_descriptor_without_cloexec_is_refused() {
+    let sandbox = env!("CARGO_BIN_EXE_corten-sandbox");
+    let under_sh = |prelude: &str| {
+        Command::new("/bin/sh")
+            .arg("-c")
+            .arg(format!("{prelude} exec \"$0\" --system -- /bin/true"))
+            .arg(sandbox)
+            .output()
+            .unwrap()
+    };
+    // Control: with no extra descriptor the program runs.
+    let clean = under_sh("");
+    assert_eq!(clean.status.code(), Some(0), "{}", text(&clean.stderr));
+    // `exec 7<` opens descriptor 7 without close-on-exec.
+    let leaky = under_sh("exec 7</dev/null;");
+    assert_eq!(leaky.status.code(), Some(3), "{}", text(&leaky.stderr));
+    assert!(
+        text(&leaky.stderr).contains("descriptors [7]"),
+        "{}",
+        text(&leaky.stderr)
+    );
 }
 
 fn hex(bytes: &[u8]) -> String {

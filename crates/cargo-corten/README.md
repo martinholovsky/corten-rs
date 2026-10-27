@@ -28,14 +28,16 @@ Before building, both subcommands read `cargo metadata` and refuse:
 
 The operator accepts a refused package by name, after reviewing it: `--allow-dep NAME` (repeatable) or `CORTEN_ALLOW_DEPS=a,b`. Nothing is read from the checked repository. On the corpus this refuses no benign program (0 of 174). A name the ban list does not know passes (docs/gates/phase-3.md).
 
-## Hermetic build (`cargo corten build`, Linux)
+## Hermetic build (`cargo corten build`, Linux) and the sandboxed check
 
 1. The profile check and the dependency policy, as above.
 2. `cargo vendor --locked --respect-source-config` into `target/corten-vendor`, outside the sandbox: the only step with network access.
 3. `cargo build --release --locked --offline` from the vendored sources, inside `corten-sandbox` (Landlock): no network; read and execute on the system directories and the toolchain; read-only on the workspace, the checker's configuration, `/proc` and `/dev/urandom`; read-write on `/dev/null` and `target/`. `CARGO_HOME` and `TMPDIR` are private directories under `target/`. Build scripts and proc macros run in here.
 4. `--sbom FILE`: CycloneDX 1.5 of every package in the graph. `--provenance FILE`: an unsigned in-toto v1 statement with a SLSA v1 predicate: SHA-256 of each built binary, of `Cargo.lock`, `rustc -vV`, the profile flags, and whether the build was sandboxed. Sign it in CI (layer 4).
 
-`corten-sandbox` is found through `CORTEN_SANDBOX` or beside the `cargo-corten` binary. Off Linux, `build` refuses to run unconfined. `scripts/hermetic-smoke.sh` tests it end to end: a benign build's digest equals `sha256sum`'s, and a dependency build script that opens a TCP connection or writes outside `target/` fails (each with a control under plain cargo).
+`cargo corten check` takes the same path on Linux: steps 1 to 3 with `cargo check --workspace --all-targets --locked --offline` in the sandbox. Its vendor step runs without `--locked`, so it may write `Cargo.lock` as plain `cargo check` would. Local path dependencies outside the workspace, and the `Cargo.toml` files above them (cargo reads those for inherited fields), are granted read-only. The checker's configuration directory is read-only inside the sandbox, so a build script cannot rewrite the ban list.
+
+`corten-sandbox` is found through `CORTEN_SANDBOX` or beside the `cargo-corten` binary; on Linux, without it, both subcommands refuse. It refuses to start while the process holds a descriptor above 2 without close-on-exec: wrap the call in `scripts/close-leaked-fds.sh` when the parent leaks some (the GitHub runner does). Off Linux, `build` refuses to run unconfined and `check` runs with a warning. `scripts/hermetic-smoke.sh` tests it end to end: a benign build's digest equals `sha256sum`'s, and a dependency build script that opens a TCP connection or writes outside `target/` fails (each with a control under plain cargo).
 
 ## What it overrides
 
@@ -67,8 +69,8 @@ A side effect: an operator's own wrapper, such as `sccache`, is not used under t
 These are known gaps, not claims. Each needs a test before it can be called handled.
 
 - **The toolchain is chosen by the checked repository.** Run as `cargo corten`, the rustup proxy has already picked the toolchain from the repository's `rust-toolchain.toml`, and rustup documents a `path` key there that names a custom toolchain. Neither the key nor its effect on the checker has been tested here.
-- **Build scripts and proc macros run unsandboxed during `check`**, with the operator's privileges (measured 2026-10-27: a dependency's build script wrote a file outside the workspace and the check exited 0). A build script could, for example, rewrite the checker's `clippy.toml` before Clippy reads it. Only `cargo corten build` runs them in the sandbox. Check untrusted code only inside a sandbox, such as a CI runner.
+- **Off Linux, build scripts and proc macros run unsandboxed during `check`**, with the operator's privileges; the checker warns. On Linux they run in the sandbox (`check_confines_dependency_build_scripts`).
 - **Build scripts of workspace crates are linted too** (measured: `std::env::var` in a `build.rs` is rejected), so a build script that reads its environment or files does not pass. Corten's spec does not allow unrestricted build scripts; whether to exempt them is open.
 - **`unsafe` produced by a macro from an allowlisted dependency is not reported.** Measured: rustc does not report `unsafe_code` inside expansions of external macros. The dependency policy refuses such a dependency (`dependency_exporting_an_unsafe_macro_is_refused`, `procedural_macro_dependency_is_refused`), so the bypass remains only for packages the operator allows.
-- **A repository's `[env]` table can still set other variables for the compiler**, for example `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`, which run code inside rustc. Only `CLIPPY_CONF_DIR` and `RUSTC_BOOTSTRAP` are pinned. Like build scripts, this is code execution by the checked repository, which only a sandbox contains.
+- **A repository's `[env]` table can still set other variables for the compiler**, for example `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`, which run code inside rustc. Only `CLIPPY_CONF_DIR` and `RUSTC_BOOTSTRAP` are pinned. Like build scripts, this is code execution by the checked repository; on Linux the sandbox contains it, elsewhere nothing does.
 - **Registry and git dependencies** are compiled by cargo with `--cap-lints allow` (cargo's documented behaviour for non-local packages; not measured here), so the profile does not reach their code. Layer 3 governs which ones may be used; it does not lint them.

@@ -48,19 +48,23 @@ runs:
       id: run
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         CORTEN_COMMAND: ${{ inputs.command }}
         CORTEN_MANIFEST: ${{ inputs.manifest-path }}
         CORTEN_ALLOW_DEPS: ${{ inputs.allow-deps }}
         CORTEN_OUT: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail
+        # corten-sandbox refuses to start while a descriptor without
+        # close-on-exec is open; the runner leaks some into every step.
+        corten() { bash "$ACTION_PATH/scripts/close-leaked-fds.sh" cargo corten "$@"; }
         case "$CORTEN_COMMAND" in
           check)
-            cargo corten check --manifest-path "$CORTEN_MANIFEST"
+            corten check --manifest-path "$CORTEN_MANIFEST"
             ;;
           build)
             mkdir -p "$CORTEN_OUT"
-            cargo corten build --manifest-path "$CORTEN_MANIFEST" \
+            corten build --manifest-path "$CORTEN_MANIFEST" \
               --sbom "$CORTEN_OUT/sbom.json" --provenance "$CORTEN_OUT/provenance.json"
             printf 'sbom=%s\n' "$CORTEN_OUT/sbom.json" >> "$GITHUB_OUTPUT"
             printf 'provenance=%s\n' "$CORTEN_OUT/provenance.json" >> "$GITHUB_OUTPUT"

@@ -227,6 +227,9 @@ fn manifest_arg(path: &Path) -> OsString {
 /// checker's `clippy.toml`).
 ///
 /// The command inherits stdio; the caller runs it and reads its status.
+/// With `sandbox`, cargo runs inside `corten-sandbox` from vendored sources
+/// (`--locked --offline`), as [`build_command`] does, so build scripts and
+/// procedural macros are confined during a check too.
 ///
 /// # Errors
 ///
@@ -236,9 +239,17 @@ pub fn check_command(
     toolchain: &Toolchain,
     manifest_path: Option<&Path>,
     conf_dir: &Path,
+    sandbox: Option<&BuildSandbox>,
 ) -> Result<Command, ConfDirError> {
-    let mut cmd = pinned_cargo(toolchain, conf_dir)?;
+    let inner = pinned_cargo(toolchain, conf_dir)?;
+    let mut cmd = match sandbox {
+        None => inner,
+        Some(s) => sandboxed(&inner, s, conf_dir),
+    };
     cmd.args(["check", "--workspace", "--all-targets"]);
+    if sandbox.is_some() {
+        cmd.args(["--locked", "--offline"]);
+    }
     if let Some(path) = manifest_path {
         cmd.arg(manifest_arg(path));
     }
@@ -247,8 +258,8 @@ pub fn check_command(
 
 /// Where a hermetic build may read and write (Linux, `corten-sandbox`).
 ///
-/// Dependencies are vendored into the target directory before the build
-/// (`cargo vendor`, outside the sandbox), so the sandboxed cargo reads only
+/// Where a sandboxed check or build runs. Dependencies are vendored into
+/// the target directory first (`cargo vendor`, outside the sandbox), so the sandboxed cargo reads only
 /// the workspace, the vendored sources and the toolchain, uses a private
 /// `CARGO_HOME` inside the target directory, and never sees the user's
 /// `~/.cargo`, where a build script could otherwise plant a program.
@@ -260,6 +271,10 @@ pub struct BuildSandbox {
     pub toolchain_root: PathBuf,
     /// The workspace being built (read-only).
     pub workspace_root: PathBuf,
+    /// Further read-only paths: local path dependencies outside the
+    /// workspace, and the `Cargo.toml` files cargo reads above them to find
+    /// their own workspace.
+    pub local_paths: Vec<PathBuf>,
     /// The target directory (read-write; holds the vendored sources, the
     /// private cargo home and the temporary directory).
     pub target_dir: PathBuf,
@@ -281,6 +296,47 @@ impl BuildSandbox {
     }
 }
 
+/// `inner` run inside `corten-sandbox` with the grants a cargo run needs:
+/// the system directories, execute on the toolchain, read-only on the
+/// workspace and `conf_dir`, read-write on the target directory, no network.
+/// `inner`'s environment carries over, with a private `TMPDIR` and
+/// `CARGO_HOME`, and cargo reads the vendored sources through
+/// `--config <vendor_config>`.
+fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
+    let mut outer = Command::new(&s.sandbox);
+    outer
+        .arg("--system")
+        .arg("--exec")
+        .arg(&s.toolchain_root)
+        .arg("--ro")
+        .arg(&s.workspace_root)
+        .arg("--ro")
+        .arg(conf_dir);
+    for path in &s.local_paths {
+        outer.arg("--ro").arg(path);
+    }
+    outer
+        // cargo reads /proc/self and random bytes, and gives children
+        // /dev/null; it reads nothing else of the host (strace, 2026-10-27).
+        .args(["--ro", "/proc", "--ro", "/dev/urandom", "--rw", "/dev/null"])
+        .arg("--rw")
+        .arg(&s.target_dir)
+        .arg("--")
+        .arg(inner.get_program())
+        .args(inner.get_args())
+        .arg("--config")
+        .arg(&s.vendor_config);
+    for (key, value) in inner.get_envs() {
+        match value {
+            Some(v) => outer.env(key, v),
+            None => outer.env_remove(key),
+        };
+    }
+    outer.env("TMPDIR", s.tmp_dir());
+    outer.env("CARGO_HOME", s.cargo_home());
+    outer
+}
+
 /// `cargo build --workspace --release --locked --offline` under the profile.
 /// With `sandbox`, cargo runs inside `corten-sandbox`: no network, the
 /// toolchain, registry cache and sources read-only, only the target
@@ -298,36 +354,7 @@ pub fn build_command(
     let inner = pinned_cargo(toolchain, conf_dir)?;
     let mut cmd = match sandbox {
         None => inner,
-        Some(s) => {
-            let mut outer = Command::new(&s.sandbox);
-            outer
-                .arg("--system")
-                .arg("--exec")
-                .arg(&s.toolchain_root)
-                .arg("--ro")
-                .arg(&s.workspace_root)
-                .arg("--ro")
-                .arg(conf_dir)
-                // cargo reads /proc/self and random bytes, and gives children
-                // /dev/null; it reads nothing else of the host (strace, 2026-10-27).
-                .args(["--ro", "/proc", "--ro", "/dev/urandom", "--rw", "/dev/null"])
-                .arg("--rw")
-                .arg(&s.target_dir)
-                .arg("--")
-                .arg(inner.get_program())
-                .args(inner.get_args())
-                .arg("--config")
-                .arg(&s.vendor_config);
-            for (key, value) in inner.get_envs() {
-                match value {
-                    Some(v) => outer.env(key, v),
-                    None => outer.env_remove(key),
-                };
-            }
-            outer.env("TMPDIR", s.tmp_dir());
-            outer.env("CARGO_HOME", s.cargo_home());
-            outer
-        }
+        Some(s) => sandboxed(&inner, s, conf_dir),
     };
     cmd.args(["build", "--workspace", "--release", "--locked", "--offline"]);
     if let Some(path) = manifest_path {
@@ -336,9 +363,11 @@ pub fn build_command(
     Ok(cmd)
 }
 
-/// `cargo vendor --locked --versioned-dirs DIR`, outside the sandbox: copies
-/// every dependency's source into `vendor_dir` and prints the
-/// source-replacement configuration for the sandboxed, offline build.
+/// `cargo vendor --versioned-dirs DIR`, outside the sandbox: copies every
+/// dependency's source into `vendor_dir` and prints the source-replacement
+/// configuration for the sandboxed, offline run. With `locked`, a lock file
+/// that needs updating is an error (a build); without it, cargo writes the
+/// lock file as a plain `cargo check` would (a check).
 ///
 /// # Errors
 ///
@@ -348,17 +377,17 @@ pub fn vendor_command(
     manifest_path: Option<&Path>,
     conf_dir: &Path,
     vendor_dir: &Path,
+    locked: bool,
 ) -> Result<Command, ConfDirError> {
     let mut cmd = pinned_cargo(toolchain, conf_dir)?;
+    cmd.arg("vendor");
+    if locked {
+        cmd.arg("--locked");
+    }
     // --respect-source-config: vendor from the same sources a plain build of
     // this repository would use (mirrors, directory sources).
-    cmd.args([
-        "vendor",
-        "--locked",
-        "--versioned-dirs",
-        "--respect-source-config",
-    ])
-    .arg(vendor_dir);
+    cmd.args(["--versioned-dirs", "--respect-source-config"])
+        .arg(vendor_dir);
     if let Some(path) = manifest_path {
         cmd.arg(manifest_arg(path));
     }
@@ -415,7 +444,7 @@ mod tests {
     }
 
     fn command(manifest: Option<&Path>) -> Command {
-        check_command(&toolchain(), manifest, Path::new("/conf")).unwrap()
+        check_command(&toolchain(), manifest, Path::new("/conf"), None).unwrap()
     }
 
     #[test]
@@ -496,7 +525,7 @@ mod tests {
     fn conf_dir_that_breaks_toml_is_refused() {
         for bad in ["/a'b", "/a\nb"] {
             assert!(
-                check_command(&toolchain(), None, Path::new(bad)).is_err(),
+                check_command(&toolchain(), None, Path::new(bad), None).is_err(),
                 "{bad:?}"
             );
         }

@@ -293,20 +293,62 @@ struct BuildRequest<'a> {
     provenance: Option<&'a Path>,
 }
 
-/// Fetch, then build inside the sandbox, then write the SBOM and provenance.
-fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
+/// Local packages (no `source`) outside `workspace_root`, and every
+/// `Cargo.toml` above each of them: cargo reads those to find the package's
+/// own workspace, for inherited fields. Registry and git packages are
+/// vendored and need no grant.
+fn local_paths(metadata: &Json, workspace_root: &Path) -> Vec<PathBuf> {
+    let mut out = BTreeSet::new();
+    for pkg in metadata
+        .get("packages")
+        .and_then(Json::as_array)
+        .unwrap_or(&[])
+    {
+        if pkg.get("source").is_some_and(|s| *s != Json::Null) {
+            continue;
+        }
+        let Some(dir) = pkg
+            .get("manifest_path")
+            .and_then(Json::as_str)
+            .and_then(|m| Path::new(m).parent())
+        else {
+            continue;
+        };
+        if dir.starts_with(workspace_root) {
+            continue;
+        }
+        out.insert(dir.to_path_buf());
+        for ancestor in dir.ancestors().skip(1) {
+            let manifest = ancestor.join("Cargo.toml");
+            if manifest.is_file() {
+                out.insert(manifest);
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// Vendors the dependencies (outside the sandbox: the only step with
+/// network access) and returns where a sandboxed check or build runs.
+/// `locked` is passed to `cargo vendor`.
+fn prepare_sandbox(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &Path,
+    metadata: &Json,
+    locked: bool,
+) -> Result<BuildSandbox, String> {
     let sandbox = find_sandbox()?;
-    let workspace_root = PathBuf::from(str_field(req.metadata, "workspace_root")?);
-    let target_dir = PathBuf::from(str_field(req.metadata, "target_directory")?);
-    let toolchain_root = req
-        .toolchain
+    let workspace_root = PathBuf::from(str_field(metadata, "workspace_root")?);
+    let target_dir = PathBuf::from(str_field(metadata, "target_directory")?);
+    let toolchain_root = toolchain
         .cargo
         .parent()
         .and_then(Path::parent)
         .ok_or("cannot find the toolchain root")?
         .to_path_buf();
     let vendor_dir = target_dir.join("corten-vendor");
-    let mut vendor = vendor_command(req.toolchain, req.manifest_path, req.conf, &vendor_dir)
+    let mut vendor = vendor_command(toolchain, manifest_path, conf, &vendor_dir, locked)
         .map_err(|e| e.to_string())?;
     let vendored = vendor
         .stderr(Stdio::inherit())
@@ -318,16 +360,31 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
     let vendor_config = target_dir.join("corten-vendor.toml");
     fs::write(&vendor_config, &vendored.stdout)
         .map_err(|e| format!("{}: {e}", vendor_config.display()))?;
+    let local_paths = local_paths(metadata, &workspace_root);
     let plan = BuildSandbox {
         sandbox,
         toolchain_root,
-        workspace_root: workspace_root.clone(),
-        target_dir: target_dir.clone(),
+        workspace_root,
+        local_paths,
+        target_dir,
         vendor_config,
     };
     for dir in [plan.cargo_home(), plan.tmp_dir()] {
         fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
+    Ok(plan)
+}
+
+/// Vendor, then build inside the sandbox, then write the SBOM and provenance.
+fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
+    let plan = prepare_sandbox(
+        req.toolchain,
+        req.manifest_path,
+        req.conf,
+        req.metadata,
+        true,
+    )?;
+    let (workspace_root, target_dir) = (&plan.workspace_root, &plan.target_dir);
     let mut build = build_command(req.toolchain, req.manifest_path, req.conf, Some(&plan))
         .map_err(|e| e.to_string())?;
     let build_status = build
@@ -356,10 +413,57 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
             lock_sha256: &sha256::hex_digest(&lock),
             sandboxed: true,
         };
-        let statement = provenance::statement(&artifacts(req.metadata, &target_dir), &facts);
+        let statement = provenance::statement(&artifacts(req.metadata, target_dir), &facts);
         fs::write(path, statement).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(())
+}
+
+/// `cargo corten check` after the dependency policy passed.
+fn run_check(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &ConfDir,
+    metadata: &Json,
+) -> ExitCode {
+    // On Linux the check runs inside the sandbox, as the build does: build
+    // scripts and procedural macros execute during a check. Elsewhere there
+    // is no sandbox, and the check says so.
+    let plan = if cfg!(target_os = "linux") {
+        match prepare_sandbox(toolchain, manifest_path, conf.path(), metadata, false) {
+            Ok(plan) => Some(plan),
+            Err(e) => {
+                // Fail closed: no sandbox, no check.
+                eprintln!("cargo corten check: {e}");
+                return ExitCode::from(EXIT_FAILED);
+            }
+        }
+    } else {
+        eprintln!(
+            "warning: no sandbox on this platform: build scripts and procedural macros run with your privileges"
+        );
+        None
+    };
+    let mut command = match check_command(toolchain, manifest_path, conf.path(), plan.as_ref()) {
+        Ok(command) => command,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(EXIT_USAGE);
+        }
+    };
+    // No deadline: this is an interactive build, and Ctrl-C reaches cargo
+    // through the shared process group. `status` waits, so no child outlives us.
+    match command.status() {
+        Ok(status) if status.success() => ExitCode::SUCCESS,
+        Ok(status) => {
+            eprintln!("cargo corten check: failed ({status})");
+            ExitCode::from(EXIT_FAILED)
+        }
+        Err(e) => {
+            eprintln!("error: could not run {}: {e}", toolchain.cargo.display());
+            ExitCode::from(EXIT_USAGE)
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -444,26 +548,7 @@ fn main() -> ExitCode {
             }
         };
     }
-    let mut command = match check_command(&toolchain, manifest_path.as_deref(), conf.path()) {
-        Ok(command) => command,
-        Err(e) => {
-            eprintln!("error: {e}");
-            return ExitCode::from(EXIT_USAGE);
-        }
-    };
-    // No deadline: this is an interactive build, and Ctrl-C reaches cargo
-    // through the shared process group. `status` waits, so no child outlives us.
-    match command.status() {
-        Ok(status) if status.success() => ExitCode::SUCCESS,
-        Ok(status) => {
-            eprintln!("cargo corten check: failed ({status})");
-            ExitCode::from(EXIT_FAILED)
-        }
-        Err(e) => {
-            eprintln!("error: could not run {}: {e}", toolchain.cargo.display());
-            ExitCode::from(EXIT_USAGE)
-        }
-    }
+    run_check(&toolchain, manifest_path.as_deref(), &conf, &metadata)
 }
 
 #[cfg(test)]

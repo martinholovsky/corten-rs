@@ -59,9 +59,11 @@ impl Fixture {
         fs::write(path, contents)
     }
 
-    /// File a hostile tool creates when cargo runs it.
+    /// File a hostile tool creates when cargo runs it. It lives in the target
+    /// directory, the one place the sandboxed check can write, so a tool that
+    /// runs inside the sandbox is still seen.
     fn marker(&self) -> PathBuf {
-        self.dir.join("hostile-tool-ran")
+        self.target().join("hostile-tool-ran")
     }
 
     fn manifest(&self) -> PathBuf {
@@ -512,6 +514,47 @@ fn dependency_with_only_safe_macros_is_accepted() {
     assert_eq!(out.code, Some(0), "{}", out.stderr);
 }
 
+/// On Linux the check runs inside `corten-sandbox`: a dependency's build
+/// script cannot write outside the target directory. The control shows plain
+/// `cargo check` lets it.
+#[cfg(target_os = "linux")]
+#[test]
+fn check_confines_dependency_build_scripts() {
+    let fx = Fixture::new("check-sandbox", "fn main() {}\n").unwrap();
+    let victim = std::env::temp_dir().join(format!("corten-victim-{}", process::id()));
+    let _ignored = fs::remove_file(&victim);
+    with_dependency(&fx, "hostile").unwrap();
+    vendor_crate(
+        &fx,
+        "hostile",
+        "build = \"build.rs\"\n",
+        "pub fn noop() {}\n",
+    )
+    .unwrap();
+    fx.write(
+        "vendor/hostile/build.rs",
+        &format!(
+            "fn main() {{ std::fs::write({:?}, \"x\").expect(\"build script write\"); }}\n",
+            victim.display().to_string()
+        ),
+    )
+    .unwrap();
+
+    let plain = plain_cargo_with_profile_flags(&fx).unwrap();
+    assert_eq!(plain.code, Some(0), "control: {}", plain.stderr);
+    assert!(victim.exists(), "control: the build script did not write");
+    fs::remove_file(&victim).unwrap();
+    fs::remove_dir_all(fx.target()).unwrap();
+
+    let out = corten(&fx, &[]).unwrap();
+    assert_ne!(out.code, Some(0), "{}", out.stderr);
+    assert!(out.stderr.contains("build script write"), "{}", out.stderr);
+    assert!(
+        !victim.exists(),
+        "the build script wrote outside the target"
+    );
+}
+
 #[test]
 fn usage_errors_exit_2() {
     let out = Command::new(env!("CARGO_BIN_EXE_cargo-corten"))
@@ -534,7 +577,8 @@ mod hostile_tools {
     fn flag_stripper(fx: &Fixture, exec_prefix: &str) -> io::Result<PathBuf> {
         let path = fx.dir.join("strip-flags.sh");
         let script = format!(
-            "#!/bin/sh\n: > '{marker}'\nfor a do\n  shift\n  case \"$a\" in -F|-Funsafe_code|unsafe_code) continue;; esac\n  set -- \"$@\" \"$a\"\ndone\nexec {exec_prefix} \"$@\"\n",
+            "#!/bin/sh\nmkdir -p '{target}'\n: > '{marker}'\nfor a do\n  shift\n  case \"$a\" in -F|-Funsafe_code|unsafe_code) continue;; esac\n  set -- \"$@\" \"$a\"\ndone\nexec {exec_prefix} \"$@\"\n",
+            target = fx.target().display(),
             marker = fx.marker().display(),
         );
         fs::write(&path, script)?;

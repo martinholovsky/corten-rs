@@ -25,6 +25,9 @@
 //! sandbox uses Landlock ABI v4 as a hard requirement: on a kernel that
 //! cannot enforce every rule, or off Linux, it refuses to run the program
 //! (exit 3). A path that does not exist is an error, not a skipped rule.
+//! A descriptor above 2 open without close-on-exec is refused the same way:
+//! the program would inherit it, and Landlock does not restrict a descriptor
+//! that is already open.
 //!
 //! This binary is part of Corten's trusted base (`docs/tcb.md`). It is used
 //! by `corten-broker` and is the layer 5 runtime sandbox.
@@ -238,11 +241,59 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: manifest refused: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
+    // Before Landlock: afterwards /proc may be out of reach. (Off Linux,
+    // enforce::apply refuses below.)
+    #[cfg(target_os = "linux")]
+    if let Err(e) = check_descriptors() {
+        eprintln!("corten-sandbox: {e}");
+        return ExitCode::from(EXIT_UNENFORCEABLE);
+    }
     if let Err(e) = enforce::apply(&plan) {
         eprintln!("corten-sandbox: cannot enforce the sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
     exec(&plan)
+}
+
+/// Refuses to run while a descriptor above 2 lacks close-on-exec: the program
+/// would inherit it, and Landlock checks paths when they are opened, not
+/// descriptors already open. Closing a descriptor this process does not own
+/// needs `unsafe`, so the sandbox fails closed instead (owner decision,
+/// 2026-10-27); the parent must close or mark its descriptors.
+#[cfg(target_os = "linux")]
+fn check_descriptors() -> Result<(), String> {
+    const O_CLOEXEC: u32 = 0o2_000_000;
+    let unreadable = |e: std::io::Error| format!("cannot read /proc/self/fdinfo: {e}");
+    let mut leaked = Vec::new();
+    for entry in std::fs::read_dir("/proc/self/fdinfo").map_err(unreadable)? {
+        let entry = entry.map_err(unreadable)?;
+        let Some(fd) = entry
+            .file_name()
+            .to_str()
+            .and_then(|n| n.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        if fd <= 2 {
+            continue;
+        }
+        let info = std::fs::read_to_string(entry.path()).map_err(unreadable)?;
+        let flags = info
+            .lines()
+            .find_map(|l| l.strip_prefix("flags:"))
+            .and_then(|v| u32::from_str_radix(v.trim(), 8).ok())
+            .ok_or_else(|| format!("no flags in /proc/self/fdinfo/{fd}"))?;
+        if flags & O_CLOEXEC == 0 {
+            leaked.push(fd);
+        }
+    }
+    if leaked.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "descriptors {leaked:?} are open without close-on-exec and would reach the program; close them before starting the sandbox"
+        ))
+    }
 }
 
 #[cfg(unix)]

@@ -46,18 +46,20 @@ jobs:
       - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.87.32
         with:
           tool: cargo-nextest@0.9.150
-      - run: cargo nextest run --workspace --all-features --locked
+      # corten-sandbox refuses to start while a descriptor without close-on-exec
+      # is open, and the runner leaks some into every step; the wrapper closes them.
+      - run: bash scripts/close-leaked-fds.sh cargo nextest run --workspace --all-features --locked
       - run: cargo test --doc --workspace --locked
       - name: Ledger gate
         run: cargo run --locked -p corten-ledger -- check
       - name: Compile-fail corpus
         run: |
           cargo build --locked -p cargo-corten
-          cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten
+          bash scripts/close-leaked-fds.sh cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten
       - name: Hermetic build smoke test
         run: |
           cargo build --locked -p cargo-corten -p corten-sandbox
-          bash scripts/hermetic-smoke.sh target/debug
+          bash scripts/close-leaked-fds.sh bash scripts/hermetic-smoke.sh target/debug
       # Layer 4: the repository's own action, on a fresh crate outside the workspace.
       - name: Action self-test fixture
         run: |
