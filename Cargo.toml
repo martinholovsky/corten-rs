@@ -9,6 +9,8 @@ members = [
     "crates/corten-std",
 ]
 resolver = "3"
+# Built with a pinned nightly (rustc internals), outside the stable workspace.
+exclude = ["crates/corten-lints"]
 
 [workspace.package]
 version = "0.0.0"

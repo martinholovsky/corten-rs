@@ -382,7 +382,7 @@ Nine questions split the panel and needed an owner decision; each one moves ids 
 | 7 | Hardware and transient execution | N only where no code is the defect | N for transient leakage itself (C, F); N for all hardware-design entries (A) | Keep panel position (owner, 2026-10-26) |
 | 8 | Legacy-framework absence (J2EE, Struts, PHP, ActiveX) | By underlying property | E by inexpressibility (A, C); O for product configuration (B, D, F) | Keep panel position (owner, 2026-10-26) |
 | 9 | Any in-process `unsafe`? | None in application crates | `unsafe_trusted` with a Kani/Creusot proof or audited exception (B) | Keep panel position (owner, 2026-10-26) |
-| 10 | Custom lints need rustc internals (dylint or a rustc driver), so a pinned nightly toolchain inside the checker. Accept that? (Raised in Phase 1.) | Not covered by the joint spec | Yes: pin a nightly for the lint driver only, build what ships on stable. No: leave CWE-252, 493, 500, 607 and 683 unverified until stable Clippy can express them | Try it as Phase 3b; decide on its results (owner, 2026-10-27) |
+| 10 | Custom lints need rustc internals (dylint or a rustc driver), so a pinned nightly toolchain inside the checker. Accept that? (Raised in Phase 1.) | Not covered by the joint spec | Yes: pin a nightly for the lint driver only, build what ships on stable. No: leave CWE-252, 493, 500, 607 and 683 unverified until stable Clippy can express them | Try it as Phase 3b; decide on its results (owner, 2026-10-27). Trial done 2026-10-27 ([`docs/gates/phase-3b.md`](gates/phase-3b.md)): with the driver, 168 of 174 detected and 1 of 174 falsely rejected; decision open |
 | 11 | The Linux sandbox (Landlock) for brokers and layer 5: the `landlock` crate brings `unicode-ident` (Unicode-3.0) in at build time. Allow that licence, or write the syscalls with `unsafe`? (Phase 3) | Not covered by the joint spec | Raw syscalls with `unsafe` in one launcher crate | Allow Unicode-3.0, use the `landlock` crate (owner, 2026-10-27) |
 | 12 | Wasm broker runtime: `wasmtime` (Cranelift JIT, 146 packages, Apache-2.0 WITH LLVM-exception) or `wasmi` (interpreter, 15 packages, MIT/Apache)? (Phase 3) | Not covered by the joint spec | `wasmtime` | `wasmi` (owner, 2026-10-27) |
 
@@ -424,7 +424,7 @@ Phases 0 to 3 make up the MVP; nothing moves to the next phase until its gate's 
 Start without forking the compiler (tools and their versions are in section 10): `no_std` plus a custom prelude crate, `clippy` disallowed-methods and disallowed-types lists, custom lints for the rules clippy lacks, and `cargo-deny` for dependency policy. These are standard Rust tools, but whether they can express every rule here is unverified.
 
 - [x] Closed prelude with no ambient `std::fs`, `std::net`, `std::process` or `std::env`: as a checker-owned Clippy ban list (a denylist; the deny-by-default prelude is Phase 2's `corten-std`).
-- [ ] Lints: no `unsafe`, no FFI, must-use on every non-unit return, no implicit numeric casts, labelled same-typed parameters. Done: `unsafe`, FFI, `unused_must_use`, `as` casts. Not done: must-use on every return and labelled parameters (open question 10).
+- [ ] Lints: no `unsafe`, no FFI, must-use on every non-unit return, no implicit numeric casts, labelled same-typed parameters. Done: `unsafe`, FFI, `unused_must_use`, `as` casts. Must-use on every return and labelled parameters exist as `corten-driver` lints (Phase 3b trial), in force only if question 10 is accepted.
 - [x] Checked arithmetic as the only integer arithmetic (`arithmetic_side_effects` forbidden, `overflow-checks=on`).
 
 **Gate:** for each E id this phase claims, a program exhibiting the weakness fails to build, and a matched benign program builds. Report both rates.
@@ -452,6 +452,14 @@ Start without forking the compiler (tools and their versions are in section 10):
 **Gate:** a panic in one component does not stop the service; a broker cannot exceed its declared capabilities.
 
 **Gate result (2026-10-27): the gate's tests pass on Linux; one item not built.** A panicking child is restarted while its sibling works (4 of 4 supervisor tests). A brokered process is refused reads, writes and TCP outside its grant, receives no descriptor, and is stopped at its deadline and quotas (10 of 10; a no-op Landlock fails 4). The sandbox refuses to start while a descriptor without close-on-exec is open, after CI showed the runner's leaked descriptors reaching the child (owner decision). A Wasm module gets no imports and is held to fuel, memory and output limits (6 of 6). A dependency build script is refused the network and writes outside `target/` under `cargo corten build` (3 of 3 smoke cases, each with a control) and under `cargo corten check` (owner decision; a test with a control). Corpus: 161 of 174 detected, 0 of 174 false rejections; CWE-403 verified, and the four ban-list rows stay unverified because a renamed crate passes. Not built: resource budgets. Report: [`docs/gates/phase-3.md`](gates/phase-3.md).
+
+### Phase 3b — Corten's own lints (trial for question 10)
+
+- [x] A rustc driver on a pinned nightly (`crates/corten-lints`) with seven lints: must-use on every return (CWE-252), labelled parameters on exported functions (CWE-683), public interior-mutable statics (CWE-493, 500, 607), `unsafe` from a non-std macro (the Phase 1 bypass), direct `from_template` calls (the Phase 2 gap), blocking calls inside async (CWE-1322), Rc/Arc cycles of types with a destructor (CWE-1091).
+- [x] A second `cargo corten check` pass that runs them when the driver is installed, in the sandbox on Linux.
+- [ ] Owner decision on question 10.
+
+**Result (2026-10-27).** Corpus with the driver: 168 of 174 detected, 1 of 174 falsely rejected (`map.insert(k, v);` under the must-use rule); without it, 161 of 174 and 0. Over this repository's own code: 19 must-use and 5 labelled-parameter findings in about 9,000 lines. No row is marked verified on the driver's strength until the decision. Report: [`docs/gates/phase-3b.md`](gates/phase-3b.md).
 
 ### Phase 4 — refinements and information flow (post-MVP)
 

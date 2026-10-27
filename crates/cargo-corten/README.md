@@ -64,6 +64,10 @@ Measured on cargo 1.99.1, 2026-10-26: with `[build] rustc-wrapper` pointing at a
 
 A side effect: an operator's own wrapper, such as `sccache`, is not used under the checker.
 
+## Corten's own lints (second pass, Phase 3b trial)
+
+When `corten-driver` is installed (`CORTEN_DRIVER`, or beside `cargo-corten`; built from [`crates/corten-lints`](../corten-lints) on its pinned nightly), a passing check runs a second `cargo check` with the driver as the compiler and only `-F corten_*` flags ([`src/profile.rs`](src/profile.rs) `FORBIDDEN_CORTEN_LINTS`), into `target/corten-lints`, in the sandbox on Linux. Without the driver the checker prints a note naming the lints that did not run, and passes: whether the driver becomes required is owner question 10 ([`docs/gates/phase-3b.md`](../../docs/gates/phase-3b.md)).
+
 ## What it does not cover yet
 
 These are known gaps, not claims. Each needs a test before it can be called handled.

@@ -17,27 +17,32 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use corten_broker::process::{BrokerError, ProcessPolicy, run};
-use corten_std::manifest::Capabilities;
-use corten_std::process::{ExecCap, ProcessInvocation};
+use corten_std::manifest::{Capabilities, PublicKey, Signature};
+use corten_std::process::{ExecCap, Operands, Options, ProcessInvocation};
 use ed25519_compact::{KeyPair, Seed};
 
 fn exec_cap(program: &str) -> ExecCap {
     let kp = KeyPair::from_seed(Seed::new([9u8; 32]));
     let manifest = format!("corten-manifest 1\nexec prog {program}\n");
     let sig = kp.sk.sign(manifest.as_bytes(), None);
-    let mut caps = Capabilities::load(manifest.as_bytes(), sig.as_ref(), kp.pk.as_ref()).unwrap();
+    let mut caps = Capabilities::load(
+        manifest.as_bytes(),
+        Signature(sig.as_ref()),
+        PublicKey(kp.pk.as_ref()),
+    )
+    .unwrap();
     caps.take_exec("prog").unwrap()
 }
 
 fn invocation(program: &str, operands: &[&str]) -> ProcessInvocation {
     // No options: the operands follow `--`, which these utilities accept.
-    ProcessInvocation::new(&exec_cap(program), &[], operands).unwrap()
+    ProcessInvocation::new(&exec_cap(program), Options(&[]), Operands(operands)).unwrap()
 }
 
 fn shell(script: &str) -> ProcessInvocation {
     // `sh -c -- SCRIPT`: `-c` is the literal option and the script the
     // runtime operand after `--`, which POSIX shells accept.
-    ProcessInvocation::new(&exec_cap("/bin/sh"), &["-c"], &[script]).unwrap()
+    ProcessInvocation::new(&exec_cap("/bin/sh"), Options(&["-c"]), Operands(&[script])).unwrap()
 }
 
 fn policy() -> ProcessPolicy {
@@ -151,7 +156,12 @@ fn tcp_connect_is_denied() {
         text(&plain.stderr)
     );
 
-    let inv = ProcessInvocation::new(&exec_cap("/bin/bash"), &["-c"], &[&script]).unwrap();
+    let inv = ProcessInvocation::new(
+        &exec_cap("/bin/bash"),
+        Options(&["-c"]),
+        Operands(&[&script]),
+    )
+    .unwrap();
     let out = run(&inv, &policy(), b"").unwrap();
     assert_ne!(out.code, Some(0));
     assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));

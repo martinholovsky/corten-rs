@@ -1,0 +1,17 @@
+[package]
+name = "corten-lints"
+version = "0.0.0"
+edition = "2024"
+description = "Corten's custom lints as a rustc driver (Phase 3b trial; pinned nightly)"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "corten-driver"
+path = "src/main.rs"
+
+# No dependencies: the driver is part of the trusted base.
+[dependencies]
+
+[package.metadata.rust-analyzer]
+rustc_private = true

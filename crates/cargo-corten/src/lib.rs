@@ -337,6 +337,54 @@ fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
     outer
 }
 
+/// The second pass: `cargo check` with `corten-driver` (rustc on a pinned
+/// nightly, with Corten's own lints registered) as the compiler and only
+/// [`profile::FORBIDDEN_CORTEN_LINTS`] as flags. It writes to
+/// `target_dir`, apart from the first pass's artifacts, which a different
+/// compiler built. `RUSTC_BOOTSTRAP=-1` stays pinned, so the nightly
+/// compiler refuses `#![feature]` in the checked code like a stable one.
+/// With `sandbox`, it runs there; `sandbox.local_paths` must also grant the
+/// driver and its sysroot.
+///
+/// # Errors
+///
+/// As [`check_command`].
+pub fn lint_command(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf_dir: &Path,
+    driver: &Path,
+    target_dir: &Path,
+    sandbox: Option<&BuildSandbox>,
+) -> Result<Command, ConfDirError> {
+    let mut inner = pinned_cargo(toolchain, conf_dir)?;
+    inner.env("RUSTC", driver);
+    // Empty overrides a configured `[build] rustc-wrapper` as well.
+    inner.env("RUSTC_WRAPPER", "");
+    let mut flags = Vec::new();
+    for lint in profile::FORBIDDEN_CORTEN_LINTS {
+        flags.push("-F");
+        flags.push(lint);
+    }
+    inner.env(
+        "CARGO_ENCODED_RUSTFLAGS",
+        flags.join(ENCODED_FLAG_SEPARATOR),
+    );
+    let mut cmd = match sandbox {
+        None => inner,
+        Some(s) => sandboxed(&inner, s, conf_dir),
+    };
+    cmd.args(["check", "--workspace", "--all-targets", "--target-dir"])
+        .arg(target_dir);
+    if sandbox.is_some() {
+        cmd.args(["--locked", "--offline"]);
+    }
+    if let Some(path) = manifest_path {
+        cmd.arg(manifest_arg(path));
+    }
+    Ok(cmd)
+}
+
 /// `cargo build --workspace --release --locked --offline` under the profile.
 /// With `sandbox`, cargo runs inside `corten-sandbox`: no network, the
 /// toolchain, registry cache and sources read-only, only the target

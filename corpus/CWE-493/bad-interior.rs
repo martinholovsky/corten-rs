@@ -1,6 +1,6 @@
 //@ expect: interior
-// CWE-493 through interior mutability. Needs the interior-mutable-pub-
-// static lint (not implemented), so this variant passes the checker today.
+// CWE-493 through interior mutability. Caught by the interior-mutable-pub-
+// static lint (corten-driver, Phase 3b).
 use std::sync::atomic::{AtomicU32, Ordering};
 pub static LIMIT: AtomicU32 = AtomicU32::new(10);
 fn main() {

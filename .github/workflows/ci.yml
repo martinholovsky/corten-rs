@@ -80,6 +80,33 @@ jobs:
           grep -q '"purl":"pkg:cargo/fixture@0.1.0"' "$SBOM"
           grep -q '"sandboxed":true' "$PROVENANCE"
 
+  lint-driver:
+    # Phase 3b trial (spec section 8, question 10): Corten's own lints as a
+    # rustc driver on the nightly pinned in crates/corten-lints.
+    name: lint driver (nightly)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install
+      - name: Install the pinned nightly
+        working-directory: crates/corten-lints
+        run: rustup toolchain install
+      - name: fmt, clippy and UI tests
+        working-directory: crates/corten-lints
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+      - name: End to end through cargo corten check
+        env:
+          CORTEN_DRIVER: ${{ github.workspace }}/crates/corten-lints/target/debug/corten-driver
+          CORTEN_REQUIRE_DRIVER: "1"
+        run: |
+          cargo build --locked -p cargo-corten -p corten-sandbox
+          bash scripts/close-leaked-fds.sh cargo test --locked -p cargo-corten --test check lint_pass
+
   supply-chain:
     name: cargo deny
     runs-on: ubuntu-24.04

@@ -16,8 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use cargo_corten::json::Json;
 use cargo_corten::provenance::{Artifact, BuildFacts};
 use cargo_corten::{
-    BuildSandbox, Toolchain, build_command, check_command, deps, metadata_command, profile,
-    profile_rustflags, provenance, sha256, vendor_command,
+    BuildSandbox, Toolchain, build_command, check_command, deps, lint_command, metadata_command,
+    profile, profile_rustflags, provenance, sha256, vendor_command,
 };
 
 const USAGE: &str = "\
@@ -454,15 +454,95 @@ fn run_check(
     // No deadline: this is an interactive build, and Ctrl-C reaches cargo
     // through the shared process group. `status` waits, so no child outlives us.
     match command.status() {
-        Ok(status) if status.success() => ExitCode::SUCCESS,
+        Ok(status) if status.success() => {}
         Ok(status) => {
             eprintln!("cargo corten check: failed ({status})");
-            ExitCode::from(EXIT_FAILED)
+            return ExitCode::from(EXIT_FAILED);
         }
         Err(e) => {
             eprintln!("error: could not run {}: {e}", toolchain.cargo.display());
-            ExitCode::from(EXIT_USAGE)
+            return ExitCode::from(EXIT_USAGE);
         }
+    }
+    match lint_pass(
+        toolchain,
+        manifest_path,
+        conf.path(),
+        plan.as_ref(),
+        metadata,
+    ) {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(EXIT_FAILED),
+        Err(e) => {
+            // Fail closed: a driver that is installed but cannot run did not pass.
+            eprintln!("cargo corten check: custom lints: {e}");
+            ExitCode::from(EXIT_FAILED)
+        }
+    }
+}
+
+/// `corten-driver`: `CORTEN_DRIVER`, or the one installed beside this binary.
+fn find_driver() -> Option<PathBuf> {
+    let path = match env::var_os("CORTEN_DRIVER") {
+        Some(p) => PathBuf::from(p),
+        None => env::current_exe().ok()?.with_file_name("corten-driver"),
+    };
+    path.is_file().then_some(path)
+}
+
+/// The second pass, Corten's own lints (Phase 3b trial). `Ok(true)`: passed,
+/// or the driver is not installed, which is reported. Owner decision 10
+/// decides whether a missing driver becomes an error.
+fn lint_pass(
+    toolchain: &Toolchain,
+    manifest_path: Option<&Path>,
+    conf: &Path,
+    plan: Option<&BuildSandbox>,
+    metadata: &Json,
+) -> Result<bool, String> {
+    let Some(driver) = find_driver() else {
+        eprintln!(
+            "note: corten-driver is not installed: Corten's own lints ({}) did not run",
+            profile::FORBIDDEN_CORTEN_LINTS.join(", ")
+        );
+        return Ok(true);
+    };
+    let out = std::process::Command::new(&driver)
+        .args(["--print", "sysroot"])
+        .output()
+        .map_err(|e| format!("cannot run {}: {e}", driver.display()))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{} --print sysroot failed ({})",
+            driver.display(),
+            out.status
+        ));
+    }
+    let sysroot = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    let target_dir = PathBuf::from(str_field(metadata, "target_directory")?).join("corten-lints");
+    let plan = plan.map(|p| {
+        let mut p = p.clone();
+        p.local_paths.push(driver.clone());
+        p.local_paths.push(sysroot.clone());
+        p
+    });
+    let mut cmd = lint_command(
+        toolchain,
+        manifest_path,
+        conf,
+        &driver,
+        &target_dir,
+        plan.as_ref(),
+    )
+    .map_err(|e| e.to_string())?;
+    let status = cmd
+        .status()
+        .map_err(|e| format!("cannot run the lint pass: {e}"))?;
+    if status.success() {
+        Ok(true)
+    } else {
+        eprintln!("cargo corten check: Corten's own lints failed ({status})");
+        Ok(false)
     }
 }
 

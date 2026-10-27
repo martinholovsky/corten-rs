@@ -138,7 +138,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-652 | language | pass (awaiting encoder review) |  |
 | CWE-66 | checker | pass |  |
 | CWE-67 | checker | pass |  |
-| CWE-683 | checker | not detected | bad.rs: exit Some(0):  |
+| CWE-683 | checker | not detected | bad-private.rs: exit Some(0):  ; bad.rs: exit Some(0):  |
 | CWE-685 | language | pass |  |
 | CWE-686 | language | pass |  |
 | CWE-69 | checker | pass |  |
@@ -165,7 +165,7 @@ Corpus run (all phases): 174 cases for 175 E rows; 1 E rows have no case yet.
 | CWE-827 | checker | not detected | bad-unlisted.rs: exit Some(0):  |
 | CWE-83 | language | pass (awaiting encoder review) |  |
 | CWE-832 | checker | pass |  |
-| CWE-838 | language | not detected | bad-direct.rs: plain exit Some(0):  |
+| CWE-838 | language | not detected | bad-direct.rs: exit Some(0): warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks \| warning: item in documentation is missing backticks |
 | CWE-84 | language | pass (awaiting encoder review) |  |
 | CWE-843 | checker | pass |  |
 | CWE-85 | language | pass (awaiting encoder review) |  |

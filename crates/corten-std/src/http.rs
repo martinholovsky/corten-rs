@@ -132,6 +132,15 @@ pub enum SameSite {
 pub const MAX_COOKIE_LEN: usize = 4096;
 
 /// A `Set-Cookie` value: always `__Host-` prefixed, `Secure; HttpOnly`,
+/// A cookie's name: a label (spec 4.2), so it cannot be swapped with the
+/// value.
+#[derive(Debug, Clone, Copy)]
+pub struct CookieName<'a>(pub &'a str);
+
+/// A cookie's value: a label, as [`CookieName`].
+#[derive(Debug, Clone, Copy)]
+pub struct CookieValue<'a>(pub &'a str);
+
 /// `Path=/`, no `Domain`, no expiry (a session cookie), and an explicit
 /// `SameSite`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,7 +155,11 @@ impl SetCookie {
     ///
     /// [`HeaderError::Character`] if either breaks its grammar;
     /// [`HeaderError::Length`] if name and value exceed [`MAX_COOKIE_LEN`].
-    pub fn new(name: &str, value: &str, same_site: SameSite) -> Result<Self, HeaderError> {
+    pub fn new(
+        CookieName(name): CookieName<'_>,
+        CookieValue(value): CookieValue<'_>,
+        same_site: SameSite,
+    ) -> Result<Self, HeaderError> {
         let name = HeaderName::parse(&format!("__Host-{}", name.trim_start_matches("__Host-")))?;
         if name.as_str().len().saturating_add(value.len()) > MAX_COOKIE_LEN {
             return Err(HeaderError::Length);
@@ -228,15 +241,23 @@ mod tests {
 
     #[test]
     fn cookies_are_always_secure() {
-        let c = SetCookie::new("sid", "abc123", SameSite::Strict).unwrap();
+        let c = SetCookie::new(CookieName("sid"), CookieValue("abc123"), SameSite::Strict).unwrap();
         assert_eq!(
             c.value().as_str(),
             "__Host-sid=abc123; Path=/; Secure; HttpOnly; SameSite=Strict"
         );
-        let again = SetCookie::new("__Host-sid", "v", SameSite::Lax).unwrap();
+        let again =
+            SetCookie::new(CookieName("__Host-sid"), CookieValue("v"), SameSite::Lax).unwrap();
         assert!(again.value().as_str().starts_with("__Host-sid=v;"));
-        assert!(SetCookie::new("sid", &"a".repeat(4096), SameSite::Lax).is_err());
-        assert!(SetCookie::new("sid", "a;b", SameSite::Lax).is_err());
-        assert!(SetCookie::new("sid", "a\r\nb", SameSite::Lax).is_err());
+        assert!(
+            SetCookie::new(
+                CookieName("sid"),
+                CookieValue(&"a".repeat(4096)),
+                SameSite::Lax
+            )
+            .is_err()
+        );
+        assert!(SetCookie::new(CookieName("sid"), CookieValue("a;b"), SameSite::Lax).is_err());
+        assert!(SetCookie::new(CookieName("sid"), CookieValue("a\r\nb"), SameSite::Lax).is_err());
     }
 }
