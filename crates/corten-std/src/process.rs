@@ -56,8 +56,43 @@ impl std::error::Error for ArgError {}
 
 /// Literal options, written by the program's author: a label (spec 4.2), so
 /// runtime operands cannot be passed where options belong.
+///
+/// Built only from an [`OptionsTemplate`]'s associated constant (which
+/// [`process!`](crate::process!) writes from its literals) or as
+/// [`Options::none`]. A `&'static str` is not proof of a literal: one can be
+/// made at run time (`OnceLock<String>`), so the field is private (encoder
+/// pre-review, `docs/gates/encoder-prereview.md`).
+///
+/// ```compile_fail
+/// let runtime = String::from("--checkpoint-action=exec=sh");
+/// let s: &'static str = Box::leak(runtime.into_boxed_str());
+/// let _o = corten_std::process::Options(&[s]);
+/// ```
 #[derive(Debug, Clone, Copy)]
-pub struct Options<'a>(pub &'a [&'static str]);
+pub struct Options<'a>(&'a [&'static str]);
+
+/// Options fixed at compile time: an associated constant cannot hold a
+/// value computed at run time. [`process!`](crate::process!) implements it
+/// for its literals; calling [`Options::from_template`] directly is refused
+/// by the checker (`corten_direct_template`).
+pub trait OptionsTemplate {
+    /// The options.
+    const OPTIONS: &'static [&'static str];
+}
+
+impl Options<'static> {
+    /// The options of a compile-time template. Use [`process!`](crate::process!).
+    #[must_use]
+    pub const fn from_template<T: OptionsTemplate>() -> Self {
+        Self(T::OPTIONS)
+    }
+
+    /// No options.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self(&[])
+    }
+}
 
 /// Runtime operands, placed after `--`: a label, as [`Options`].
 #[derive(Debug, Clone, Copy)]
@@ -120,20 +155,28 @@ impl ProcessInvocation {
 /// Builds a [`ProcessInvocation`]: `process!(exec, "-opt", ...; operand, ...)`.
 #[macro_export]
 macro_rules! process {
-    ($exec:expr $(, $opt:literal)* ; $($operand:expr),* $(,)?) => {
+    ($exec:expr $(, $opt:literal)* ; $($operand:expr),* $(,)?) => {{
+        struct CortenProcessOptions;
+        impl $crate::process::OptionsTemplate for CortenProcessOptions {
+            const OPTIONS: &'static [&'static str] = &[$($opt),*];
+        }
         $crate::process::ProcessInvocation::new(
             &$exec,
-            $crate::process::Options(&[$($opt),*]),
+            $crate::process::Options::from_template::<CortenProcessOptions>(),
             $crate::process::Operands(&[$(::core::convert::AsRef::<str>::as_ref(&$operand)),*]),
         )
-    };
-    ($exec:expr $(, $opt:literal)* $(,)?) => {
+    }};
+    ($exec:expr $(, $opt:literal)* $(,)?) => {{
+        struct CortenProcessOptions;
+        impl $crate::process::OptionsTemplate for CortenProcessOptions {
+            const OPTIONS: &'static [&'static str] = &[$($opt),*];
+        }
         $crate::process::ProcessInvocation::new(
             &$exec,
-            $crate::process::Options(&[$($opt),*]),
+            $crate::process::Options::from_template::<CortenProcessOptions>(),
             $crate::process::Operands(&[]),
         )
-    };
+    }};
 }
 
 #[cfg(test)]

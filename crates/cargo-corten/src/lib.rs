@@ -6,6 +6,7 @@
 //! (`docs/spec.md` section 10, `AGENTS.md` rule 3). The crate README lists
 //! what is neutralised today and what is not.
 
+pub mod dep_policy;
 pub mod deps;
 pub mod json;
 pub mod profile;

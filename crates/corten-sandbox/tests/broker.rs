@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use corten_broker::process::{BrokerError, ProcessPolicy, run};
 use corten_std::manifest::{Capabilities, PublicKey, Signature};
-use corten_std::process::{ExecCap, Operands, Options, ProcessInvocation};
+use corten_std::process::{ExecCap, Operands, Options, OptionsTemplate, ProcessInvocation};
 use ed25519_compact::{KeyPair, Seed};
 
 fn exec_cap(program: &str) -> ExecCap {
@@ -36,13 +36,24 @@ fn exec_cap(program: &str) -> ExecCap {
 
 fn invocation(program: &str, operands: &[&str]) -> ProcessInvocation {
     // No options: the operands follow `--`, which these utilities accept.
-    ProcessInvocation::new(&exec_cap(program), Options(&[]), Operands(operands)).unwrap()
+    ProcessInvocation::new(&exec_cap(program), Options::none(), Operands(operands)).unwrap()
+}
+
+/// `-c`, the shell's literal option.
+struct ShellC;
+impl OptionsTemplate for ShellC {
+    const OPTIONS: &'static [&'static str] = &["-c"];
 }
 
 fn shell(script: &str) -> ProcessInvocation {
     // `sh -c -- SCRIPT`: `-c` is the literal option and the script the
     // runtime operand after `--`, which POSIX shells accept.
-    ProcessInvocation::new(&exec_cap("/bin/sh"), Options(&["-c"]), Operands(&[script])).unwrap()
+    ProcessInvocation::new(
+        &exec_cap("/bin/sh"),
+        Options::from_template::<ShellC>(),
+        Operands(&[script]),
+    )
+    .unwrap()
 }
 
 fn policy() -> ProcessPolicy {
@@ -158,7 +169,7 @@ fn tcp_connect_is_denied() {
 
     let inv = ProcessInvocation::new(
         &exec_cap("/bin/bash"),
-        Options(&["-c"]),
+        Options::from_template::<ShellC>(),
         Operands(&[&script]),
     )
     .unwrap();

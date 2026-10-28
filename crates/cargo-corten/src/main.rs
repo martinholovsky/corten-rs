@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{ExitCode, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use cargo_corten::dep_policy::{self, DepPolicy};
 use cargo_corten::json::Json;
 use cargo_corten::provenance::{Artifact, BuildFacts};
 use cargo_corten::{
@@ -23,8 +24,8 @@ use cargo_corten::{
 const USAGE: &str = "\
 Build a crate under the Corten profile, with flags the checker supplies itself.
 
-Usage: cargo corten check [--manifest-path <PATH>] [--allow-dep <NAME>]...
-       cargo corten build [--manifest-path <PATH>] [--allow-dep <NAME>]...
+Usage: cargo corten check [--manifest-path <PATH>] [--dep-policy <FILE>] [--allow-dep <NAME>]...
+       cargo corten build [--manifest-path <PATH>] [--dep-policy <FILE>] [--allow-dep <NAME>]...
                           [--sbom <FILE>] [--provenance <FILE>]
 
 `build` builds --release --locked --offline inside corten-sandbox (Linux):
@@ -33,8 +34,13 @@ writable. It refuses to run where the sandbox cannot be enforced.
 
 Options:
       --manifest-path <PATH>  Path to Cargo.toml (default: search from the current directory)
-      --allow-dep <NAME>      Accept a dependency the policy refuses (NAME or NAME@VERSION);
-                              also read, comma-separated, from CORTEN_ALLOW_DEPS
+      --dep-policy <FILE>     The operator's dependency policy (also CORTEN_DEP_POLICY):
+                              dependencies are refused unless it admits them (`allow NAME`),
+                              and its `ban PATH REASON` lines are forbidden in local code.
+                              Without one, every dependency is refused.
+      --allow-dep <NAME>      Accept a dependency refused for its macros or the ban list
+                              (NAME or NAME@VERSION); does not admit it. Also read,
+                              comma-separated, from CORTEN_ALLOW_DEPS
       --sbom <FILE>           build: write a CycloneDX SBOM
       --provenance <FILE>     build: write an unsigned in-toto/SLSA provenance statement
   -h, --help                  Print help
@@ -46,6 +52,11 @@ Exit status: 0 passed, 1 refused or failed to build, 2 usage or environment erro
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 
+/// The prelude this checker was built with: `crates/corten-std` beside the
+/// checker's own source, fixed at compile time. Only a local package in this
+/// directory has its dependencies exempt from admission (`deps.rs`).
+const PRELUDE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../corten-std");
+
 /// Largest `cargo metadata` output read.
 const MAX_METADATA_BYTES: usize = 256 * 1024 * 1024;
 
@@ -55,10 +66,12 @@ enum Invocation {
     Version,
     Check {
         manifest_path: Option<PathBuf>,
+        dep_policy: Option<PathBuf>,
         allow_deps: Vec<String>,
     },
     Build {
         manifest_path: Option<PathBuf>,
+        dep_policy: Option<PathBuf>,
         allow_deps: Vec<String>,
         sbom: Option<PathBuf>,
         provenance: Option<PathBuf>,
@@ -74,6 +87,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
     let mut subcommand = None;
     let mut manifest_path = None;
     let mut allow_deps = Vec::new();
+    let mut dep_policy = None;
     let mut sbom = None;
     let mut provenance = None;
     while let Some(arg) = args.next() {
@@ -90,6 +104,13 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
             _ if text.starts_with("--manifest-path=") => {
                 let value = text.trim_start_matches("--manifest-path=");
                 manifest_path = Some(PathBuf::from(value));
+            }
+            "--dep-policy" => {
+                let value = args.next().ok_or("--dep-policy needs a file")?;
+                dep_policy = Some(PathBuf::from(value));
+            }
+            _ if text.starts_with("--dep-policy=") => {
+                dep_policy = Some(PathBuf::from(text.trim_start_matches("--dep-policy=")));
             }
             "--allow-dep" => {
                 let value = args.next().ok_or("--allow-dep needs a value")?;
@@ -112,11 +133,13 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
     match subcommand.as_deref() {
         Some("check") if sbom.is_none() && provenance.is_none() => Ok(Invocation::Check {
             manifest_path,
+            dep_policy,
             allow_deps,
         }),
         Some("check") => Err("--sbom and --provenance belong to `build`".to_owned()),
         Some(_) => Ok(Invocation::Build {
             manifest_path,
+            dep_policy,
             allow_deps,
             sbom,
             provenance,
@@ -130,7 +153,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
 struct ConfDir(PathBuf);
 
 impl ConfDir {
-    fn create() -> io::Result<Self> {
+    fn create(policy: &DepPolicy) -> io::Result<Self> {
         let base = env::temp_dir();
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -149,7 +172,10 @@ impl ConfDir {
             match builder.create(&dir) {
                 Ok(()) => {
                     let conf = Self(dir);
-                    fs::write(conf.0.join("clippy.toml"), profile::CLIPPY_TOML)?;
+                    fs::write(
+                        conf.0.join("clippy.toml"),
+                        policy.clippy_toml(profile::CLIPPY_TOML),
+                    )?;
                     return Ok(conf);
                 }
                 Err(e) if e.kind() == io::ErrorKind::AlreadyExists => last_err = Some(e),
@@ -178,6 +204,7 @@ fn dependency_policy(
     toolchain: &Toolchain,
     manifest_path: Option<&Path>,
     conf: &Path,
+    policy: &DepPolicy,
     allow: &BTreeSet<String>,
 ) -> Result<(bool, Json), String> {
     let mut cmd = metadata_command(toolchain, manifest_path, conf).map_err(|e| e.to_string())?;
@@ -194,8 +221,14 @@ fn dependency_policy(
     let text = String::from_utf8(out.stdout)
         .map_err(|_| "cargo metadata output is not UTF-8".to_owned())?;
     let metadata = Json::parse(&text).map_err(|e| e.to_string())?;
-    let findings =
-        deps::audit(&metadata, allow, deps::Limits::default()).map_err(|e| e.to_string())?;
+    let findings = deps::audit(
+        &metadata,
+        policy,
+        Some(Path::new(PRELUDE_DIR)),
+        allow,
+        deps::Limits::default(),
+    )
+    .map_err(|e| e.to_string())?;
     if findings.is_empty() {
         return Ok((true, metadata));
     }
@@ -206,7 +239,9 @@ fn dependency_policy(
     for finding in &findings {
         eprintln!("  {finding}");
     }
-    eprintln!("Accept one with --allow-dep <NAME> or CORTEN_ALLOW_DEPS after reviewing it.");
+    eprintln!(
+        "Admit a dependency with `allow NAME` in the operator's --dep-policy file; accept a macro or ban-list finding with --allow-dep <NAME>. Review the crate first."
+    );
     Ok((false, metadata))
 }
 
@@ -555,6 +590,51 @@ fn lint_pass(
     }
 }
 
+/// Reads the operator's dependency policy; none means every dependency is
+/// refused.
+fn load_dep_policy(path: Option<PathBuf>) -> Result<DepPolicy, String> {
+    let Some(path) = path else {
+        return Ok(DepPolicy::default());
+    };
+    let meta = fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if meta.len() > u64::try_from(dep_policy::MAX_LEN).unwrap_or(u64::MAX) {
+        return Err(format!(
+            "{}: larger than {} bytes",
+            path.display(),
+            dep_policy::MAX_LEN
+        ));
+    }
+    let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    dep_policy::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// The operator's inputs: the dependency policy (`--dep-policy` or
+/// `CORTEN_DEP_POLICY`) and the accepted packages (`--allow-dep` and
+/// `CORTEN_ALLOW_DEPS`).
+fn operator_inputs(
+    dep_policy: Option<PathBuf>,
+    mut allow_deps: Vec<String>,
+) -> Result<(DepPolicy, BTreeSet<String>), String> {
+    let policy = load_dep_policy(
+        // An empty variable (an unset action input) means no policy.
+        dep_policy.or_else(|| {
+            env::var_os("CORTEN_DEP_POLICY")
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+        }),
+    )?;
+    if let Some(list) = env::var_os("CORTEN_ALLOW_DEPS") {
+        let list = list.to_str().ok_or("CORTEN_ALLOW_DEPS must be UTF-8")?;
+        allow_deps.extend(
+            list.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
+        );
+    }
+    Ok((policy, allow_deps.into_iter().collect()))
+}
+
 fn main() -> ExitCode {
     let invocation = match parse(env::args_os().skip(1)) {
         Ok(invocation) => invocation,
@@ -563,7 +643,7 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    let (manifest_path, mut allow_deps, build) = match invocation {
+    let (manifest_path, dep_policy, allow_deps, build) = match invocation {
         Invocation::Help => {
             print!("{USAGE}");
             return ExitCode::SUCCESS;
@@ -574,28 +654,29 @@ fn main() -> ExitCode {
         }
         Invocation::Check {
             manifest_path,
+            dep_policy,
             allow_deps,
-        } => (manifest_path, allow_deps, None),
+        } => (manifest_path, dep_policy, allow_deps, None),
         Invocation::Build {
             manifest_path,
+            dep_policy,
             allow_deps,
             sbom,
             provenance,
-        } => (manifest_path, allow_deps, Some((sbom, provenance))),
+        } => (
+            manifest_path,
+            dep_policy,
+            allow_deps,
+            Some((sbom, provenance)),
+        ),
     };
-    if let Some(list) = env::var_os("CORTEN_ALLOW_DEPS") {
-        let Some(list) = list.to_str() else {
-            eprintln!("error: CORTEN_ALLOW_DEPS must be UTF-8");
+    let (policy, allow) = match operator_inputs(dep_policy, allow_deps) {
+        Ok(inputs) => inputs,
+        Err(e) => {
+            eprintln!("error: {e}");
             return ExitCode::from(EXIT_USAGE);
-        };
-        allow_deps.extend(
-            list.split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_owned),
-        );
-    }
-    let allow: BTreeSet<String> = allow_deps.into_iter().collect();
+        }
+    };
     let toolchain = match Toolchain::from_env(env::var_os("CARGO"), env::var_os("RUSTC")) {
         Ok(toolchain) => toolchain,
         Err(e) => {
@@ -603,23 +684,28 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    let conf = match ConfDir::create() {
+    let conf = match ConfDir::create(&policy) {
         Ok(conf) => conf,
         Err(e) => {
             eprintln!("error: could not create the Clippy configuration directory: {e}");
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    let metadata =
-        match dependency_policy(&toolchain, manifest_path.as_deref(), conf.path(), &allow) {
-            Ok((true, metadata)) => metadata,
-            Ok((false, _)) => return ExitCode::from(EXIT_FAILED),
-            Err(e) => {
-                // Fail closed: a policy that could not run did not pass.
-                eprintln!("error: dependency policy could not run: {e}");
-                return ExitCode::from(EXIT_FAILED);
-            }
-        };
+    let metadata = match dependency_policy(
+        &toolchain,
+        manifest_path.as_deref(),
+        conf.path(),
+        &policy,
+        &allow,
+    ) {
+        Ok((true, metadata)) => metadata,
+        Ok((false, _)) => return ExitCode::from(EXIT_FAILED),
+        Err(e) => {
+            // Fail closed: a policy that could not run did not pass.
+            eprintln!("error: dependency policy could not run: {e}");
+            return ExitCode::from(EXIT_FAILED);
+        }
+    };
     if let Some((sbom, provenance)) = build {
         let req = BuildRequest {
             toolchain: &toolchain,
@@ -654,6 +740,7 @@ mod tests {
             run(&["corten", "check"]),
             Ok(Invocation::Check {
                 manifest_path: None,
+                dep_policy: None,
                 allow_deps: Vec::new()
             })
         );
@@ -668,11 +755,14 @@ mod tests {
             "--allow-dep",
             "serde_derive",
             "--allow-dep=x@1.0.0",
+            "--dep-policy",
+            "ops/deps.policy",
         ]);
         assert_eq!(
             parsed,
             Ok(Invocation::Check {
                 manifest_path: Some(PathBuf::from("a/Cargo.toml")),
+                dep_policy: Some(PathBuf::from("ops/deps.policy")),
                 allow_deps: vec!["serde_derive".to_owned(), "x@1.0.0".to_owned()]
             })
         );
@@ -697,6 +787,7 @@ mod tests {
             ]),
             Ok(Invocation::Build {
                 manifest_path: None,
+                dep_policy: None,
                 allow_deps: Vec::new(),
                 sbom: Some(PathBuf::from("s.json")),
                 provenance: Some(PathBuf::from("p.json")),

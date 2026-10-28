@@ -7,6 +7,16 @@
 //! template containing a raw-text element such as `<script>`) a placeholder
 //! is a compile-time error. There is no `Html::raw`.
 //!
+//! The tokeniser follows the WHATWG rules for what ends a tag: `<?`, `<!`
+//! (other than `<!--`, including a `<!DOCTYPE` in the body) and `</` not
+//! followed by a letter open a bogus comment that ends at the first `>`.
+//! Every template, with or without placeholders, must be *closed*: it ends
+//! outside any tag, attribute or comment, not in a partial opener (`<`,
+//! `<!`, `<!-`, `</`, `<?`), and closes every raw-text element or comment it
+//! opens. `Html` values are inserted as markup, so an open template would
+//! leave its context open for whatever follows it (found by the encoder
+//! pre-review, `docs/gates/encoder-prereview.md`).
+//!
 //! ```
 //! let name = "<script>alert(1)</script>";
 //! let page = corten_std::html!("<p class=\"{}\">Hello, {}</p>", "x\" onload=\"y", name);
@@ -46,6 +56,10 @@ impl Html {
             assert!(
                 all_placeholders_allowed(T::TEXT),
                 "html!: a placeholder is in a context the encoder does not allow (URL or event attribute, style, unquoted value, tag or attribute name, comment, or a template with a raw-text element)"
+            );
+            assert!(
+                template_closed(T::TEXT),
+                "html!: the template leaves a tag, attribute, comment or raw-text element open"
             );
         }
         let mut out = String::with_capacity(T::TEXT.len());
@@ -155,6 +169,28 @@ const RAW_TEXT_OPENERS: &[&[u8]] = &[
     b"<math",
     b"<object",
     b"<embed",
+];
+
+/// Each raw-text opener and what must follow it later in the same template.
+/// `<embed` is a void element; `<plaintext` never ends, so it has no closer
+/// and is refused (`None`).
+const RAW_TEXT_CLOSERS: &[(&[u8], Option<&[u8]>)] = &[
+    (b"<script", Some(b"</script")),
+    (b"<style", Some(b"</style")),
+    (b"<!--", Some(b"-->")),
+    (b"<textarea", Some(b"</textarea")),
+    (b"<title", Some(b"</title")),
+    (b"<iframe", Some(b"</iframe")),
+    (b"<noscript", Some(b"</noscript")),
+    (b"<xmp", Some(b"</xmp")),
+    (b"<plaintext", None),
+    (b"<noembed", Some(b"</noembed")),
+    (b"<noframes", Some(b"</noframes")),
+    (b"<template", Some(b"</template")),
+    (b"<svg", Some(b"</svg")),
+    (b"<math", Some(b"</math")),
+    (b"<object", Some(b"</object")),
+    (b"<embed", Some(b"")),
 ];
 
 /// Attributes whose quoted value may hold a placeholder: plain text values
@@ -275,29 +311,39 @@ enum State {
     ValueDouble,
     ValueSingle,
     ValueUnquoted,
+    /// `<?`, `<!` and `</` + non-letter: a WHATWG bogus comment (or a
+    /// DOCTYPE), ending at the first `>`.
+    BogusComment,
 }
 
 /// The context of the `index`-th placeholder (1-based) in `text`.
 #[must_use]
+pub const fn placeholder_context(text: &str, index: usize) -> Context {
+    if has_raw_text_element(text.as_bytes()) {
+        return Context::Refused;
+    }
+    walk(text.as_bytes(), index).0
+}
+
+/// Runs the tokeniser over `all`. Returns the context of the `index`-th
+/// placeholder (1-based), or, for `index` 0 or past the last placeholder,
+/// `Refused` and the state at the end of the template.
 #[expect(
     clippy::too_many_lines,
     reason = "one tokeniser state machine reads more clearly as one match than split across functions"
 )]
-pub const fn placeholder_context(text: &str, index: usize) -> Context {
-    let all = text.as_bytes();
-    if has_raw_text_element(all) {
-        return Context::Refused;
-    }
+const fn walk(all: &[u8], index: usize) -> (Context, State) {
     let mut bytes = all;
     let mut state = State::Text;
     let mut seen = 0usize;
     // The current attribute's name: the slice where it started and its length.
     let mut name_start: &[u8] = &[];
     let mut name_len = 0usize;
-    // The two bytes before the current one, to see `<{}` and `<!{}`, where
-    // a value could finish a tag or comment opener.
+    // The three bytes before the current one, to see `<{}`, `<!{}` and
+    // `<!-{}`, where a value could finish a tag or comment opener.
     let mut last1: u8 = 0;
     let mut last2: u8 = 0;
+    let mut last3: u8 = 0;
     while let [first, rest @ ..] = bytes {
         let c = *first;
         if c == b'{'
@@ -306,7 +352,9 @@ pub const fn placeholder_context(text: &str, index: usize) -> Context {
             seen = seen.saturating_add(1);
             let context = match state {
                 State::Text
-                    if last1 == b'<' || (last2 == b'<' && matches!(last1, b'!' | b'?' | b'/')) =>
+                    if last1 == b'<'
+                        || (last2 == b'<' && matches!(last1, b'!' | b'?' | b'/'))
+                        || (last3 == b'<' && last2 == b'!' && last1 == b'-') =>
                 {
                     Context::Refused
                 }
@@ -326,22 +374,28 @@ pub const fn placeholder_context(text: &str, index: usize) -> Context {
                 _ => Context::Refused,
             };
             if seen == index {
-                return context;
+                return (context, state);
             }
+            last3 = b'}';
             last2 = b'}';
             last1 = b'}';
             bytes = after;
             continue;
         }
         state = match state {
-            State::Text => {
-                if c == b'<'
-                    && let [next, ..] = rest
-                    && (next.is_ascii_alphabetic() || *next == b'/')
-                {
-                    State::TagName
-                } else {
+            State::Text => match (c, rest) {
+                (b'<', [next, ..]) if next.is_ascii_alphabetic() => State::TagName,
+                (b'<', [b'/', next, ..]) if next.is_ascii_alphabetic() => State::TagName,
+                // `</>` is dropped by the parser; the bytes stay text here.
+                (b'<', [b'/', b'>', ..]) => State::Text,
+                (b'<', [b'/' | b'!' | b'?', ..]) => State::BogusComment,
+                _ => State::Text,
+            },
+            State::BogusComment => {
+                if c == b'>' {
                     State::Text
+                } else {
+                    State::BogusComment
                 }
             }
             State::TagName => {
@@ -426,11 +480,60 @@ pub const fn placeholder_context(text: &str, index: usize) -> Context {
                 }
             }
         };
+        last3 = last2;
         last2 = last1;
         last1 = c;
         bytes = rest;
     }
-    Context::Refused
+    (Context::Refused, state)
+}
+
+const fn ends_with(text: &[u8], suffix: &[u8]) -> bool {
+    if text.len() < suffix.len() {
+        return false;
+    }
+    let (_, tail) = text.split_at(text.len().saturating_sub(suffix.len()));
+    eq_ignore_case(tail, suffix)
+}
+
+/// Whether every raw-text element or comment `text` opens is closed later
+/// in it (see [`RAW_TEXT_CLOSERS`]).
+const fn raw_text_closed(text: &[u8]) -> bool {
+    let mut rest = text;
+    while let [_, after @ ..] = rest {
+        let mut list = RAW_TEXT_CLOSERS;
+        while let [(opener, closer), more @ ..] = list {
+            if starts_with_ignore_case(rest, opener) {
+                match closer {
+                    None => return false,
+                    Some(closer) => {
+                        let (_, tail) = rest.split_at(opener.len());
+                        if !closer.is_empty() && !contains_ignore_case(tail, closer) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            list = more;
+        }
+        rest = after;
+    }
+    true
+}
+
+/// Whether `text` is closed: it ends in element content, not in a partial
+/// opener, with every raw-text element and comment it opens closed. Checked
+/// for every template, with or without placeholders.
+#[must_use]
+pub const fn template_closed(text: &str) -> bool {
+    let all = text.as_bytes();
+    let (_, end) = walk(all, 0);
+    let dangling = ends_with(all, b"<")
+        || ends_with(all, b"<!")
+        || ends_with(all, b"<!-")
+        || ends_with(all, b"</")
+        || ends_with(all, b"<?");
+    matches!(end, State::Text) && !dangling && raw_text_closed(all)
 }
 
 /// Whether every placeholder in `text` has an allowed context.
@@ -455,6 +558,7 @@ macro_rules! html {
         // `from_template`, which runs only when the program is built.
         const _: () = assert!($crate::template::count_placeholders($text) == $crate::__corten_count!($($arg),*), "html!: the number of placeholders differs from the number of values");
         const _: () = assert!($crate::html::all_placeholders_allowed($text), "html!: a placeholder is in a context the encoder does not allow");
+        const _: () = assert!($crate::html::template_closed($text), "html!: the template leaves a tag, attribute, comment or raw-text element open");
         struct CortenHtmlTemplate;
         impl $crate::template::Template for CortenHtmlTemplate {
             const TEXT: &'static str = $text;
@@ -517,6 +621,13 @@ mod tests {
             "<?{}",
             "</{}>",
             "<input name=\"{}\">",
+            // Bogus comments and DOCTYPEs (encoder pre-review).
+            "<? <i title=\"?><img src=x onerror={}>\">",
+            "<!x <i title=\"><img src=x onerror={}>\">",
+            "</ <i title=\"><img src=x onerror={}>\">",
+            "<!DOCTYPE html><p><!DOCTYPE <i title=\"><img src=x onerror={}>\">",
+            "<!-{}<i title=\"--><img src=x onerror={}>\">",
+            "<p>a<!-{}</p>",
         ] {
             assert!(!all_placeholders_allowed(t), "{t}");
         }
@@ -527,6 +638,43 @@ mod tests {
             "{}",
         ] {
             assert!(all_placeholders_allowed(t), "{t}");
+        }
+    }
+
+    #[test]
+    fn templates_must_be_closed() {
+        for t in [
+            "<script>",
+            "<a onclick=\"",
+            "<p class=\"x\"",
+            "<scr",
+            "<",
+            "<!",
+            "<!-",
+            "</",
+            "<?",
+            "<!-- open",
+            "<style>p {}",
+            "<plaintext>",
+            "<svg><text>x</text>",
+            "<? x",
+            "<!x",
+        ] {
+            assert!(!template_closed(t), "{t}");
+        }
+        for t in [
+            "",
+            "<p>",
+            "<ul><li>",
+            "<script>var a = 1;</script>",
+            "<!-- note --><p>x</p>",
+            "<embed src=\"a.swf\">",
+            "<? pi ?>x",
+            "a </> b",
+            "<p title=\"{}\">{}</p>",
+            "<!DOCTYPE html><p>{}</p>",
+        ] {
+            assert!(template_closed(t), "{t}");
         }
     }
 

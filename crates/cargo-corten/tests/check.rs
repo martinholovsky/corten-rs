@@ -113,10 +113,19 @@ fn driver() -> String {
     built.to_string_lossy().into_owned()
 }
 
+/// The operator's dependency policy for a fixture, when a test wrote one.
+fn operator_policy(fx: &Fixture) -> PathBuf {
+    fx.dir.join("operator.policy")
+}
+
 /// `cargo corten check` on the fixture, with extra environment (which may
-/// replace `CORTEN_DRIVER`).
+/// replace `CORTEN_DRIVER`). The fixture's operator policy, if any, is
+/// passed with `CORTEN_DEP_POLICY`.
 fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_cargo-corten"));
+    if operator_policy(fx).is_file() {
+        cmd.env("CORTEN_DEP_POLICY", operator_policy(fx));
+    }
     cmd.args(["corten", "check", "--manifest-path"])
         .arg(fx.manifest())
         .env("CARGO", env!("CARGO"))
@@ -441,11 +450,86 @@ fn vendor_crate(fx: &Fixture, name: &str, cargo_extra: &str, lib_rs: &str) -> io
     fx.write(".cargo/config.toml", &config)
 }
 
+/// Adds `name` as a dependency and an operator policy admitting it.
 fn with_dependency(fx: &Fixture, name: &str) -> io::Result<()> {
+    fx.write(
+        "operator.policy",
+        &format!("corten-dep-policy 1\nallow {name}\n"),
+    )?;
     fx.write(
         "Cargo.toml",
         &format!("[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\n{name} = \"0.1.0\"\n"),
     )
+}
+
+const TIDY: &str = "#[macro_export]\nmacro_rules! double {\n    ($v:expr) => { $v.saturating_mul(2) };\n}\n/// Mentions unsafe { only } in a comment and a \"string with unsafe\".\npub fn note() -> &'static str { \"unsafe\" }\n";
+
+/// Deny by default (docs/gates/phase-5.md): a dependency the operator's
+/// policy does not admit is refused. Control: admitted, the same fixture
+/// passes.
+#[test]
+fn unadmitted_dependency_is_refused() {
+    let fx = Fixture::new(
+        "dep-unadmitted",
+        "fn main() {\n    println!(\"{}\", tidy::double!(2u32));\n}\n",
+    )
+    .unwrap();
+    with_dependency(&fx, "tidy").unwrap();
+    vendor_crate(&fx, "tidy", "", TIDY).unwrap();
+    fs::remove_file(operator_policy(&fx)).unwrap();
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(
+        out.stderr
+            .contains("tidy@0.1.0: not on the operator's dependency allowlist"),
+        "{}",
+        out.stderr
+    );
+    // --allow-dep does not admit.
+    let over = corten(&fx, &[("CORTEN_ALLOW_DEPS", "tidy")]).unwrap();
+    assert_eq!(over.code, Some(1), "{}", over.stderr);
+    fx.write("operator.policy", "corten-dep-policy 1\nallow tidy\n")
+        .unwrap();
+    let admitted = corten(&fx, &[]).unwrap();
+    assert_eq!(admitted.code, Some(0), "{}", admitted.stderr);
+}
+
+/// A `ban` line forbids an admitted crate's raw entry point in local code.
+/// Control: without the line, the same call passes.
+#[test]
+fn policy_ban_refuses_a_raw_entry_point() {
+    let fx = Fixture::new(
+        "dep-ban",
+        "fn main() {\n    println!(\"{}\", tidy::note());\n}\n",
+    )
+    .unwrap();
+    with_dependency(&fx, "tidy").unwrap();
+    vendor_crate(&fx, "tidy", "", TIDY).unwrap();
+    let control = corten(&fx, &[]).unwrap();
+    assert_eq!(control.code, Some(0), "control: {}", control.stderr);
+    fx.write(
+        "operator.policy",
+        "corten-dep-policy 1\nallow tidy\nban tidy::note raw entry point\n",
+    )
+    .unwrap();
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(
+        out.stderr
+            .contains("operator dependency policy: raw entry point"),
+        "{}",
+        out.stderr
+    );
+}
+
+/// A policy the checker cannot parse is a usage error, not a pass.
+#[test]
+fn malformed_policy_is_a_usage_error() {
+    let fx = Fixture::new("dep-bad-policy", SAFE).unwrap();
+    fx.write("operator.policy", "allow tidy\n").unwrap();
+    let out = corten(&fx, &[]).unwrap();
+    assert_eq!(out.code, Some(2), "{}", out.stderr);
+    assert!(out.stderr.contains("corten-dep-policy 1"), "{}", out.stderr);
 }
 
 /// Phase 1 found this bypass: a macro exported by a non-local dependency
@@ -555,12 +639,7 @@ fn dependency_with_only_safe_macros_is_accepted() {
     )
     .unwrap();
     with_dependency(&fx, "tidy").unwrap();
-    vendor_crate(
-        &fx,
-        "tidy",
-        "",
-        "#[macro_export]\nmacro_rules! double {\n    ($v:expr) => { $v.saturating_mul(2) };\n}\n/// Mentions unsafe { only } in a comment and a \"string with unsafe\".\npub fn note() -> &'static str { \"unsafe\" }\n",
-    ).unwrap();
+    vendor_crate(&fx, "tidy", "", TIDY).unwrap();
     let out = corten(&fx, &[]).unwrap();
     assert_eq!(out.code, Some(0), "{}", out.stderr);
 }

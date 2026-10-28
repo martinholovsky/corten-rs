@@ -9,6 +9,10 @@
 //!   TEXT, so a rejection for an unrelated reason does not count.
 //! - `//@ deps: corten-std` (either file): the case crate depends on the
 //!   workspace's `corten-std`.
+//! - `//@ dep-policy: LINE` (repeatable): a line of the operator's dependency
+//!   policy (`allow NAME`, `ban PATH REASON`); the runner writes them, after
+//!   the header, to a file it passes as `CORTEN_DEP_POLICY`. Without it the
+//!   checker refuses every dependency, as it does for an operator.
 //!
 //! A case passes when, for proof kind `checker`, plain cargo builds bad.rs
 //! (the control), `cargo corten check` rejects it with the expected text and
@@ -100,6 +104,8 @@ struct Directives {
     /// Stub crates the case depends on, served from a directory source so
     /// cargo treats them as registry crates (the dependency policy's input).
     fake_deps: Vec<String>,
+    /// Lines of the operator's dependency policy for this file.
+    dep_policy: Vec<String>,
 }
 
 fn directives(source: &str) -> Directives {
@@ -124,6 +130,8 @@ fn directives(source: &str) -> Directives {
             d.edition = Some(edition.trim().to_owned());
         } else if let Some(name) = rest.strip_prefix("fake-dep:") {
             d.fake_deps.push(name.trim().to_owned());
+        } else if let Some(line) = rest.strip_prefix("dep-policy:") {
+            d.dep_policy.push(line.trim().to_owned());
         }
     }
     d
@@ -212,6 +220,14 @@ impl Runner<'_> {
             )?;
             deps.push(format!("{name} = \"1.0.0\""));
         }
+        if !d.dep_policy.is_empty() {
+            let mut policy = String::from("corten-dep-policy 1\n");
+            for line in &d.dep_policy {
+                policy.push_str(line);
+                policy.push('\n');
+            }
+            fs::write(dir.join("operator.policy"), policy)?;
+        }
         if !d.fake_deps.is_empty() {
             fs::create_dir_all(dir.join(".cargo"))?;
             fs::write(
@@ -252,7 +268,14 @@ impl Runner<'_> {
     }
 
     fn corten(&self, dir: &Path, target: &Path) -> io::Result<Build> {
-        let out = Command::new(&self.opts.checker)
+        let mut cmd = Command::new(&self.opts.checker);
+        let policy = dir.join("operator.policy");
+        if policy.is_file() {
+            cmd.env("CORTEN_DEP_POLICY", policy);
+        } else {
+            cmd.env_remove("CORTEN_DEP_POLICY");
+        }
+        let out = cmd
             .args(["corten", "check"])
             .current_dir(dir)
             .env("CARGO", &self.cargo)
@@ -658,6 +681,7 @@ mod tests {
                 absent: true,
                 edition: None,
                 fake_deps: Vec::new(),
+                dep_policy: Vec::new(),
             }
         );
     }

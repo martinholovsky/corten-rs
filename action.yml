@@ -15,8 +15,12 @@ inputs:
     description: Path to the caller's Cargo.toml.
     required: false
     default: Cargo.toml
+  dep-policy:
+    description: Path to the operator's dependency policy (CORTEN_DEP_POLICY). Without one, every dependency is refused.
+    required: false
+    default: ""
   allow-deps:
-    description: Comma-separated dependency names the operator accepts despite layer 3 (CORTEN_ALLOW_DEPS).
+    description: Comma-separated dependency names the operator accepts despite a macro or ban-list finding (CORTEN_ALLOW_DEPS); does not admit them.
     required: false
     default: ""
   out-dir:
@@ -56,6 +60,7 @@ runs:
         CORTEN_COMMAND: ${{ inputs.command }}
         CORTEN_MANIFEST: ${{ inputs.manifest-path }}
         CORTEN_ALLOW_DEPS: ${{ inputs.allow-deps }}
+        CORTEN_DEP_POLICY: ${{ inputs.dep-policy }}
         CORTEN_OUT: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail

@@ -45,9 +45,9 @@ The drafted classification of the 944 CWE weaknesses:
 
 Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids down to C.
 
-Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **724** in safe Rust, **643** in safe Rust under Corten's verified eliminations (610 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
+Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **724** in safe Rust, **641** in safe Rust under Corten's verified eliminations (616 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 152 / C 604 / O 26 / N 5 of the 787 that can be written in Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **141 of the 175 are verified** (Phases 1 to 3b). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 169 / C 727 / O 26 / N 22**, or E 146 / C 610 / O 26 / N 5 of the 787 that can be written in Rust (six more E rows moved to C on 2026-10-27 and 28: [`docs/gates/claimed-eliminations.md`](docs/gates/claimed-eliminations.md), [`docs/gates/phase-5.md`](docs/gates/phase-5.md)). Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **143 of the 169 are verified** (Phases 1 to 5); the other 26 pass their corpus cases and wait for the independent encoder review. `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 

@@ -2,8 +2,8 @@
 //@ expect: the `bool` this call returns is discarded
 //@ expect: the `std::option::Option<u32>` this call returns is discarded
 //@ expect: the `i32` this call returns is discarded
-//@ count: 4
-use std::collections::BTreeMap;
+//@ count: 5
+use std::collections::{BTreeMap, BTreeSet};
 fn ok() -> bool {
     true
 }
@@ -25,8 +25,13 @@ fn main() {
     let _ = ok();
     lookup();
     status();
-    // Not reported: a function from another crate (owner decision 10), a
-    // builder returning its own receiver, a used value.
+    // Reported: a `bool` status from another crate.
+    let mut seen = BTreeSet::new();
+    seen.insert(7u32);
+    // Not reported: a `bool` bound to a name, a non-`bool` from another
+    // crate (owner decision 10), a builder returning its own receiver, a
+    // used value.
+    let _was_new = seen.insert(8);
     let mut m = BTreeMap::new();
     m.insert(1, 2u32);
     let mut b = Builder(0);

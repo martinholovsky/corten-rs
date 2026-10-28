@@ -41,9 +41,14 @@ new_crate() { # name hostile_build_rs_body (empty: no dependency)
     printf '%s\n' "$dir"
 }
 
+# The operator's dependency policy (deny by default): it admits the stub, so
+# the sandbox, not the policy, is what stops the hostile build scripts.
+policy="$work/operator.policy"
+printf 'corten-dep-policy 1\nallow hostile\n' > "$policy"
+
 corten_build() { # dir, extra args...
     local dir=$1; shift
-    (cd "$dir" && CARGO="$cargo_bin" CORTEN_SANDBOX="$bin_dir/corten-sandbox" "$bin_dir/cargo-corten" corten build "$@")
+    (cd "$dir" && CARGO="$cargo_bin" CORTEN_SANDBOX="$bin_dir/corten-sandbox" CORTEN_DEP_POLICY="$policy" "$bin_dir/cargo-corten" corten build "$@")
 }
 
 # 1. Benign crate: builds; the provenance digest matches.
