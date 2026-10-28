@@ -45,9 +45,9 @@ The drafted classification of the 944 CWE weaknesses:
 
 Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids down to C.
 
-Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **785** with `unsafe` allowed, **722** in safe Rust, **641** in safe Rust under Corten's verified eliminations. The other 159 need a construct Rust lacks (67) or are not weaknesses of code (92).
+Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **724** in safe Rust, **643** in safe Rust under Corten's verified eliminations (610 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 152 / C 602 / O 26 / N 5 of the 785 that can be written in Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **141 of the 175 are verified** (Phases 1 to 3b). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 175 / C 721 / O 26 / N 22**, or E 152 / C 604 / O 26 / N 5 of the 787 that can be written in Rust. Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **141 of the 175 are verified** (Phases 1 to 3b). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ## How it will be enforced
 
@@ -59,7 +59,7 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | --- | --- |
 | [`docs/spec.md`](docs/spec.md) | The full design: mechanisms, ratification amendments, open decisions, roadmap, enforcement model, risks |
 | [`docs/rust-applicability.md`](docs/rust-applicability.md) | Every one of the 944 CWEs: can it be written in Rust with `unsafe`, in safe Rust, and what Corten does, with reasoning (generated from `audit/applicability/`) |
-| [`docs/rust-comparison.md`](docs/rust-comparison.md) | How many CWEs can be written in Rust (785 with `unsafe`, 722 safe), what plain Rust does about each category today, and how Corten mitigates it |
+| [`docs/rust-comparison.md`](docs/rust-comparison.md) | How many CWEs can be written in Rust (787 with `unsafe`, 724 safe), what plain Rust does about each category today, and how Corten mitigates it |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`docs/pathseg.md`](docs/pathseg.md) | Normative `PathSeg` grammar and the `DirCap` monitor that the path-family E claims rest on |
 | [`docs/gates/`](docs/gates) | Gate reports per phase, and the generated corpus report |

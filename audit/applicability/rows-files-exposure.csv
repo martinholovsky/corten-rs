@@ -127,7 +127,7 @@ CWE-668,yes,yes,none,"Exposing a resource to the wrong control sphere is an acce
 CWE-733,yes,yes,CWE-733.rs,"LLVM may delete a wipe loop on a Vec about to be freed, or other security code it deems dead; safe Rust cannot pin it (volatile/fences need unsafe or crates)."
 CWE-767,yes,yes,CWE-767.rs,"A pub fn that writes a private field unchecked compiles in safe Rust; privacy is per-module, and what a public method exposes is design."
 CWE-784,yes,yes,none,Making authorization decisions from unsigned cookie values is web logic; no compiler distinguishes validated from client-supplied data.
-CWE-1037,yes,yes,CWE-1037.rs,Rust's bounds checks and explicit if-checks are branches the CPU can speculate past (Spectre v1); safe indexing is still affected.
+CWE-1037,n/a,n/a,none,"MITRE introduces it only in processor design: the CPU's optimization removes a software check. The software-reachable case, a bounds check speculated past, is CWE-1420."
 CWE-1038,yes,yes,CWE-1038.rs,Release builds remove debug_assert! checks and LLVM may eliminate wipes or reorder security code; automated optimization applies to safe Rust.
 CWE-1254,yes,yes,CWE-1254.rs,"Chunked comparison with early exit is ordinary safe Rust (slice ==, loops); std offers no constant-time comparison to enforce whole-value checks."
 CWE-1255,yes,yes,none,Firmware written in Rust comparing tokens with data-dependent branches leaks via power draw; no compiler models power side channels.

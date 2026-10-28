@@ -1,0 +1,23 @@
+category,plain_rust_today,corten_mechanism
+Poor Coding Practices,"Clippy flags many of these, but only if enabled.",Lints enforced by the gate rather than opt-in (section 10)
+Access Control,"Nothing in the language; authority is ambient (any code can open files, sockets, processes).","Capabilities passed in from a signed manifest; evidence types such as `Permission<Delete, Account>` (4.3, 4.11)"
+Resource Lifecycle Management,RAII and ownership manage most lifetimes; `mem::forget` and leaks are safe.,"Linear handles, no `mem::forget`, compiler-supplied finalizers, quotas (4.1, 4.12)"
+Improper Neutralization,"Strings flow into SQL, HTML, shell and log sinks via `format!` with no checks.","Typed sinks only (`sql!`, `html!`, `process!`, `log_record!`); no raw constructors (4.5, 4.6)"
+File Handling,`std::fs` opens any string path; no traversal or symlink protection.,`DirCap` + `PathSeg` on `openat2` with `RESOLVE_BENEATH` and no symlinks (4.4)
+Exposed Resource,"`pub` fields, `static` items and ambient file and network access are all available.","No ambient authority, no mutable public statics, capability-scoped resources (4.3)"
+Memory Safety,"Safe Rust prevents use-after-free, double free and out-of-bounds access, but any crate may use `unsafe` or FFI.","No application `unsafe` or in-process FFI, enforced by the gate; foreign code isolated in Wasm or a process (4.1, 4.14)"
+Injection,`Command` can run a shell; query and template strings are plain `String`s.,"No shell strings, no `eval`, no DTDs; context-typed sinks (4.5)"
+Sensitive Information Exposure,`#[derive(Debug)]` prints secrets; no data labels.,"`Secret<T>` without `Debug`/`Display`, labelled errors, non-elidable wipe (4.9, 4.7)"
+Concurrency,"`Send`/`Sync` already rule out data races in safe Rust; logical races, TOCTOU and deadlocks remain.","Structured concurrency, bounded channels, affine lock guards, `blocking` effect (4.8)"
+Insufficient Control Flow Management,Exhaustive `match` prevents missing cases; panics and early returns can skip logic.,"No exceptions or `finally`; must-use results; typestates for required order (4.7, 4.11)"
+Encryption,No cryptography in `std`; safety depends on the crate chosen.,"Goal-oriented crypto API: TLS 1.3, AEAD with managed nonces, no skip-verification (4.10)"
+Randomness,No RNG in `std`; quality depends on the crate.,"OS CSPRNG only, behind a `random` capability (4.10)"
+Protection Mechanism Failure,Nothing in the language.,"Fail-closed defaults, `Secure`/`HttpOnly` cookies, refused operations on weak platforms (4.4, 4.6)"
+Comparison,`PartialEq` can be derived for anything; no constant-time comparison in `std`.,"Domain types instead of raw strings; constant-time comparison for secrets (4.5, 4.9)"
+Insufficient Verification of Data Authenticity,No signing or verification in `std`.,"Signed updates and manifests, typed trust stores (4.10, 4.15)"
+Violation of Secure Design Principles,Nothing in the language.,"Least authority by construction; the rest is design review (4.3, section 7)"
+Improper Input Validation,No built-in notion of untrusted input.,"`Untrusted<T>` parsed into domain types; refinements in decidable fragments (4.5, 4.13)"
+Incorrect Calculation,Integer overflow panics in debug builds but wraps in release by default; `as` truncates silently.,"Checked arithmetic in every profile, no implicit casts, distinct wrapping types (4.2)"
+Resource Control,No quotas or budgets.,"Mandatory budgets on parse, decode and allocate; per-component limits (4.12)"
+Component Interaction,No checks on what crates or processes exchange.,"Schema-checked broker IPC and declared effects per package (4.14, 4.15)"
+Improper Check or Handling of Exceptional Conditions,"`Result` is `#[must_use]`, but `let _ =` discards it; `unwrap` and panics are common.","Linear must-use `Result`, exhaustive matching, supervision of panicked components (4.7)"

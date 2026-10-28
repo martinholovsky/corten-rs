@@ -11,9 +11,9 @@ whether it exhibits the weakness is the judgement stated in its comment.
 
 | | CWEs |
 | --- | ---: |
-| Rust, `unsafe` allowed | 785 |
-| Safe Rust | 722 |
-| Safe Rust + Corten (eliminations verified by the corpus) | 641 |
+| Rust, `unsafe` allowed | 787 |
+| Safe Rust | 724 |
+| Safe Rust + Corten (eliminations verified by the corpus) | 643 |
 
 367 of 944 rows rest on programs; the rest are logic, design or policy weaknesses no
 compiler prevents, or constructs Rust does not have, each with its reasoning.
@@ -330,7 +330,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1357](https://cwe.mitre.org/data/definitions/1357.html) | Reliance on Insufficiently Trustworthy Component | yes | yes | checkable | Depending on an insufficiently trusted crate or component is a supply-chain choice; no language prevents it. |
 | [CWE-1434](https://cwe.mitre.org/data/definitions/1434.html) | Insecure Setting of Generative AI/ML Model Inference Parameters | yes | yes | checkable | Configuring a model's inference parameters badly is application configuration; no compiler checks it. |
 
-## Resource Lifecycle Management (107: 89 with `unsafe`, 83 in safe Rust)
+## Resource Lifecycle Management (107: 92 with `unsafe`, 86 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -437,10 +437,10 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1386](https://cwe.mitre.org/data/definitions/1386.html) | Insecure Operation on Windows Junction / Mount Point | yes | yes | eliminated, verified | std::fs follows junctions and mount points by path; check-then-use on a path is safe code. (`CWE-1386.rs`) |
 | [CWE-1389](https://cwe.mitre.org/data/definitions/1389.html) | Incorrect Parsing of Numbers with Different Radices | yes | yes | checkable | Radix interpretation is parser logic; Rust's parse is decimal, but disagreement with other components' octal or hex parsing compiles. (`CWE-1389.rs`) |
 | [CWE-1419](https://cwe.mitre.org/data/definitions/1419.html) | Incorrect Initialization of Resource | yes | yes | checkable | Initialisation is mandatory but its correctness is not; a resource initialised to a wrong value compiles. (`CWE-1419.rs`) |
-| [CWE-1420](https://cwe.mitre.org/data/definitions/1420.html) | Exposure of Sensitive Information during Transient Execution | n/a | n/a | n/a | Hardware design: transient execution is a processor weakness; software only hosts gadgets that a bounds check does not stop. |
-| [CWE-1421](https://cwe.mitre.org/data/definitions/1421.html) | Exposure of Sensitive Information in Shared Microarchitectural Structures during Transient Execution | n/a | n/a | n/a | Hardware design: transient access to shared microarchitectural structures is a processor property. |
+| [CWE-1420](https://cwe.mitre.org/data/definitions/1420.html) | Exposure of Sensitive Information during Transient Execution | yes | yes | checkable | MITRE names software sandboxes relying on bounds checks as an introduction. Safe Rust's bounds checks are architectural; a speculative load past them (Spectre v1) still leaks via cache timing. (`CWE-1420.rs`) |
+| [CWE-1421](https://cwe.mitre.org/data/definitions/1421.html) | Exposure of Sensitive Information in Shared Microarchitectural Structures during Transient Execution | yes | yes | checkable | MITRE names system software that skips state-sanitizing operations at context switches. Omitting a barrier is writable in any language; no compiler requires it. |
 | [CWE-1422](https://cwe.mitre.org/data/definitions/1422.html) | Exposure of Sensitive Information caused by Incorrect Data Forwarding during Transient Execution | n/a | n/a | n/a | Hardware design: stale-data forwarding to transient operations is a processor property. |
-| [CWE-1423](https://cwe.mitre.org/data/definitions/1423.html) | Exposure of Sensitive Information caused by Shared Microarchitectural Predictor State that Influences Transient Execution | n/a | n/a | n/a | Hardware design: shared predictor state across hardware boundaries is a processor property. |
+| [CWE-1423](https://cwe.mitre.org/data/definitions/1423.html) | Exposure of Sensitive Information caused by Shared Microarchitectural Predictor State that Influences Transient Execution | yes | yes | checkable | MITRE names system software that skips predictor barriers (e.g. IBPB) when switching contexts. The omission is writable in safe Rust; no compiler requires the barrier. |
 
 ## Improper Neutralization (68: 68 with `unsafe`, 67 in safe Rust)
 
@@ -1060,7 +1060,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1335](https://cwe.mitre.org/data/definitions/1335.html) | Incorrect Bitwise Shift of Integer | yes | yes | checkable | A runtime shift amount >= the bit width is masked in release builds (debug panics); only constant over-shifts are rejected by the arithmetic_overflow lint. (`CWE-1335.rs`) |
 | [CWE-1339](https://cwe.mitre.org/data/definitions/1339.html) | Insufficient Precision or Accuracy of a Real Number | yes | yes | out of reach | f32/f64 follow IEEE 754; summing money in floats compiles and loses precision, std has no decimal type. (`CWE-1339.rs`) |
 
-## Component Interaction (11: 11 with `unsafe`, 11 in safe Rust)
+## Component Interaction (11: 10 with `unsafe`, 10 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -1073,7 +1073,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-444](https://cwe.mitre.org/data/definitions/444.html) | Inconsistent Interpretation of HTTP Requests ('HTTP Request/Response Smuggling') | yes | yes | checkable | Request smuggling comes from inconsistent HTTP framing (Content-Length vs Transfer-Encoding) between parsers; Rust parsers can be memory-safe yet disagree. |
 | [CWE-650](https://cwe.mitre.org/data/definitions/650.html) | Trusting HTTP Permission Methods on the Server Side | yes | yes | checkable | Trusting that GET/HEAD are side-effect-free while handlers mutate state is web logic in a framework stub; no compiler checks HTTP semantics. |
 | [CWE-733](https://cwe.mitre.org/data/definitions/733.html) | Compiler Optimization Removal or Modification of Security-critical Code | yes | yes | checkable | LLVM may delete a wipe loop on a Vec about to be freed, or other security code it deems dead; safe Rust cannot pin it (volatile/fences need unsafe or crates). (`CWE-733.rs`) |
-| [CWE-1037](https://cwe.mitre.org/data/definitions/1037.html) | Processor Optimization Removal or Modification of Security-critical Code | yes | yes | checkable | Rust's bounds checks and explicit if-checks are branches the CPU can speculate past (Spectre v1); safe indexing is still affected. (`CWE-1037.rs`) |
+| [CWE-1037](https://cwe.mitre.org/data/definitions/1037.html) | Processor Optimization Removal or Modification of Security-critical Code | n/a | n/a | n/a | MITRE introduces it only in processor design: the CPU's optimization removes a software check. The software-reachable case, a bounds check speculated past, is CWE-1420. |
 | [CWE-1038](https://cwe.mitre.org/data/definitions/1038.html) | Insecure Automated Optimizations | yes | yes | checkable | Release builds remove debug_assert! checks and LLVM may eliminate wipes or reorder security code; automated optimization applies to safe Rust. (`CWE-1038.rs`) |
 
 CWE names are from MITRE CWE 4.20, used under its terms of use (see `ledger/NOTICE`).

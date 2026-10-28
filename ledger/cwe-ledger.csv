@@ -709,7 +709,7 @@ CWE-1022,Use of Web Link to Untrusted Target with window.opener Access,Variant,A
 CWE-1023,Incomplete Comparison with Missing Factors,Class,Comparison,applies,O,,,O,,,,,,,,,unverified
 CWE-1024,Comparison of Incompatible Types,Base,Comparison,applies,C,C:E,"C C->E: with no unchecked casts, comparison of incompatible types does not type-check.",C,,,,,,,,,unverified
 CWE-1025,Comparison Using Wrong Factors,Base,Comparison,applies,O,,,O,,,,,,,,,unverified
-CWE-1037,Processor Optimization Removal or Modification of Security-critical Code,Base,Component Interaction,applies,C,,,C,,,,,,,,,unverified
+CWE-1037,Processor Optimization Removal or Modification of Security-critical Code,Base,Component Interaction,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1038,Insecure Automated Optimizations,Class,Component Interaction,applies,C,,,C,,,,,,,,,unverified
 CWE-1039,Inadequate Detection or Handling of Adversarial Input Perturbations in Automated Recognition Mechanism,Class,Protection Mechanism Failure,applies,C,,,C,,,,,,,,,unverified
 CWE-1041,Use of Redundant Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -933,10 +933,10 @@ CWE-1393,Use of Default Password,Base,Access Control,applies,C,,,C,,,,,,,,,unver
 CWE-1394,Use of Default Cryptographic Key,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-1395,Dependency on Vulnerable Third-Party Component,Class,Violation of Secure Design Principles,applies,C,,,C,,,,,,,,,unverified
 CWE-1419,Incorrect Initialization of Resource,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1420,Exposure of Sensitive Information during Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
-CWE-1421,Exposure of Sensitive Information in Shared Microarchitectural Structures during Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1420,Exposure of Sensitive Information during Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1421,Exposure of Sensitive Information in Shared Microarchitectural Structures during Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1422,Exposure of Sensitive Information caused by Incorrect Data Forwarding during Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
-CWE-1423,Exposure of Sensitive Information caused by Shared Microarchitectural Predictor State that Influences Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1423,Exposure of Sensitive Information caused by Shared Microarchitectural Predictor State that Influences Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1426,Improper Validation of Generative AI Output,Base,Injection,applies,C,,,C,,,,,,,,,unverified
 CWE-1427,Improper Neutralization of Input Used for LLM Prompting,Base,Injection,applies,O,D:C,"D O->C: Prompt injection can be made partially checkable by typed in-context data boundaries and output policies, though semantic danger remains; O is too strong.",O,,,,,,,,,unverified
 CWE-1428,Reliance on HTTP instead of HTTPS,Base,Encryption,applies,C,,,C,,,,,,,,,unverified

@@ -119,7 +119,7 @@ CWE-1342,n/a,n/a,none,Hardware design: the processor failing to clear microarchi
 CWE-1386,yes,yes,CWE-1386.rs,std::fs follows junctions and mount points by path; check-then-use on a path is safe code.
 CWE-1389,yes,yes,CWE-1389.rs,"Radix interpretation is parser logic; Rust's parse is decimal, but disagreement with other components' octal or hex parsing compiles."
 CWE-1419,yes,yes,CWE-1419.rs,Initialisation is mandatory but its correctness is not; a resource initialised to a wrong value compiles.
-CWE-1420,n/a,n/a,none,Hardware design: transient execution is a processor weakness; software only hosts gadgets that a bounds check does not stop.
-CWE-1421,n/a,n/a,none,Hardware design: transient access to shared microarchitectural structures is a processor property.
+CWE-1420,yes,yes,CWE-1420.rs,MITRE names software sandboxes relying on bounds checks as an introduction. Safe Rust's bounds checks are architectural; a speculative load past them (Spectre v1) still leaks via cache timing.
+CWE-1421,yes,yes,none,MITRE names system software that skips state-sanitizing operations at context switches. Omitting a barrier is writable in any language; no compiler requires it.
 CWE-1422,n/a,n/a,none,Hardware design: stale-data forwarding to transient operations is a processor property.
-CWE-1423,n/a,n/a,none,Hardware design: shared predictor state across hardware boundaries is a processor property.
+CWE-1423,yes,yes,none,MITRE names system software that skips predictor barriers (e.g. IBPB) when switching contexts. The omission is writable in safe Rust; no compiler requires the barrier.

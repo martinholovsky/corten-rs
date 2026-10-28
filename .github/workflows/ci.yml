@@ -60,12 +60,14 @@ jobs:
         run: cargo run --locked -p corten-ledger -- check
       # Re-checks every applicability program against the pinned rustc, and
       # fails if the generated table or doc, or the ledger's
-      # rust_applicability column, no longer matches the evidence.
+      # rust_applicability column, no longer matches the evidence, or if the
+      # chart's SVG is not what the table generates.
       - name: Rust applicability evidence
         run: |
           bash scripts/applicability-check.sh > /dev/null
           python3 scripts/applicability-table.py
           git diff --exit-code -- audit/applicability/table.csv docs/rust-applicability.md
+          python3 scripts/applicability-chart.py --check
       - name: Compile-fail corpus
         run: |
           cargo build --locked -p cargo-corten
