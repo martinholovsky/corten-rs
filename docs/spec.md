@@ -446,7 +446,7 @@ Start without forking the compiler (tools and their versions are in section 10):
 
 - [ ] Mandatory resource budgets on every parse, decode and allocate entry point. Not built; the brokers, the IPC decoder and the checker's JSON parser are bounded.
 - [x] Supervision tree that isolates and restarts a panicked component (`corten-runtime`).
-- [x] Wasm and process brokers with schema-checked IPC, quotas and deadlines (`corten-broker`; Wasm on `wasmi`, owner decision 12; processes under `corten-sandbox`, Landlock, owner decision 11).
+- [x] Wasm and process brokers with schema-checked IPC, quotas and deadlines (`corten-broker`; Wasm on `wasmi`, owner decision 12, in a separate `corten-wasm-runner` process since 2026-10-27; both under `corten-sandbox`, Landlock, owner decision 11).
 - [x] `cargo-corten`: hermetic builds, sandboxed proc macros, SBOM, provenance. On Linux, both `cargo corten build` and `cargo corten check` run cargo inside `corten-sandbox`; off Linux, `build` refuses and `check` warns.
 
 **Gate:** a panic in one component does not stop the service; a broker cannot exceed its declared capabilities.
