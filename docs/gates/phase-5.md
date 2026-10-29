@@ -148,9 +148,10 @@ Resolved the same day: `CWE-1037.rs` removed by the owner. The table, the genera
 
 Resolved 2026-10-29 (owner decision): CWE-1113 to 1117 moved from N to C, with the reason in the ledger. `corten-ledger totals`: E 169 / C 732 / O 26 / N 17. The headline counts do not change (787, 724, 641), since the Corten count does not depend on C versus N.
 
+Also resolved 2026-10-29 (owner decisions): Landlock ABI v6 signal and abstract-socket scoping is requested wherever the kernel has it, with v4 kept as the hard requirement (branch `wasm-out-of-process`, PR #11); CI regenerates `docs/rust-comparison.md` after fetching only its baseline commit (branch `rust-applicability-audit`, PR #10).
+
 | Item | Blocked on | Where it is tracked |
 | --- | --- | --- |
 | The independent review of the encoders, for the 26 rows that pass but stay unverified | The owner naming a reviewer | `docs/gates/phase-2.md` section 5, `docs/gates/encoder-prereview.md` |
-| Landlock ABI v6 scoping (signals, abstract UNIX sockets), and UDP, are not restricted for brokered processes | A decision to require ABI v6 | `docs/tcb.md`, "What a confined program can still reach" |
+| UDP is not restricted for brokered processes (the `landlock` crate 0.4.7 has no UDP right) | A Landlock UDP right in the crate and the kernel, or a separate mechanism (seccomp, a network namespace) | `docs/tcb.md`, "What a confined program can still reach" |
 | Flux re-trial: CWE-128, 129, 190, 191, 369, 839 | A Flux release, and 0 internal errors on the corpus | Part 4 above |
-| `scripts/applicability-comparison.py` is not run in CI (it reads a baseline commit, which a shallow checkout lacks) | A fetch-depth decision | This row |
