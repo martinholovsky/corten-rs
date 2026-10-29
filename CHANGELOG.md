@@ -8,9 +8,6 @@ Newest first. Nothing is released yet.
 
 - `corten-sandbox` requests Landlock ABI v6 scoping where the kernel has it (owner decision, 2026-10-29): a confined program cannot signal a process outside the sandbox or connect to an abstract UNIX socket created outside it. ABI v4 stays the hard requirement, so older kernels run as before, without the scopes. UDP is still unrestricted (`docs/tcb.md`).
 - The Wasm broker runs each module out of process (owner decision, 2026-10-27): `corten_broker::wasm::run` starts the new `corten-wasm-runner` binary under `corten-sandbox`, with a deadline and an output quota, and exchanges one size-checked frame each way. The interpreter is no longer linked into the caller, so a speculative read past `wasmi`'s bounds checks (CWE-1420, found by the applicability audit) reaches only the runner. `WasmPolicy` gains `sandbox`, `runner` and `deadline`; `WasmError` gains `Broker` and `Runner`, and `Abi` carries a `String`. Like the process broker, it now needs Linux. `docs/tcb.md` records what Landlock ABI v4 leaves open to a confined process (UDP, signals, abstract UNIX sockets).
-- CWE-1113 to 1117 moved from N to C (owner decision, 2026-10-29): the applicability review found them writable, and their parent CWE-1078 is C. Ledger: E 169 / C 732 / O 26 / N 17. `scripts/applicability-comparison.py` names writable N rows only when there are any.
-- README: the COR-TEN trademark status checked against the registries (US registration cancelled 2016-04-01; Canadian registration live until 2035).
-- Spec section 5: the supervision tree is marked done (Phase 3), the in-process escape hatch declined (question 9), and secret spill control partly done (Phase 2).
 
 ### Added
 
@@ -22,6 +19,10 @@ Newest first. Nothing is released yet.
   - Part 4, tools (licences and supply chain first): Flux trialled and not adopted (6 of 15 numeric programs caught; 3 of 88 good programs hit internal errors); Kani trialled and withdrawn (CBMC out of memory at 24 GiB). Replaced in-house by exhaustive encoder tests over every Unicode scalar value and every ASCII pair, and `docs/dep-policy.example` in place of Semgrep's Rust rules. CodeQL and Semgrep rejected (licences), lockbud rejected (stale nightly pin).
 
   Corpus: 169 of 169 detected, 0 of 169 false rejections, 143 of 169 verified.
+- Phase 5 follow-ups (2026-10-29):
+  - CWE-1113 to 1117 moved from N to C (owner decision, 2026-10-29): the applicability review found them writable, and their parent CWE-1078 is C. Ledger: E 169 / C 732 / O 26 / N 17. `scripts/applicability-comparison.py` names writable N rows only when there are any.
+  - README: the COR-TEN trademark status checked against the registries (US registration cancelled 2016-04-01; Canadian registration live until 2035).
+  - Spec section 5: the supervision tree is marked done (Phase 3), the in-process escape hatch declined (question 9), and secret spill control partly done (Phase 2).
 - Claimed eliminations, carried out per `docs/gates/claimed-eliminations.md` (owner decisions, 2026-10-27):
   - CWE-611, 776, 827, 1333 and 683 moved from E to C.
   - `corten_std::thread` (`spawn`, `Handle::join`, which re-raise a child's panic); the checker bans `JoinHandle::join` and `ScopedJoinHandle::join`.
