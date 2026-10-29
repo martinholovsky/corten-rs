@@ -68,6 +68,15 @@ jobs:
           python3 scripts/applicability-table.py
           git diff --exit-code -- audit/applicability/table.csv docs/rust-applicability.md
           python3 scripts/applicability-chart.py --check
+      # docs/rust-comparison.md is generated against the ledger at a baseline
+      # commit, which the shallow checkout lacks: fetch exactly that commit.
+      - name: Rust comparison is current
+        run: |
+          base=$(sed -n 's/^BASELINE = "\([0-9a-f]\{40\}\)".*/\1/p' scripts/applicability-comparison.py)
+          test -n "$base"
+          git fetch --no-tags --depth=1 origin "$base"
+          python3 scripts/applicability-comparison.py
+          git diff --exit-code -- docs/rust-comparison.md
       - name: Compile-fail corpus
         run: |
           cargo build --locked -p cargo-corten

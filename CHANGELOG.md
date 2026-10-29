@@ -6,6 +6,7 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- CI checks that `docs/rust-comparison.md` is current: it fetches only the baseline commit `scripts/applicability-comparison.py` compares against (now pinned by full SHA), which the shallow checkout lacks.
 - `scripts/applicability-chart.py` generates `docs/assets/cwe-rust-corten.svg` from the applicability table, and CI fails when the SVG is stale (the PNG is still rendered by hand, since it needs the Archivo font). The Corten bar gains a hatched segment for the eliminations Corten claims but its corpus does not yet prove; they still count as writable.
 - Per-CWE Rust applicability review (`audit/applicability/`, `docs/rust-applicability.md`): every one of the 944 CWEs answered for Rust with `unsafe`, safe Rust and Corten, with reasoning, and 435 programs re-checked against rustc in CI. Result: 785 writable with `unsafe`, 722 in safe Rust, 641 under Corten's verified eliminations; 67 need constructs Rust lacks and 92 are not code. *Updated 2026-10-28* (transient-execution rows corrected: CWE-1420, 1421 and 1423 can be introduced by software, CWE-1037 cannot): 787, 724 and 643; 67 and 90. Chart: `docs/assets/cwe-rust-corten.svg`.
 - Logo: a weathered-steel plate with a C cut through it on a layered rust shield (`docs/assets/logo/`), with PNG sizes, a favicon and a 1280×640 GitHub social preview; shown at the top of the README.

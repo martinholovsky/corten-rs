@@ -17,7 +17,7 @@ TABLE = Path("audit/applicability/table.csv")
 NOTES = Path("audit/applicability/category-notes.csv")
 DOC = Path("docs/rust-comparison.md")
 # main before the audit: the tag-based classification the review replaced.
-BASELINE = "1618fbc"
+BASELINE = "1618fbc42634c645617c09e0f6197aea30eb4407"  # full SHA: CI fetches it by name
 
 
 def key(r):
@@ -98,7 +98,7 @@ The first classification (Phase 0) took Rust applicability from each CWE's `Appl
 
 A weakness counts as code when MITRE names a way software introduces it; one MITRE introduces only in hardware design, requirements or process is n/a. That rule is what separates the transient-execution weaknesses: CWE-1420, 1421 and 1423 can be introduced by software (a sandbox relying on bounds checks, system software skipping state or predictor barriers at context switches) and count; CWE-1037, 1303, 1342 and 1422 are introduced only in processor design and do not.
 
-What changed from the tag-based count (against the ledger at `{BASELINE}`): {hw} counted for Rust are weaknesses of chip design, hardware, physical attacks or process (now n/a); {gone} counted for Rust need a construct Rust does not have (C-style fall-through, class inheritance, virtual destructors, runtime-named variables); {to_safe} counted as `unsafe`-only can be written in safe Rust (`as` casts that sign-extend or wrap, `chroot`, stale bytes in reused buffers); and {to_unsafe} counted as writable in safe Rust need `unsafe` (reading uninitialised memory, E0381; unsynchronised mutable statics; signal handlers). Measured rather than recalled: std opens files, sockets and pipes close-on-exec (a child process saw no new descriptor on macOS and Linux).
+What changed from the tag-based count (against the ledger at `{BASELINE[:7]}`): {hw} counted for Rust are weaknesses of chip design, hardware, physical attacks or process (now n/a); {gone} counted for Rust need a construct Rust does not have (C-style fall-through, class inheritance, virtual destructors, runtime-named variables); {to_safe} counted as `unsafe`-only can be written in safe Rust (`as` casts that sign-extend or wrap, `chroot`, stale bytes in reused buffers); and {to_unsafe} counted as writable in safe Rust need `unsafe` (reading uninitialised memory, E0381; unsynchronised mutable statics; signal handlers). Measured rather than recalled: std opens files, sockets and pipes close-on-exec (a child process saw no new descriptor on macOS and Linux).
 
 ## By category
 
