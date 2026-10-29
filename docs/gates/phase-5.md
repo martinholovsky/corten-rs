@@ -146,10 +146,11 @@ Part 1 and Part 2, then Part 3. Re-run the full Linux check, the corpus with `--
 
 Resolved the same day: `CWE-1037.rs` removed by the owner. The table, the generated docs and the chart were regenerated: 787 with `unsafe`, 724 safe, 641 under Corten (83 verified, 25 claimed, 616 if every claim held).
 
+Resolved 2026-10-29 (owner decision): CWE-1113 to 1117 moved from N to C, with the reason in the ledger. `corten-ledger totals`: E 169 / C 732 / O 26 / N 17. The headline counts do not change (787, 724, 641), since the Corten count does not depend on C versus N.
+
 | Item | Blocked on | Where it is tracked |
 | --- | --- | --- |
 | The independent review of the encoders, for the 26 rows that pass but stay unverified | The owner naming a reviewer | `docs/gates/phase-2.md` section 5, `docs/gates/encoder-prereview.md` |
-| CWE-1113 to 1117: writable, but in bucket N | The owner's decision | `docs/rust-comparison.md` (generated) |
 | Landlock ABI v6 scoping (signals, abstract UNIX sockets), and UDP, are not restricted for brokered processes | A decision to require ABI v6 | `docs/tcb.md`, "What a confined program can still reach" |
 | Flux re-trial: CWE-128, 129, 190, 191, 369, 839 | A Flux release, and 0 internal errors on the corpus | Part 4 above |
 | `scripts/applicability-comparison.py` is not run in CI (it reads a baseline commit, which a shallow checkout lacks) | A fetch-depth decision | This row |

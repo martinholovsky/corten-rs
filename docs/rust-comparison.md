@@ -6,7 +6,7 @@ Of the 944 weaknesses in MITRE CWE 4.20, **787 can be written in Rust** with `un
 
 These numbers come from a per-CWE review, recorded with its reasoning in [`rust-applicability.md`](rust-applicability.md) and [`audit/applicability/table.csv`](../audit/applicability/table.csv). Wherever the compiler prevents a weakness, or could plausibly have prevented it, a program in `audit/applicability/` shows the outcome, and `scripts/applicability-check.sh` re-checks every program against stock rustc in CI: 367 of the 944 rows rest on programs. The remaining rows are logic, design or policy weaknesses that no compiler prevents, or constructs Rust lacks, each with its reasoning. A compiling program shows a weakness can be written; that it exhibits the weakness is the judgement stated in its comment.
 
-Corten's buckets over the 787 that can be written: E 146 / C 610 / O 26 / N 5, with 121 of the E rows verified by compile-fail tests. Read the unverified E rows as targets. The 5 in N (CWE-1113, CWE-1114, CWE-1115, CWE-1116, CWE-1117) are comment, whitespace and documentation weaknesses the design classed as not coding; the review found them to be source code, as their parent CWE-1078 already is in the ledger. Their bucket is unchanged pending a ledger decision.
+Corten's buckets over the 787 that can be written: E 146 / C 615 / O 26 / N 0, with 121 of the E rows verified by compile-fail tests. Read the unverified E rows as targets.
 
 ## How each CWE was sorted
 
@@ -28,7 +28,7 @@ Counts are over the weaknesses that can be written in Rust. "Plain Rust today" i
 
 | Category (CWE-1400) | `unsafe` allowed | Safe Rust | Only via `unsafe` | Plain Rust today | Corten mechanism | Corten E / C / O / N | E verified |
 | --- | ---: | ---: | ---: | --- | --- | --- | ---: |
-| Poor Coding Practices | 113 | 101 | 12 | Clippy flags many of these, but only if enabled. | Lints enforced by the gate rather than opt-in (section 10) | 15 / 80 / 13 / 5 | 15 |
+| Poor Coding Practices | 113 | 101 | 12 | Clippy flags many of these, but only if enabled. | Lints enforced by the gate rather than opt-in (section 10) | 15 / 85 / 13 / 0 | 15 |
 | Access Control | 111 | 111 | 0 | Nothing in the language; authority is ambient (any code can open files, sockets, processes). | Capabilities passed in from a signed manifest; evidence types such as `Permission<Delete, Account>` (4.3, 4.11) | 0 / 110 / 1 / 0 | 0 |
 | Resource Lifecycle Management | 92 | 86 | 6 | RAII and ownership manage most lifetimes; `mem::forget` and leaks are safe. | Linear handles, no `mem::forget`, compiler-supplied finalizers, quotas (4.1, 4.12) | 14 / 78 / 0 / 0 | 14 |
 | Improper Neutralization | 68 | 67 | 1 | Strings flow into SQL, HTML, shell and log sinks via `format!` with no checks. | Typed sinks only (`sql!`, `html!`, `process!`, `log_record!`); no raw constructors (4.5, 4.6) | 7 / 61 / 0 / 0 | 4 |
@@ -50,7 +50,7 @@ Counts are over the weaknesses that can be written in Rust. "Plain Rust today" i
 | Resource Control | 12 | 10 | 2 | No quotas or budgets. | Mandatory budgets on parse, decode and allocate; per-component limits (4.12) | 1 / 11 / 0 / 0 | 1 |
 | Component Interaction | 10 | 10 | 0 | No checks on what crates or processes exchange. | Schema-checked broker IPC and declared effects per package (4.14, 4.15) | 0 / 10 / 0 / 0 | 0 |
 | Improper Check or Handling of Exceptional Conditions | 9 | 9 | 0 | `Result` is `#[must_use]`, but `let _ =` discards it; `unwrap` and panics are common. | Linear must-use `Result`, exhaustive matching, supervision of panicked components (4.7) | 0 / 9 / 0 / 0 | 0 |
-| **Total** | **787** | **724** | **63** | | | **146 / 610 / 26 / 5** | **121** |
+| **Total** | **787** | **724** | **63** | | | **146 / 615 / 26 / 0** | **121** |
 
 ## Where Corten differs most from plain Rust
 

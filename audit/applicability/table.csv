@@ -783,11 +783,11 @@ CWE-1109,Use of Same Variable for Multiple Purposes,Poor Coding Practices,Not La
 CWE-1110,Incomplete Design Documentation,Poor Coding Practices,,not-coding,N,unverified,n/a,n/a,none,"Incomplete design documentation is a process artifact, not code."
 CWE-1111,Incomplete I/O Documentation,Poor Coding Practices,Not Language-Specific,not-coding,N,unverified,n/a,n/a,none,"Incomplete I/O documentation is a process artifact, not code."
 CWE-1112,Incomplete Documentation of Program Execution,Poor Coding Practices,Not Language-Specific,not-coding,N,unverified,n/a,n/a,none,"Incomplete documentation of program execution is a process artifact, not code."
-CWE-1113,Inappropriate Comment Style,Poor Coding Practices,Not Language-Specific,applies,N,unverified,yes,yes,none,Comment style is source text; rustc does not check comment format.
-CWE-1114,Inappropriate Whitespace Style,Poor Coding Practices,Not Language-Specific,applies,N,unverified,yes,yes,none,Whitespace style is source text; rustc ignores it and rustfmt is optional.
-CWE-1115,Source Code Element without Standard Prologue,Poor Coding Practices,Not Language-Specific,applies,N,unverified,yes,yes,none,A missing standard file prologue is source text; rustc does not require headers.
-CWE-1116,Inaccurate Source Code Comments,Poor Coding Practices,Not Language-Specific,applies,N,unverified,yes,yes,none,Inaccurate comments are source text; rustc does not check comments against code.
-CWE-1117,Callable with Insufficient Behavioral Summary,Poor Coding Practices,Not Language-Specific,applies,N,unverified,yes,yes,none,A function signature and doc comment can under-describe behavior; rustc only lints missing docs optionally.
+CWE-1113,Inappropriate Comment Style,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,Comment style is source text; rustc does not check comment format.
+CWE-1114,Inappropriate Whitespace Style,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,Whitespace style is source text; rustc ignores it and rustfmt is optional.
+CWE-1115,Source Code Element without Standard Prologue,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,A missing standard file prologue is source text; rustc does not require headers.
+CWE-1116,Inaccurate Source Code Comments,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,Inaccurate comments are source text; rustc does not check comments against code.
+CWE-1117,Callable with Insufficient Behavioral Summary,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,A function signature and doc comment can under-describe behavior; rustc only lints missing docs optionally.
 CWE-1118,Insufficient Documentation of Error Handling Techniques,Poor Coding Practices,Not Language-Specific,not-coding,N,unverified,n/a,n/a,none,"Error-handling documentation is a process artifact, not code."
 CWE-1119,Excessive Use of Unconditional Branching,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,CWE-1119.rs,"No goto, but labeled break/continue are unconditional jumps; rustc places no limit on their number."
 CWE-1120,Excessive Code Complexity,Poor Coding Practices,Not Language-Specific,applies,C,unverified,yes,yes,none,Code complexity is a metric; rustc does not limit it.
