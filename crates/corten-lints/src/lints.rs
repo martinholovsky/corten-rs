@@ -60,12 +60,15 @@ fn callee(cx: &LateContext<'_>, expr: &Expr<'_>) -> Option<DefId> {
 
 declare_lint! {
     /// CWE-252: a non-unit return value from a function defined in the
-    /// checked crate is must-use (spec 4.7, narrowed by owner decision 10).
+    /// checked crate, or a `bool` from any function, is must-use (spec 4.7,
+    /// narrowed by owner decision 10, widened to `bool` on 2026-10-27).
     /// Fires on `f();` and `let _ = f();` when `f` is local and returns
-    /// anything but `()` or `!`, except a method returning a reference to its
-    /// own receiver's type (a builder), which carries no status. Calls into
-    /// other crates (`map.insert(k, v);`) are left to rustc's
-    /// `unused_must_use`.
+    /// anything but `()` or `!`, or when any `f` returns `bool`
+    /// (`seen.insert(id);`), except a method returning a reference to its
+    /// own receiver's type (a builder), which carries no status. Other calls
+    /// into other crates (`map.insert(k, v);`) are left to rustc's
+    /// `unused_must_use`. Binding the value to a name (`let _was_new = ...`)
+    /// is the explicit way to ignore it.
     pub CORTEN_MUST_USE_RETURN,
     Allow,
     "a non-unit return value is discarded"
@@ -79,10 +82,14 @@ fn discarded_value(cx: &LateContext<'_>, expr: &Expr<'_>) {
     {
         return;
     }
-    if !callee(cx, expr).is_some_and(DefId::is_local) {
+    let ty = cx.typeck_results().expr_ty(expr);
+    // Any crate's `bool` is a status (`set.insert(x)` is false for a
+    // repeat); other returns from other crates are left to rustc's
+    // `unused_must_use`, since `map.insert(k, v);` routinely discards the
+    // old value (owner decision 10 and docs/gates/claimed-eliminations.md).
+    if !ty.is_bool() && !callee(cx, expr).is_some_and(DefId::is_local) {
         return;
     }
-    let ty = cx.typeck_results().expr_ty(expr);
     if ty.is_unit() || ty.is_never() {
         return;
     }
@@ -625,6 +632,104 @@ impl<'tcx> LateLintPass<'tcx> for RcCycle {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// CWE-798 (aid; the row stays C)
+
+declare_lint! {
+    /// CWE-798: a `corten_std::secret::Secret` built from a literal or a
+    /// constant is a hard-coded credential. Fires on `Secret::new(..)` and
+    /// `Secret::from_string(..)` when the argument is a literal, a `const` or
+    /// `static`, or one of those through plain conversions (`to_owned`,
+    /// `to_string`, `into`, `to_vec`, `into_bytes`, `String::from`,
+    /// `Vec::from`, `vec!`). A call that computes the value (`load("KEY")`)
+    /// is not followed, so a name passed to a loader is not mistaken for the
+    /// secret. Narrow by design: literals reaching other sinks are not seen.
+    pub CORTEN_SECRET_LITERAL,
+    Allow,
+    "a `Secret` is built from a literal or constant"
+}
+
+declare_lint_pass!(SecretLiteral => [CORTEN_SECRET_LITERAL]);
+
+/// Whether `expr` is a literal or constant, possibly through conversions.
+fn literal_rooted(cx: &LateContext<'_>, expr: &Expr<'_>) -> bool {
+    match expr.kind {
+        ExprKind::Lit(..) => true,
+        ExprKind::Array(items) => !items.is_empty() && items.iter().all(|e| literal_rooted(cx, e)),
+        ExprKind::Repeat(item, _) => literal_rooted(cx, item),
+        ExprKind::AddrOf(_, _, inner) => literal_rooted(cx, inner),
+        ExprKind::Path(ref qpath) => matches!(
+            cx.qpath_res(qpath, expr.hir_id),
+            Res::Def(
+                rustc_hir::def::DefKind::Const
+                    | rustc_hir::def::DefKind::AssocConst
+                    | rustc_hir::def::DefKind::Static { .. },
+                _
+            )
+        ),
+        ExprKind::MethodCall(segment, receiver, [], _) => {
+            matches!(
+                segment.ident.name.as_str(),
+                "to_owned" | "to_string" | "into" | "to_vec" | "into_bytes" | "as_bytes" | "clone"
+            ) && literal_rooted(cx, receiver)
+        }
+        ExprKind::Call(_, args) => {
+            // `String::from`, `Vec::from`, and what `vec![..]` expands to on
+            // the pinned nightly: `box_assume_init_into_vec_unsafe(
+            // write_box_via_move(Box::new_uninit(), [..]))`.
+            let conversion = callee(cx, expr).is_some_and(|d| {
+                matches!(
+                    cx.tcx.item_name(d).as_str(),
+                    "from"
+                        | "into_vec"
+                        | "from_elem"
+                        | "new"
+                        | "box_new"
+                        | "box_assume_init_into_vec_unsafe"
+                        | "write_box_via_move"
+                ) && is_std(cx, d)
+            });
+            let neutral = |a: &Expr<'_>| {
+                matches!(a.kind, ExprKind::Call(_, []))
+                    && callee(cx, a).is_some_and(|d| is_std(cx, d))
+            };
+            conversion
+                && args.iter().any(|a| literal_rooted(cx, a))
+                && args.iter().all(|a| literal_rooted(cx, a) || neutral(a))
+        }
+        ExprKind::Block(block, _) => {
+            block.stmts.is_empty() && block.expr.is_some_and(|e| literal_rooted(cx, e))
+        }
+        _ => false,
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for SecretLiteral {
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
+        let ExprKind::Call(_, [arg]) = expr.kind else {
+            return;
+        };
+        let Some(def_id) = callee(cx, expr) else {
+            return;
+        };
+        let path = cx.tcx.def_path_str(def_id);
+        if !matches!(
+            path.as_str(),
+            "corten_std::secret::Secret::new" | "corten_std::secret::Secret::from_string"
+        ) {
+            return;
+        }
+        if literal_rooted(cx, arg) {
+            emit(
+                cx,
+                CORTEN_SECRET_LITERAL,
+                expr.span,
+                "a `Secret` built from a literal or constant is a hard-coded credential (CWE-798); load it from the manifest or a secret store".to_owned(),
+            );
+        }
+    }
+}
+
 /// Every lint, for `--print`-style listings and the checker's flags.
 pub const ALL: &[&rustc_lint::Lint] = &[
     CORTEN_MUST_USE_RETURN,
@@ -634,6 +739,7 @@ pub const ALL: &[&rustc_lint::Lint] = &[
     CORTEN_DIRECT_TEMPLATE,
     CORTEN_BLOCKING_IN_ASYNC,
     CORTEN_RC_CYCLE,
+    CORTEN_SECRET_LITERAL,
 ];
 
 pub fn register(store: &mut LintStore) {
@@ -645,4 +751,5 @@ pub fn register(store: &mut LintStore) {
     store.register_late_lint_pass(Box::new(|_| Box::new(DirectTemplate)));
     store.register_late_lint_pass(Box::new(|_| Box::new(BlockingInAsync::default())));
     store.register_late_lint_pass(Box::new(|_| Box::new(RcCycle)));
+    store.register_late_lint_pass(Box::new(|_| Box::new(SecretLiteral)));
 }

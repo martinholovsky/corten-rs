@@ -1,0 +1,33 @@
+corten-dep-policy 1
+# Example operator dependency policy for `cargo corten check --dep-policy FILE`
+# (docs/gates/phase-5.md, crates/cargo-corten/README.md). Copy it, keep the
+# `allow` lines for the crates you have reviewed, and keep every `ban` line
+# for a crate you admit. Each `ban` path was checked against the crate's own
+# source on 2026-10-28 (reqwest, native-tls, rustls, sqlx, postgres default
+# branches); re-check them when you pin a different version.
+#
+# Dependencies are refused unless admitted. Admitting a crate does not exempt
+# it from the other layer 3 checks.
+
+# allow reqwest
+# allow native-tls
+# allow rustls
+# allow sqlx
+# allow postgres
+
+# Disabled TLS verification (CWE-295).
+ban reqwest::ClientBuilder::danger_accept_invalid_certs disables certificate verification (CWE-295)
+ban reqwest::ClientBuilder::danger_accept_invalid_hostnames disables hostname verification (CWE-295)
+ban reqwest::blocking::ClientBuilder::danger_accept_invalid_certs disables certificate verification (CWE-295)
+ban reqwest::blocking::ClientBuilder::danger_accept_invalid_hostnames disables hostname verification (CWE-295)
+ban native_tls::TlsConnectorBuilder::danger_accept_invalid_certs disables certificate verification (CWE-295)
+ban native_tls::TlsConnectorBuilder::danger_accept_invalid_hostnames disables hostname verification (CWE-295)
+ban rustls::ClientConfig::dangerous opens custom certificate verifiers (CWE-295)
+
+# SQL as a runtime string (CWE-89): use corten_std::sql! and SqlExecutor.
+ban sqlx::query takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter
+ban sqlx::query_as takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter
+ban sqlx::query_scalar takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter
+ban sqlx::raw_sql runs SQL text without parameters (CWE-89)
+ban postgres::Client::simple_query runs SQL text without parameters (CWE-89)
+ban postgres::Client::batch_execute runs SQL text without parameters (CWE-89)

@@ -78,7 +78,7 @@ The owner chose option 2 on 2026-10-27: adopt the driver, with the must-use rule
 
 - **Required.** `cargo corten check` and `cargo corten build` fail when `corten-driver` is not installed (`missing_driver_is_an_error`, with a control). `scripts/build-driver.sh` builds it; CI's tests job, the action and the test harness use it.
 - **The narrowed rule.** `corten_must_use_return` fires only when the called function is defined in the checked crate; a function from another crate is left to `#[must_use]` and rustc's `unused_must_use`. A local function's ignored status, including an integer code, is still refused (the UI fixture covers `bool`, `Option` and `i32`).
-- **What the narrowing gives up.** A standard-library status ignored, such as `seen.insert(id);` used as a duplicate check, passes. `corpus/CWE-252/bad-std-status.rs` records it, so CWE-252 stays unverified.
+- **What the narrowing gives up.** A standard-library status ignored, such as `seen.insert(id);` used as a duplicate check, passes. `corpus/CWE-252/bad-std-status.rs` records it, so CWE-252 stays unverified. *Superseded 2026-10-27:* the rule now also covers a `bool` returned by any crate, so `bad-std-status.rs` is detected with 0 new false rejections; `bad-std-option.rs` (an ignored `Option` status from std) still passes ([`claimed-eliminations.md`](claimed-eliminations.md)).
 
 Corpus with the adopted configuration (Linux container, driver required, `--mark-verified`):
 

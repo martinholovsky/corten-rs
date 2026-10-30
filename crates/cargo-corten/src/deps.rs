@@ -20,16 +20,23 @@
 //!   rename. Name collisions over-approximate toward refusal.
 //! - Any package in the graph on [`BANNED`] is refused, as is any package the
 //!   scan cannot read within its limits (fail closed).
+//! - A reachable package the operator's dependency policy does not admit is
+//!   refused (deny by default; [`crate::dep_policy`]). Admission does not
+//!   skip the checks above. The prelude's own dependencies are exempt only
+//!   when the local package is the checker's own `corten-std`, identified by
+//!   its directory, never by its name: a repository can name a crate
+//!   anything, and rustix's safe API would bypass every path claim.
 //!
-//! The operator accepts a refused package by name (`--allow-dep` or
-//! `CORTEN_ALLOW_DEPS`). Nothing is read from the checked repository's
-//! configuration.
+//! The operator accepts a package refused by one of the first three checks
+//! by name (`--allow-dep` or `CORTEN_ALLOW_DEPS`); that does not admit it.
+//! Nothing is read from the checked repository's configuration.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::dep_policy::DepPolicy;
 use crate::json::Json;
 
 /// Crates refused by name, with the reason.
@@ -280,6 +287,38 @@ fn reachable(
     scans
 }
 
+/// Packages that local code other than the prelude can reach: direct
+/// dependencies of local packages except the prelude, plus what a reachable
+/// package re-exports. Uses the scans `reachable` already made.
+fn admission_set(
+    pkgs: &[Package],
+    graph: &Graph,
+    by_id: &BTreeMap<&str, &Package>,
+    scans: &BTreeMap<String, Result<Scan, String>>,
+    is_prelude: &dyn Fn(&Package) -> bool,
+) -> BTreeSet<String> {
+    let mut queue: Vec<String> = pkgs
+        .iter()
+        .filter(|p| p.local && !is_prelude(p))
+        .flat_map(|p| graph.get(&p.id).into_iter().flatten())
+        .map(|(dep, _)| dep.clone())
+        .collect();
+    let mut seen = BTreeSet::new();
+    while let Some(id) = queue.pop() {
+        if by_id.get(id.as_str()).is_none_or(|p| p.local) || !seen.insert(id.clone()) {
+            continue;
+        }
+        if let Some(Ok(found)) = scans.get(&id) {
+            for (dep, extern_name) in graph.get(&id).into_iter().flatten() {
+                if reexports(&found.text, extern_name) {
+                    queue.push(dep.clone());
+                }
+            }
+        }
+    }
+    seen
+}
+
 /// Applies the policy. See the module documentation.
 ///
 /// # Errors
@@ -287,6 +326,8 @@ fn reachable(
 /// [`MetadataError`] if the metadata lacks the fields the policy reads.
 pub fn audit(
     metadata: &Json,
+    policy: &DepPolicy,
+    prelude: Option<&Path>,
     allow: &BTreeSet<String>,
     limits: Limits,
 ) -> Result<Vec<Finding>, MetadataError> {
@@ -322,11 +363,25 @@ pub fn audit(
     }
 
     let scans = reachable(&pkgs, &graph, &by_id, limits);
+    let prelude = prelude.and_then(|d| fs::canonicalize(d).ok());
+    let is_prelude = |p: &Package| {
+        p.local
+            && prelude
+                .as_ref()
+                .is_some_and(|d| fs::canonicalize(&p.root).is_ok_and(|r| r == *d))
+    };
+    let must_admit = admission_set(&pkgs, &graph, &by_id, &scans, &is_prelude);
 
     for (id, scan) in &scans {
         let Some(p) = by_id.get(id.as_str()) else {
             continue;
         };
+        if must_admit.contains(id) && !policy.admits(&p.name, &p.version) {
+            findings.push(Finding {
+                package: label(p),
+                reason: "not on the operator's dependency allowlist (add `allow NAME` to the --dep-policy file after reviewing it)".to_owned(),
+            });
+        }
         if allowed(p) || BANNED.iter().any(|(b, _)| *b == p.name) {
             continue;
         }
@@ -916,6 +971,82 @@ mod tests {
         .unwrap()
     }
 
+    /// A policy admitting every package name the tests use, so each test
+    /// sees only the check it is about.
+    fn admit_all() -> DepPolicy {
+        crate::dep_policy::parse(
+            "corten-dep-policy 1\nallow evil\nallow mid\nallow derive\nallow fancy-regex\nallow ghost\n",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn unadmitted_dependencies_are_refused_and_admission_skips_no_check() {
+        let t = Tree::new("admit");
+        let app = pkg(
+            "app",
+            true,
+            false,
+            &t.package("app", "fn f(p: *const u8) -> u8 { evil::read_raw!(p) }"),
+        );
+        let evil = pkg("evil", false, false, &t.package("evil", UNSAFE_MACRO));
+        let tidy = pkg("tidy", false, false, &t.package("tidy", "pub fn x() {}"));
+        let m = metadata(&[app, evil, tidy], &[("app", "evil"), ("app", "tidy")]);
+        let none = DepPolicy::default();
+        let f = audit(&m, &none, None, &BTreeSet::new(), Limits::default()).unwrap();
+        let unadmitted = f.iter().filter(|x| x.reason.contains("allowlist")).count();
+        assert_eq!(unadmitted, 2, "{f:?}");
+        // Admitted, evil is still refused for its unsafe macro; tidy passes.
+        let some =
+            crate::dep_policy::parse("corten-dep-policy 1\nallow evil\nallow tidy\n").unwrap();
+        let f = audit(&m, &some, None, &BTreeSet::new(), Limits::default()).unwrap();
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].reason.contains("read_raw"), "{f:?}");
+        // --allow-dep overrides the macro finding but does not admit.
+        let over: BTreeSet<String> = ["evil".to_owned(), "tidy".to_owned()].into();
+        let f = audit(&m, &none, None, &over, Limits::default()).unwrap();
+        assert_eq!(f.len(), 2, "{f:?}");
+        assert!(f.iter().all(|x| x.reason.contains("allowlist")), "{f:?}");
+    }
+
+    /// The prelude's dependencies need no admission, but only for the
+    /// prelude at the checker's own path; a local crate that merely takes its
+    /// name does not get the exemption.
+    #[test]
+    fn prelude_dependencies_are_exempt_only_at_the_prelude_path() {
+        let t = Tree::new("prelude");
+        let app = pkg("app", true, false, &t.package("app", "fn f() {}"));
+        let prelude_manifest = t.package("corten-std", "pub fn p() {}");
+        let prelude = pkg("corten-std", true, false, &prelude_manifest);
+        let rustix = pkg(
+            "rustix",
+            false,
+            false,
+            &t.package("rustix", "pub fn raw() {}"),
+        );
+        let m = metadata(
+            &[app, prelude, rustix],
+            &[("app", "corten-std"), ("corten-std", "rustix")],
+        );
+        let none = DepPolicy::default();
+        let dir = Path::new(&prelude_manifest).parent().unwrap();
+        assert_eq!(
+            audit(&m, &none, Some(dir), &BTreeSet::new(), Limits::default()).unwrap(),
+            Vec::new()
+        );
+        // Elsewhere, the same name is just another local crate.
+        let f = audit(
+            &m,
+            &none,
+            Some(Path::new("/nonexistent/corten-std")),
+            &BTreeSet::new(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].reason.contains("allowlist"), "{f:?}");
+    }
+
     const UNSAFE_MACRO: &str =
         "#[macro_export]\nmacro_rules! read_raw { ($p:expr) => { unsafe { *$p } }; }\n";
 
@@ -930,7 +1061,7 @@ mod tests {
         );
         let evil = pkg("evil", false, false, &t.package("evil", UNSAFE_MACRO));
         let m = metadata(&[app_uses, evil.clone()], &[("app", "evil")]);
-        let f = audit(&m, &BTreeSet::new(), Limits::default()).unwrap();
+        let f = audit(&m, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap();
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].reason.contains("read_raw"));
 
@@ -939,7 +1070,7 @@ mod tests {
         let evil2 = pkg("evil", false, false, &t2.package("evil", UNSAFE_MACRO));
         let m2 = metadata(&[app_clean, evil2], &[("app", "evil")]);
         assert_eq!(
-            audit(&m2, &BTreeSet::new(), Limits::default()).unwrap(),
+            audit(&m2, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap(),
             Vec::new()
         );
     }
@@ -964,7 +1095,7 @@ mod tests {
             &[("app", "mid"), ("mid", "evil")],
         );
         assert_eq!(
-            audit(&m, &BTreeSet::new(), Limits::default()).unwrap(),
+            audit(&m, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap(),
             Vec::new()
         );
         // Now mid re-exports it.
@@ -975,7 +1106,7 @@ mod tests {
             &t.package("mid", "pub use evil::read_raw;"),
         );
         let m2 = metadata(&[app, mid2, evil], &[("app", "mid"), ("mid", "evil")]);
-        let f = audit(&m2, &BTreeSet::new(), Limits::default()).unwrap();
+        let f = audit(&m2, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap();
         assert_eq!(f.len(), 1, "{f:?}");
     }
 
@@ -1004,10 +1135,13 @@ mod tests {
             &[app, derive, banned],
             &[("app", "derive"), ("app", "fancy-regex")],
         );
-        let f = audit(&m, &BTreeSet::new(), Limits::default()).unwrap();
+        let f = audit(&m, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap();
         assert_eq!(f.len(), 2, "{f:?}");
         let allow: BTreeSet<String> = ["derive".to_owned(), "fancy-regex@1.0.0".to_owned()].into();
-        assert_eq!(audit(&m, &allow, Limits::default()).unwrap(), Vec::new());
+        assert_eq!(
+            audit(&m, &admit_all(), None, &allow, Limits::default()).unwrap(),
+            Vec::new()
+        );
     }
 
     #[test]
@@ -1021,7 +1155,7 @@ mod tests {
             "/nonexistent/corten/ghost/Cargo.toml",
         );
         let m = metadata(&[app, ghost], &[("app", "ghost")]);
-        let f = audit(&m, &BTreeSet::new(), Limits::default()).unwrap();
+        let f = audit(&m, &admit_all(), None, &BTreeSet::new(), Limits::default()).unwrap();
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].reason.contains("cannot list"));
     }

@@ -13,3 +13,15 @@ macro_rules! html {
         $crate::html::Html::from_template($t)
     };
 }
+// A stand-in for corten-std's `Secret`.
+pub mod secret {
+    pub struct Secret(pub Vec<u8>);
+    impl Secret {
+        pub fn new(bytes: Vec<u8>) -> Result<Secret, ()> {
+            Ok(Secret(bytes))
+        }
+        pub fn from_string(text: String) -> Result<Secret, ()> {
+            Ok(Secret(text.into_bytes()))
+        }
+    }
+}

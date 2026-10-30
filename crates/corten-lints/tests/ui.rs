@@ -174,3 +174,32 @@ fn direct_template_call() {
     assert_ne!(code, 0, "{stderr}");
     assert!(stderr.contains("called directly"), "{stderr}");
 }
+
+/// CWE-798 aid: a `Secret` from a literal or constant is refused; one from a
+/// runtime value, including a value a loader computes from a literal name,
+/// is not (the control).
+#[test]
+fn secret_from_a_literal() {
+    let dir = out_dir("secret");
+    let rlib = dep("corten_std", &dir);
+    let ext = [("corten_std", rlib.as_path())];
+    let bad = dir.join("bad.rs");
+    std::fs::write(
+        &bad,
+        "use corten_std::secret::Secret;\nconst KEY: &str = \"k\";\nfn main() {\n    let _a = Secret::from_string(\"hunter2\".to_owned());\n    let _b = Secret::from_string(String::from(\"hunter2\"));\n    let _c = Secret::new(b\"key\".to_vec());\n    let _d = Secret::new(vec![1, 2, 3]);\n    let _e = Secret::from_string(KEY.to_string());\n}\n",
+    )
+    .unwrap();
+    let (code, stderr) = check(&bad, "corten_secret_literal", &ext, &dir);
+    assert_ne!(code, 0, "{stderr}");
+    let n = stderr.matches("hard-coded credential").count();
+    assert_eq!(n, 5, "{stderr}");
+
+    let good = dir.join("good.rs");
+    std::fs::write(
+        &good,
+        "use corten_std::secret::Secret;\nfn load(name: &str) -> String {\n    name.chars().rev().collect()\n}\nfn main() {\n    let input: String = std::iter::repeat('x').take(3).collect();\n    let _a = Secret::from_string(input);\n    let _b = Secret::from_string(load(\"API_KEY\"));\n}\n",
+    )
+    .unwrap();
+    let (code, stderr) = check(&good, "corten_secret_literal", &ext, &dir);
+    assert_eq!(code, 0, "{stderr}");
+}

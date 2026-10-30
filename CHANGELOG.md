@@ -11,8 +11,30 @@ Newest first. Nothing is released yet.
 
 ### Added
 
+- Phase 5, parts 1 to 3 (`docs/gates/phase-5.md`, owner decisions 2026-10-27):
+  - `cargo corten check` and `build` refuse every dependency the operator's policy (`--dep-policy` / `CORTEN_DEP_POLICY`) does not admit; its `ban` lines forbid an admitted crate's raw entry points in local code. Example: `docs/dep-policy.example`.
+  - CWE-252 moved to C.
+  - The five encoder escapes found by the pre-review are fixed (`html!` bogus comments and closed templates, LDAP value position, XQuery constructors and comments, `Options` template-only, `sql!` dollar quoting, comments and `{}0`).
+  - `corten_secret_literal` lint (CWE-798 aid).
+  - Part 4, tools (licences and supply chain first): Flux trialled and not adopted (6 of 15 numeric programs caught; 3 of 88 good programs hit internal errors); Kani trialled and withdrawn (CBMC out of memory at 24 GiB). Replaced in-house by exhaustive encoder tests over every Unicode scalar value and every ASCII pair, and `docs/dep-policy.example` in place of Semgrep's Rust rules. CodeQL and Semgrep rejected (licences), lockbud rejected (stale nightly pin).
+
+  Corpus: 169 of 169 detected, 0 of 169 false rejections, 143 of 169 verified.
+- Phase 5 follow-ups (2026-10-29):
+  - CWE-1113 to 1117 moved from N to C (owner decision, 2026-10-29): the applicability review found them writable, and their parent CWE-1078 is C. Ledger: E 169 / C 732 / O 26 / N 17. `scripts/applicability-comparison.py` names writable N rows only when there are any.
+  - README: the COR-TEN trademark status checked against the registries (US registration cancelled 2016-04-01; Canadian registration live until 2035).
+  - Spec section 5: the supervision tree is marked done (Phase 3), the in-process escape hatch declined (question 9), and secret spill control partly done (Phase 2).
+- Claimed eliminations, carried out per `docs/gates/claimed-eliminations.md` (owner decisions, 2026-10-27):
+  - CWE-611, 776, 827, 1333 and 683 moved from E to C.
+  - `corten_std::thread` (`spawn`, `Handle::join`, which re-raise a child's panic); the checker bans `JoinHandle::join` and `ScopedJoinHandle::join`.
+  - `SqlExecutor::query` returning a `Rows` cursor that borrows the connection; CWE-619 verified (142 of 170).
+  - `corten_must_use_return` also covers a `bool` from any crate.
+  - Encoder property tests (`crates/corten-std/tests/encoder_properties.rs`).
+  - An AI pre-review of the encoders (`docs/gates/encoder-prereview.md`) that found five escapes, now corpus variants.
+  - Dependency variants in CWE-78, 89 and 396.
+
+  Corpus: 162 of 170 detected, 0 of 170 false rejections.
 - `scripts/applicability-chart.py` generates `docs/assets/cwe-rust-corten.svg` from the applicability table, and CI fails when the SVG is stale (the PNG is still rendered by hand, since it needs the Archivo font). The Corten bar gains a hatched segment for the eliminations Corten claims but its corpus does not yet prove; they still count as writable.
-- Per-CWE Rust applicability review (`audit/applicability/`, `docs/rust-applicability.md`): every one of the 944 CWEs answered for Rust with `unsafe`, safe Rust and Corten, with reasoning, and 435 programs re-checked against rustc in CI. Result: 785 writable with `unsafe`, 722 in safe Rust, 641 under Corten's verified eliminations; 67 need constructs Rust lacks and 92 are not code. *Updated 2026-10-28* (transient-execution rows corrected: CWE-1420, 1421 and 1423 can be introduced by software, CWE-1037 cannot): 787, 724 and 643; 67 and 90. Chart: `docs/assets/cwe-rust-corten.svg`.
+- Per-CWE Rust applicability review (`audit/applicability/`, `docs/rust-applicability.md`): every one of the 944 CWEs answered for Rust with `unsafe`, safe Rust and Corten, with reasoning, and 435 programs re-checked against rustc in CI. Result: 785 writable with `unsafe`, 722 in safe Rust, 641 under Corten's verified eliminations; 67 need constructs Rust lacks and 92 are not code. *Updated 2026-10-28* (transient-execution rows corrected, Phase 5 verifications): 787, 724 and 641; 67 and 90. Chart: `docs/assets/cwe-rust-corten.svg`.
 - Logo: a weathered-steel plate with a C cut through it on a layered rust shield (`docs/assets/logo/`), with PNG sizes, a favicon and a 1280×640 GitHub social preview; shown at the top of the README.
 - CI checks that `docs/rust-comparison.md` is current: it fetches only the baseline commit `scripts/applicability-comparison.py` compares against (now pinned by full SHA), which the shallow checkout lacks.
 - Phase 4, `corten-std`: `refine` (`Bounded`, `bounded!` proved at check time, runtime-checked `new`/`checked_add`/`copy_into`), `label` (`Labeled` over four levels; only `Public` reaches a sink; `declassify` needs a `DeclassifyCap` and writes a log record), `sync` (`lock_order!`, `OrderedMutex`; locks against the order do not compile). The manifest gains `declassify NAME`. 11 rejection fixtures with exact messages, 7 of 7 mutations caught. `docs/gates/phase-4.md`.

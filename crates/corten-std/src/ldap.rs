@@ -1,7 +1,12 @@
 //! `LdapFilter`, `LdapDn` and their macros (spec 4.5, CWE-90).
 //!
 //! Two contexts, two encoders: a search-filter value is escaped per
-//! RFC 4515, a DN attribute value per RFC 4514.
+//! RFC 4515, a DN attribute value per RFC 4514. A placeholder may stand only
+//! in value position: after the `=` of its filter item (`=`, `~=`, `>=`,
+//! `<=`, `:=`) or of its DN component. In attribute position the value's
+//! escaping does not apply (`({}=admin)` with `uid>` gives `(uid>=admin)`),
+//! so the template does not compile (encoder pre-review,
+//! `docs/gates/encoder-prereview.md`).
 //!
 //! ```
 //! let user = "*)(uid=*";
@@ -18,6 +23,38 @@ pub struct LdapFilter(String);
 /// An LDAP distinguished name whose values were escaped per RFC 4514.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LdapDn(String);
+
+/// Whether every placeholder in `text` stands in value position. In a filter
+/// (`dn` false) an item starts at `(` or `)`; in a DN at `,` or `+`. A
+/// backslash escapes the next template byte.
+#[must_use]
+pub const fn placeholders_in_values(text: &str, dn: bool) -> bool {
+    let mut seen_eq = false;
+    let mut bytes = text.as_bytes();
+    while let [c, rest @ ..] = bytes {
+        if *c == b'{'
+            && let [b'}', after @ ..] = rest
+        {
+            if !seen_eq {
+                return false;
+            }
+            bytes = after;
+            continue;
+        }
+        match (*c, rest) {
+            (b'\\', [_, after @ ..]) => {
+                bytes = after;
+                continue;
+            }
+            (b'(' | b')', _) if !dn => seen_eq = false,
+            (b',' | b'+', _) if dn => seen_eq = false,
+            (b'=', _) => seen_eq = true,
+            _ => {}
+        }
+        bytes = rest;
+    }
+    true
+}
 
 fn fill<T: Template, const N: usize>(values: [String; N], escape: fn(&str) -> String) -> String {
     let mut out = String::with_capacity(T::TEXT.len());
@@ -81,6 +118,10 @@ impl LdapFilter {
                 count_placeholders(T::TEXT) == N,
                 "ldap_filter!: placeholder count differs from values"
             );
+            assert!(
+                placeholders_in_values(T::TEXT, false),
+                "ldap_filter!: a placeholder is not in value position"
+            );
         }
         Self(fill::<T, N>(values, escape_filter_value))
     }
@@ -101,6 +142,10 @@ impl LdapDn {
                 count_placeholders(T::TEXT) == N,
                 "ldap_dn!: placeholder count differs from values"
             );
+            assert!(
+                placeholders_in_values(T::TEXT, true),
+                "ldap_dn!: a placeholder is not in value position"
+            );
         }
         Self(fill::<T, N>(values, escape_dn_value))
     }
@@ -119,6 +164,7 @@ macro_rules! ldap_filter {
         // Evaluated by `cargo check`, unlike the check inside
         // `from_template`, which runs only when the program is built.
         const _: () = assert!($crate::template::count_placeholders($text) == $crate::__corten_count!($($arg),*), "ldap_filter!: placeholder count differs from values");
+        const _: () = assert!($crate::ldap::placeholders_in_values($text, false), "ldap_filter!: a placeholder is not in value position");
         struct CortenLdapTemplate;
         impl $crate::template::Template for CortenLdapTemplate {
             const TEXT: &'static str = $text;
@@ -136,6 +182,7 @@ macro_rules! ldap_dn {
         // Evaluated by `cargo check`, unlike the check inside
         // `from_template`, which runs only when the program is built.
         const _: () = assert!($crate::template::count_placeholders($text) == $crate::__corten_count!($($arg),*), "ldap_dn!: placeholder count differs from values");
+        const _: () = assert!($crate::ldap::placeholders_in_values($text, true), "ldap_dn!: a placeholder is not in value position");
         struct CortenLdapDnTemplate;
         impl $crate::template::Template for CortenLdapDnTemplate {
             const TEXT: &'static str = $text;
@@ -168,6 +215,36 @@ mod tests {
             escape_filter_value("a*b(c)d\\e\0"),
             "a\\2ab\\28c\\29d\\5ce\\00"
         );
+    }
+
+    #[test]
+    fn placeholders_only_in_value_position() {
+        for t in [
+            "(uid={})",
+            "(&(uid={})(o=x))",
+            "(cn~={})",
+            "(age>={})",
+            "(uid:dn:={})",
+            "(cn=a{}*)",
+            "(|(a=1)(b={}))",
+        ] {
+            assert!(placeholders_in_values(t, false), "{t}");
+        }
+        for t in [
+            "({}=admin)",
+            "(&(a=1)({}=x))",
+            "(uid>{})",
+            "{}",
+            "(a=1)({})",
+        ] {
+            assert!(!placeholders_in_values(t, false), "{t}");
+        }
+        for t in ["uid={},ou=people", "cn={}+uid={},dc=x", "cn=a\\,{},dc=x"] {
+            assert!(placeholders_in_values(t, true), "{t}");
+        }
+        for t in ["{}=admin,dc=x", "uid=x,{}=y", "cn=a+{}=b"] {
+            assert!(!placeholders_in_values(t, true), "{t}");
+        }
     }
 
     #[test]

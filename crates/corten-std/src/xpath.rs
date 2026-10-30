@@ -2,7 +2,12 @@
 //!
 //! A value always becomes one string literal of the target language. A
 //! placeholder already inside quotes in the template is a compile error,
-//! since the encoder supplies the quotes.
+//! since the encoder supplies the quotes. So is one inside a `(: … :)`
+//! comment (XPath 2 and later, XQuery), where the value could close it, and,
+//! for XQuery, one inside a ``` ``[…]`` ``` string constructor or in any
+//! template with a direct element constructor (`<r>{}</r>`): there `"` is
+//! ordinary text and `{` starts an evaluated expression (encoder pre-review,
+//! `docs/gates/encoder-prereview.md`).
 //!
 //! ```
 //! let name = "x' or '1'='1";
@@ -61,6 +66,79 @@ fn fill<T: Template, const N: usize>(values: [String; N], literal: fn(&str) -> S
     out
 }
 
+const fn starts(bytes: &[u8], prefix: &[u8]) -> bool {
+    if bytes.len() < prefix.len() {
+        return false;
+    }
+    let (head, _) = bytes.split_at(prefix.len());
+    let (mut a, mut b) = (head, prefix);
+    while let ([x, xs @ ..], [y, ys @ ..]) = (a, b) {
+        if *x != *y {
+            return false;
+        }
+        a = xs;
+        b = ys;
+    }
+    true
+}
+
+/// Whether every placeholder in `text` stands in expression context: not in
+/// a quoted literal, not in a comment (nested comments counted), and, when
+/// `xquery`, not in a string constructor, with no placeholder at all in a
+/// template that has a direct element constructor.
+#[must_use]
+pub const fn placeholders_in_expression(text: &str, xquery: bool) -> bool {
+    let mut bytes = text.as_bytes();
+    let mut quote: u8 = 0;
+    let mut comment = 0usize;
+    let mut string_constructor = false;
+    let mut constructor = false;
+    let mut placeholders = 0usize;
+    while let [c, rest @ ..] = bytes {
+        let placeholder = *c == b'{' && matches!(rest, [b'}', ..]);
+        if placeholder {
+            placeholders = placeholders.saturating_add(1);
+            if quote != 0 || comment > 0 || string_constructor {
+                return false;
+            }
+        }
+        if quote != 0 {
+            if *c == quote {
+                quote = 0;
+            }
+        } else if comment > 0 {
+            if starts(bytes, b"(:") {
+                comment = comment.saturating_add(1);
+                bytes = rest;
+            } else if starts(bytes, b":)") {
+                comment = comment.saturating_sub(1);
+                bytes = rest;
+            }
+        } else if string_constructor {
+            if starts(bytes, b"]``") {
+                string_constructor = false;
+            }
+        } else if starts(bytes, b"(:") {
+            comment = 1;
+            bytes = rest;
+        } else if xquery && starts(bytes, b"``[") {
+            string_constructor = true;
+        } else if *c == b'\'' || *c == b'"' {
+            quote = *c;
+        } else if xquery
+            && *c == b'<'
+            && let [next, ..] = rest
+            && (next.is_ascii_alphabetic() || matches!(*next, b'!' | b'?' | b'/' | b'_'))
+        {
+            constructor = true;
+        }
+        if let [_, after @ ..] = bytes {
+            bytes = after;
+        }
+    }
+    !(constructor && placeholders > 0)
+}
+
 impl XPathExpr {
     /// Fills a compile-time XPath template. Use [`xpath!`](crate::xpath!).
     #[must_use]
@@ -73,6 +151,10 @@ impl XPathExpr {
             assert!(
                 placeholders_outside_quotes(T::TEXT),
                 "xpath!: write the placeholder bare; the encoder adds the quotes"
+            );
+            assert!(
+                placeholders_in_expression(T::TEXT, false),
+                "xpath!: a placeholder is inside a comment"
             );
         }
         Self(fill::<T, N>(values, xpath_literal))
@@ -98,6 +180,10 @@ impl XQueryExpr {
                 placeholders_outside_quotes(T::TEXT),
                 "xquery!: write the placeholder bare; the encoder adds the quotes"
             );
+            assert!(
+                placeholders_in_expression(T::TEXT, true),
+                "xquery!: a placeholder is inside a comment, a string constructor, or a template with a direct element constructor"
+            );
         }
         Self(fill::<T, N>(values, xquery_literal))
     }
@@ -117,6 +203,7 @@ macro_rules! xpath {
         // `from_template`, which runs only when the program is built.
         const _: () = assert!($crate::template::count_placeholders($text) == $crate::__corten_count!($($arg),*), "xpath!: placeholder count differs from values");
         const _: () = assert!($crate::xpath::placeholders_outside_quotes($text), "xpath!: write the placeholder bare; the encoder adds the quotes");
+        const _: () = assert!($crate::xpath::placeholders_in_expression($text, false), "xpath!: a placeholder is inside a comment");
         struct CortenXPathTemplate;
         impl $crate::template::Template for CortenXPathTemplate {
             const TEXT: &'static str = $text;
@@ -135,6 +222,7 @@ macro_rules! xquery {
         // `from_template`, which runs only when the program is built.
         const _: () = assert!($crate::template::count_placeholders($text) == $crate::__corten_count!($($arg),*), "xquery!: placeholder count differs from values");
         const _: () = assert!($crate::xpath::placeholders_outside_quotes($text), "xquery!: write the placeholder bare; the encoder adds the quotes");
+        const _: () = assert!($crate::xpath::placeholders_in_expression($text, true), "xquery!: a placeholder is inside a comment, a string constructor, or a template with a direct element constructor");
         struct CortenXQueryTemplate;
         impl $crate::template::Template for CortenXQueryTemplate {
             const TEXT: &'static str = $text;
@@ -172,6 +260,32 @@ pub trait XQueryEvaluator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn placeholders_only_in_expression_context() {
+        for (t, xq) in [
+            ("//user[name={}]", false),
+            ("//a[b = {}] | //c", false),
+            ("doc('u.xml')//user[name = {}]", true),
+            (
+                "for $u in //user where $u/age < 5 and $u/name = {} return $u",
+                true,
+            ),
+            ("(: note :) //user[name = {}]", true),
+        ] {
+            assert!(placeholders_in_expression(t, xq), "{t}");
+        }
+        for (t, xq) in [
+            ("//user[name = 'a'] (: by {} :)", false),
+            ("(: outer (: inner :) {} :)", true),
+            ("<r>{}</r>", true),
+            ("let $x := {} return <r>{$x}</r>", true),
+            ("``[Hello {}]``", true),
+            ("<!-- c -->{}", true),
+        ] {
+            assert!(!placeholders_in_expression(t, xq), "{t}");
+        }
+    }
 
     #[test]
     fn xpath_literals() {

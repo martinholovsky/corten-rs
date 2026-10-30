@@ -13,6 +13,8 @@
 //!   [`ldap_filter!`], [`ldap_dn!`], [`xpath!`], [`xquery!`], plus
 //!   [`http::HeaderValue`], [`http::SetCookie`] and [`csv::CsvCell`];
 //! - [`secret::Secret`]: wiped, locked, non-printable secret bytes.
+//! - [`thread::spawn`] and [`thread::Handle::join`]: threads whose panic
+//!   propagates to the joiner instead of coming back as a value.
 //!
 //! Every encoder here is part of Corten's trusted base (`docs/tcb.md`). The
 //! roadmap requires an independent review of them before any E claim that
@@ -38,4 +40,5 @@ pub mod sql;
 pub mod sync;
 pub mod template;
 pub mod text;
+pub mod thread;
 pub mod xpath;

@@ -53,6 +53,7 @@ pub const FORBIDDEN_CORTEN_LINTS: &[&str] = &[
     "corten_direct_template",
     "corten_blocking_in_async",
     "corten_rc_cycle",
+    "corten_secret_literal",
 ];
 
 /// The `clippy.toml` the checker writes and points `CLIPPY_CONF_DIR` at.
@@ -124,6 +125,8 @@ disallowed-methods = [
     { path = "std::time::Instant::now", reason = "ambient clock; use a clock capability" },
     # Errors (spec 4.7): no catch-all handler.
     { path = "std::panic::catch_unwind", reason = "catch-all handler; components are supervised instead" },
+    { path = "std::thread::JoinHandle::join", reason = "returns a panic as a value, a catch-all handler; use corten_std::thread" },
+    { path = "std::thread::ScopedJoinHandle::join", reason = "returns a panic as a value, a catch-all handler; use corten_std::thread or let the scope propagate it" },
     # Destructors (spec 4.1): nothing skips one.
     { path = "std::boxed::Box::leak", reason = "skips the destructor" },
     { path = "std::vec::Vec::leak", reason = "skips the destructor" },

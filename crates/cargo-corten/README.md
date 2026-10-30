@@ -22,11 +22,23 @@ It runs `cargo check --workspace --all-targets` with `clippy-driver` wrapping ev
 
 Before building, both subcommands read `cargo metadata` and refuse:
 
+- a reachable dependency (a direct dependency of a local package, or one a reachable package re-exports) that the operator's dependency policy does not admit: **dependencies are refused by default** (since 2026-10-28, [`docs/gates/phase-5.md`](../../docs/gates/phase-5.md));
 - a package on the ban list ([`src/deps.rs`](src/deps.rs): backtracking regex engines, `libxml`);
 - a reachable dependency (a direct dependency of a local package, or one it re-exports) that exports a `macro_rules!` whose expansion can contain `unsafe`, or a proc macro, when the local code mentions that macro;
 - any package the scan cannot read within its limits (fail closed).
 
-The operator accepts a refused package by name, after reviewing it: `--allow-dep NAME` (repeatable) or `CORTEN_ALLOW_DEPS=a,b`. Nothing is read from the checked repository. On the corpus this refuses no benign program (0 of 174). A name the ban list does not know passes (docs/gates/phase-3.md).
+The operator's dependency policy is a file passed with `--dep-policy FILE` or `CORTEN_DEP_POLICY` ([`src/dep_policy.rs`](src/dep_policy.rs)):
+
+```text
+corten-dep-policy 1
+allow serde                  # admit a crate (or NAME@VERSION)
+ban my_db::query raw SQL     # forbid an admitted crate's raw entry point in local code
+ban-type my_db::RawClient raw client
+```
+
+Admission does not exempt a crate from the other checks. Each `ban` joins the checker's `disallowed-methods` (and `ban-type` its `disallowed-types`), which the profile forbids, so the operator closes the raw entry points of the crates it admits: a database crate's string-query function, a shell runner, an async runtime's join handle that returns a panic as a value. Every E claim that rests on the prelude or on a checker ban assumes those lines are complete (`docs/tcb.md`). Parsing is strict; a malformed policy is a usage error (exit 2).
+
+`--allow-dep NAME` (repeatable) or `CORTEN_ALLOW_DEPS=a,b` accepts a package refused for its macros or by the ban list, after review; it does not admit a package. Nothing is read from the checked repository. On the corpus this refuses no benign program (0 of 174). A name the ban list does not know passes (docs/gates/phase-3.md).
 
 ## Hermetic build (`cargo corten build`, Linux) and the sandboxed check
 
