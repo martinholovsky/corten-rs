@@ -1,0 +1,117 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-5,no,no,none,"J2EE deployment-descriptor transport-guarantee setting; Rust has no J2EE descriptors. The underlying cleartext transmission is CWE-319, which does apply."
+CWE-6,no,no,none,J2EE container session-ID-length configuration; Rust has no J2EE container or descriptor. Weak session IDs in Rust code are CWE-330/334.
+CWE-182,yes,yes,CWE-182.rs,str::replace filtering that collapses '....//' into '../' is ordinary safe string logic; no type system checks a filter's fixed point.
+CWE-183,yes,yes,CWE-183.rs,"An over-broad allowlist (suffix match) is a policy-content error; safe Rust compiles any list, and no compiler judges its width."
+CWE-184,yes,yes,none,An incomplete denylist is a data/policy omission; no compiler of any language can know which dangerous inputs are missing.
+CWE-185,yes,yes,CWE-185.rs,"std has no regex engine, but the weakness is the pattern string passed to any engine (stubbed); rustc cannot check a pattern's meaning."
+CWE-186,yes,yes,CWE-186.rs,Overly narrow pattern (case-sensitive '<script') is a string literal passed to a regex engine; rustc does not interpret pattern semantics.
+CWE-187,yes,yes,CWE-187.rs,str::starts_with on a secret compares only a prefix; bounds checks make the slice safe but not the logic correct.
+CWE-222,yes,yes,CWE-222.rs,"Truncating a log record with chars().take(n) is safe, char-boundary-correct Rust; losing the attack payload is a logging-policy error."
+CWE-223,yes,yes,none,Not recording security-relevant fields is a design omission in what is logged; no compiler can require particular log content.
+CWE-224,yes,yes,none,Logging by an alias rather than canonical name is a naming/design choice; safe Rust code can record any string it is given.
+CWE-250,yes,yes,none,"Process privilege is set by deployment and OS calls (stubbed), not the language; no compiler restricts what privileges a program runs with."
+CWE-311,yes,yes,none,Choosing not to encrypt sensitive data is a design decision; Rust's type system does not distinguish secret from public bytes.
+CWE-312,yes,yes,none,Writing a plaintext secret to storage is safe std::fs code; no compiler of any language tracks data confidentiality.
+CWE-313,yes,yes,none,std::fs::write of a cleartext password compiles in safe Rust; confidentiality of file contents is outside the type system.
+CWE-314,yes,yes,none,Registry writes go through an OS API (stubbed); storing cleartext there is a design choice no compiler checks.
+CWE-315,yes,yes,none,"Putting a cleartext secret in a Set-Cookie header is string formatting in safe Rust; web framework stubbed, nothing tracks secrecy."
+CWE-316,yes,yes,CWE-316.rs,String's Drop frees without zeroing and reallocation leaves stale copies; safe Rust has no zero-on-drop guarantee (needs zeroize).
+CWE-317,yes,yes,none,"Showing a secret in a GUI field is a UI design choice; GUI toolkit stubbed, no compiler prevents displaying data."
+CWE-318,yes,yes,none,A const API key string literal is embedded in the binary's .rodata by safe Rust; the compiler does not flag secrets.
+CWE-319,yes,yes,none,Sending secrets over a plain std::net::TcpStream is safe Rust; transport security is a protocol choice outside the language.
+CWE-323,yes,yes,none,Reusing a nonce is a value-management error in calling a cipher (stubbed); the type system does not enforce nonce uniqueness.
+CWE-324,yes,yes,none,Not checking a key's expiry is missing application logic; no compiler knows a key's validity period.
+CWE-325,yes,yes,none,Omitting a cryptographic step (e.g. MAC verify) is protocol logic; safe Rust compiles any sequence of calls.
+CWE-326,yes,yes,none,Choosing a short key length is a parameter choice; no compiler of any language judges cryptographic strength.
+CWE-327,yes,yes,none,Selecting DES/RC4 (or hand-coding them) is an algorithm choice; safe Rust can implement or call any algorithm.
+CWE-328,yes,yes,none,Using MD5/SHA-1 for security is an algorithm choice; Rust's std::hash SipHash is not cryptographic either and is safe to misuse.
+CWE-329,yes,yes,none,Using a constant or counter IV for CBC is a value choice; Rust's types do not mark IV unpredictability.
+CWE-330,yes,yes,none,"std has no public CSPRNG, and hand-rolled or time-derived 'random' values are ordinary safe arithmetic; nothing types randomness quality."
+CWE-331,yes,yes,none,"Deriving secrets from few entropy bits (time, PID) is safe Rust arithmetic; entropy is not a property the compiler tracks."
+CWE-332,yes,yes,none,"Seeding a PRNG with too little entropy is a design error; any PRNG code, hand-written or crate-based, compiles in safe Rust."
+CWE-333,yes,yes,CWE-333.rs,"Result forces a TRNG failure to be handled, but a safe fallback to the clock on error is still the weakness."
+CWE-334,yes,yes,none,"Generating tokens from a small range (e.g. u16) is a design choice; integer width is chosen by the programmer, not enforced."
+CWE-335,yes,yes,none,"Misusing PRNG seeds (reseeding, fixed reuse) is application logic; safe Rust places no constraint on seed handling."
+CWE-336,yes,yes,none,Seeding a PRNG with a constant is a literal argument; safe Rust compiles it like any other value.
+CWE-337,yes,yes,CWE-337.rs,Seeding from SystemTime is safe std code and an attacker can enumerate the seed; nothing in Rust marks a seed as predictable.
+CWE-338,yes,yes,CWE-338.rs,A hand-rolled LCG used for tokens is safe wrapping arithmetic; std has no CSPRNG and no type distinguishes CSPRNG output.
+CWE-339,yes,yes,none,Seeding from a 16- or 32-bit value is a width choice by the programmer; the compiler does not reason about seed space.
+CWE-340,yes,yes,none,"Sequential or time-based IDs (counters, timestamps) are safe Rust; predictability of identifiers is a design property."
+CWE-341,yes,yes,none,"Deriving values from observable state (PID, time) is ordinary safe std usage; no compiler tracks observability."
+CWE-342,yes,yes,none,An LCG's next output follows from previous ones; implementing it is safe wrapping arithmetic in Rust.
+CWE-343,yes,yes,none,Outputs whose range is inferable from earlier outputs is an algorithm property; safe Rust compiles any generator.
+CWE-344,yes,yes,none,"A hardcoded constant used where a per-context value is needed (fixed salt, key) is a literal; no compiler checks context."
+CWE-345,yes,yes,none,Accepting data without checking its authenticity is a missing verification step; safe Rust compiles code that skips it.
+CWE-346,yes,yes,none,"Not validating a request's Origin/source is missing application logic; framework stubbed, no compiler requires the check."
+CWE-347,yes,yes,none,Ignoring or mis-handling a signature-verify result (e.g. treating Err as ok) is safe Rust logic; the verifier is stubbed.
+CWE-348,yes,yes,none,"Preferring an untrusted header (X-Forwarded-For) over the socket peer is a trust decision, not something types encode."
+CWE-349,yes,yes,none,Accepting extra untrusted fields alongside signed ones is parsing logic; safe Rust deserialization code can do it.
+CWE-351,yes,yes,CWE-351.rs,Bare u32 for both user and group IDs lets one pass for the other; newtypes would prevent it but Rust does not require them.
+CWE-352,yes,yes,none,"Missing CSRF token validation is web-application logic; framework stubbed, no compiler requires anti-forgery checks."
+CWE-353,yes,yes,none,Designing a protocol without an integrity field is a format design choice; Rust structs can omit any field.
+CWE-354,yes,yes,none,"Computing a checksum but not comparing it, or comparing wrongly, is safe Rust logic; the compiler does not enforce the check."
+CWE-356,yes,yes,none,Not warning the user before an unsafe action is a UI design omission; no compiler requires a warning.
+CWE-357,yes,yes,none,Inadequate wording or prominence of a UI warning is product design; outside what any compiler can check.
+CWE-360,yes,yes,none,Trusting OS/window event data (stubbed) as authentic is a design decision; Rust cannot verify the event's source.
+CWE-424,yes,yes,none,Protecting one route but not an alternate path is an access-control coverage gap; no compiler sees the set of paths.
+CWE-447,yes,yes,none,A UI that claims a security feature which is unimplemented (e.g. a todo!-free no-op) is a product design error safe Rust compiles.
+CWE-450,yes,yes,none,Choosing the less secure interpretation of ambiguous input without asking is UI logic; not a language-level property.
+CWE-478,yes,yes,CWE-478.match.rs CWE-478.rs,"match must be exhaustive (rejected otherwise), but an if/else-if statement chain without a final else is legal safe Rust."
+CWE-486,yes,yes,CWE-486.rs,Safe std::any::type_name returns a non-unique string per its docs; comparing it to trust a type is CWE-486 (TypeId is the fix).
+CWE-494,yes,yes,none,"Downloading and executing code without verifying a hash/signature is a missing step; network and exec are stubbable, no compiler requires verification."
+CWE-595,yes,yes,CWE-595.rs,"Rust == on references compares contents, but safe std::ptr::eq or Rc::ptr_eq compares addresses and can be misused for equality."
+CWE-597,yes,yes,CWE-597.rs CWE-597.ptr-eq.rs,"Rust's == on strings compares contents (identity == is rejected, CWE-597.rs), but std::ptr::eq compares addresses in safe code, so the identity mistake is still writable."
+CWE-602,yes,yes,none,Enforcing security only in client code (e.g. a WASM front end) is an architecture error; no compiler knows the trust boundary.
+CWE-614,yes,yes,none,"Omitting the Secure attribute on a cookie is header-string content; web framework stubbed, nothing checks it."
+CWE-616,no,no,none,"PHP register_globals upload variables ($x_name, $x_size); Rust has no globals populated from request data, so the construct does not exist."
+CWE-625,yes,yes,CWE-625.rs,An unanchored or too-broad pattern is a string literal passed to a regex engine (stubbed; std has none); rustc does not interpret it.
+CWE-636,yes,yes,CWE-636.rs,"Result forces errors to be handled, but unwrap_or(true) on an authorization error fails open in one safe token."
+CWE-637,yes,yes,none,Over-complex protection design is an architecture property; no compiler measures mechanism economy.
+CWE-638,yes,yes,none,Caching an access decision instead of re-checking each access is design logic; safe Rust compiles it.
+CWE-646,yes,yes,none,Trusting a file's extension (Path::extension) to decide its type is safe std code; content type is not checked by the compiler.
+CWE-649,yes,yes,none,Trusting decrypted or obfuscated input without an integrity check is a protocol design error; safe Rust compiles it.
+CWE-653,yes,yes,none,Running differently privileged functions in one process/address space is an architecture choice; the language does not compartmentalize processes.
+CWE-654,yes,yes,none,Basing a security decision on a single factor is policy logic; no compiler can require multiple factors.
+CWE-655,yes,yes,none,A protection too cumbersome to use is a usability/design property; outside any compiler's scope.
+CWE-656,yes,yes,none,Relying on secrecy of an algorithm or endpoint is a design choice; Rust code can be obscure and safe.
+CWE-657,yes,yes,none,Category-level violation of secure design principles; these are architecture decisions no compiler checks.
+CWE-671,yes,yes,none,Hardcoding security settings so admins cannot tune them is a configuration design choice; constants compile in safe Rust.
+CWE-693,yes,yes,none,Absent or insufficient protection mechanism is a design-level gap; Rust's memory safety does not supply missing security features.
+CWE-697,yes,yes,CWE-697.rs,"String's Ord is lexicographic, so comparing version strings ('10.0' < '9.0') compiles in safe Rust and gives the wrong order."
+CWE-757,yes,yes,none,Accepting the weakest algorithm a peer offers during negotiation is protocol logic; safe Rust compiles any selection policy.
+CWE-759,yes,yes,none,"Hashing passwords without a salt is an algorithm-usage choice; hash function stubbed, the compiler cannot require a salt."
+CWE-760,yes,yes,none,Using a username or constant as salt is a value choice; nothing in Rust's types marks a salt as unpredictable.
+CWE-777,yes,yes,CWE-777.rs,"Rust's common regex engines search unanchored by default, so a validator pattern without ^...$ accepts inputs containing a match; engine stubbed, rustc does not check patterns."
+CWE-778,yes,yes,none,Not logging security events is an omission; no compiler requires logging calls.
+CWE-780,yes,yes,none,"Calling RSA with PKCS#1 v1.5 or no padding instead of OAEP is a parameter choice; library stubbed, the compiler does not judge it."
+CWE-807,yes,yes,none,Deciding authorization from a client-controlled cookie or header is a trust decision; types do not encode trust.
+CWE-839,yes,yes,CWE-839.rs,"Checking only amount <= MAX on a signed integer lets negatives through; no overflow or bounds check fires, so safe Rust permits it."
+CWE-916,yes,yes,none,Using a fast hash or low iteration count for passwords is a parameter choice; the compiler does not reason about work factor.
+CWE-924,yes,yes,none,Sending messages without a MAC or integrity-protected channel is a protocol design choice; safe std::net code can do it.
+CWE-1023,yes,yes,CWE-1023.rs,A hand-written PartialEq that ignores a field (tenant) compiles in safe Rust; derive would include it but is not required.
+CWE-1024,yes,yes,CWE-1024.implicit.rs CWE-1024.rs,"rustc rejects u64 <= u32 directly, but a safe `as` cast (or a cross-type PartialEq impl) makes the incompatible comparison compile and truncate."
+CWE-1025,yes,yes,CWE-1025.rs,Comparing token lengths instead of contents is a wrong-factor comparison of two usize values; types cannot catch it.
+CWE-1039,yes,yes,none,An ML recognizer without adversarial-input handling is a model/design property; a Rust inference program can embody it and no compiler detects it.
+CWE-1077,yes,yes,CWE-1077.rs,"f64 implements PartialEq so == compiles; precision loss makes exact equality wrong. clippy::float_cmp is a lint, not a rustc error."
+CWE-1189,n/a,n/a,none,SoC hardware design: shared resources between trusted and untrusted agents on the chip; not a property of program code.
+CWE-1192,n/a,n/a,none,SoC hardware design: lack of unique immutable identifiers for IP blocks; not a property of program code.
+CWE-1204,yes,yes,none,"Using a constant, counter or time-derived IV is a value choice; Rust's types do not mark IV quality."
+CWE-1240,yes,yes,none,Implementing a crypto primitive with a weak component (e.g. LFSR instead of DRNG) is safe Rust arithmetic; correctness of crypto is not type-checked.
+CWE-1241,yes,yes,none,A predictable RNG algorithm (LCG/LFSR) is plain safe wrapping arithmetic in Rust; std provides no CSPRNG to force its use.
+CWE-1248,n/a,n/a,none,"Semiconductor manufacturing defects in hardware logic; physical, not code."
+CWE-1253,n/a,n/a,none,"Hardware fuse logic where the secure state depends on an unblown fuse; a silicon design choice, not program code."
+CWE-1269,yes,yes,none,"Shipping with debug features enabled (cfg flags, a const DEBUG = true, test keys) is a build/config choice Rust programs can make."
+CWE-1278,n/a,n/a,none,"Physical reverse engineering of an IC by imaging; a physical hardware property, not code."
+CWE-1291,yes,yes,none,"A boot or update verifier written in Rust can trust one public key for both debug and production images; key policy, not type-checked."
+CWE-1293,yes,yes,none,Relying on one data source without cross-checking is design logic; no compiler requires correlation of independent sources.
+CWE-1303,n/a,n/a,none,"Microarchitectural shared structures (caches, predictors) across contexts; a CPU design weakness, not program code."
+CWE-1318,n/a,n/a,none,"On-chip fabric/bus lacking privilege separation; hardware interconnect design, not program code."
+CWE-1319,n/a,n/a,none,"Susceptibility to electromagnetic fault injection; physical hardware property, not code."
+CWE-1326,n/a,n/a,none,"Missing immutable hardware root of trust; silicon/boot ROM hardware design, not program code."
+CWE-1331,n/a,n/a,none,"Network-on-Chip isolation of fabric resources; hardware design, not program code."
+CWE-1338,n/a,n/a,none,"Missing hardware overheating protection; physical/hardware design, not code."
+CWE-1385,yes,yes,none,"Not checking the Origin header on a WebSocket upgrade is handler logic; server stubbed, no compiler requires the check."
+CWE-1395,yes,yes,none,A Rust product can depend on a crate with known vulnerabilities (Cargo.lock); supply-chain state is not checked by rustc.
+CWE-1428,yes,yes,none,"Using http:// URLs instead of https:// is a string/configuration choice; client stubbed, the compiler does not inspect URLs."
+CWE-1429,yes,yes,CWE-1429.rs,MITRE's example is code: an interrupt handler silently discarding lower-priority interrupts; the same early return compiles in safe Rust.

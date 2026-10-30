@@ -91,7 +91,7 @@ CWE-107,Struts: Unused Validation Form,Variant,Poor Coding Practices,not-applica
 CWE-108,Struts: Unvalidated Action Form,Variant,Improper Input Validation,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-109,Struts: Validator Turned Off,Variant,Improper Input Validation,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-110,Struts: Validator Without Form Field,Variant,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
-CWE-111,Direct Use of Unsafe JNI,Variant,Poor Coding Practices,not-applicable,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-111,,verified
+CWE-111,Direct Use of Unsafe JNI,Variant,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-111,,verified
 CWE-112,Missing XML Validation,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-113,Improper Neutralization of CRLF Sequences in HTTP Headers ('HTTP Request/Response Splitting'),Variant,Injection,applies,E,,,E,,2,language,"Typed sink with no raw constructor (spec 4.5): HttpHeader name and value types reject CR, LF and NUL",corten-std encoder for this sink is correct and independently reviewed (docs/tcb.md),yes,corpus/CWE-113,required,unverified
 CWE-114,Process Control,Class,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
@@ -108,12 +108,12 @@ CWE-124,Buffer Underwrite ('Buffer Underflow'),Base,Memory Safety,unsafe-rust-on
 CWE-125,Out-of-bounds Read,Base,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-126,Buffer Over-read,Variant,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-127,Buffer Under-read,Variant,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
-CWE-128,Wrap-around Error,Base,Incorrect Calculation,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-128,Wrap-around Error,Base,Incorrect Calculation,applies,C,,,C,,,,,,,,,unverified
 CWE-129,Improper Validation of Array Index,Variant,Memory Safety,applies,C,,,C,,,,,,,,,unverified
 CWE-130,Improper Handling of Length Parameter Inconsistency,Base,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
-CWE-131,Incorrect Calculation of Buffer Size,Base,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
-CWE-134,Use of Externally-Controlled Format String,Base,Memory Safety,applies,E,,,E,,1,language,format! and friends accept only a string literal as the format (spec 4.5),rustc front end (docs/tcb.md),no,corpus/CWE-134,,verified
-CWE-135,Incorrect Calculation of Multi-Byte String Length,Base,Incorrect Calculation,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-131,Incorrect Calculation of Buffer Size,Base,Memory Safety,applies,C,,,C,,,,,,,,,unverified
+CWE-134,Use of Externally-Controlled Format String,Base,Memory Safety,unsafe-rust-only,E,,,E,,1,language,format! and friends accept only a string literal as the format (spec 4.5),rustc front end (docs/tcb.md),no,corpus/CWE-134,,verified
+CWE-135,Incorrect Calculation of Multi-Byte String Length,Base,Incorrect Calculation,applies,C,,,C,,,,,,,,,unverified
 CWE-138,Improper Neutralization of Special Elements,Class,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
 CWE-140,Improper Neutralization of Delimiters,Base,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
 CWE-141,Improper Neutralization of Parameter/Argument Delimiters,Variant,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
@@ -166,9 +166,9 @@ CWE-190,Integer Overflow or Wraparound,Base,Incorrect Calculation,applies,C,,,C,
 CWE-191,Integer Underflow (Wrap or Wraparound),Base,Incorrect Calculation,applies,C,,,C,,,,,,,,,unverified
 CWE-192,Integer Coercion Error,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-193,Off-by-one Error,Base,Incorrect Calculation,applies,C,,,C,,,,,,,,,unverified
-CWE-194,Unexpected Sign Extension,Variant,Resource Lifecycle Management,unsafe-rust-only,C,,,C,,,,,,,,,unverified
-CWE-195,Signed to Unsigned Conversion Error,Variant,Resource Lifecycle Management,unsafe-rust-only,C,,,C,,,,,,,,,unverified
-CWE-196,Unsigned to Signed Conversion Error,Variant,Resource Lifecycle Management,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-194,Unexpected Sign Extension,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-195,Signed to Unsigned Conversion Error,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-196,Unsigned to Signed Conversion Error,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-197,Numeric Truncation Error,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-198,Use of Incorrect Byte Ordering,Variant,Memory Safety,applies,C,,,C,,,,,,,,,unverified
 CWE-200,Exposure of Sensitive Information to an Unauthorized Actor,Class,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
@@ -209,8 +209,8 @@ CWE-239,Failure to Handle Incomplete Element,Variant,Improper Neutralization,app
 CWE-240,Improper Handling of Inconsistent Structural Elements,Base,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
 CWE-241,Improper Handling of Unexpected Data Type,Base,Improper Neutralization,applies,C,,,C,,,,,,,,,unverified
 CWE-242,Use of Inherently Dangerous Function,Base,Poor Coding Practices,unsafe-rust-only,E,A:C,A E->C: Ferrum cannot infer that an arbitrary programmer-defined safe function is inherently dangerous.,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-242,,verified
-CWE-243,Creation of chroot Jail Without Changing Working Directory,Variant,Resource Lifecycle Management,unsafe-rust-only,E,,,E,,1,checker,"chroot needs unsafe FFI, forbidden by the checker; the prelude has no ambient privilege API (spec 4.3)",rustc borrow checker and std are sound (docs/tcb.md),no,corpus/CWE-243,,verified
-CWE-244,Improper Clearing of Heap Memory Before Release ('Heap Inspection'),Variant,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-243,Creation of chroot Jail Without Changing Working Directory,Variant,Resource Lifecycle Management,applies,E,,,E,,1,checker,"chroot needs unsafe FFI, forbidden by the checker; the prelude has no ambient privilege API (spec 4.3)",rustc borrow checker and std are sound (docs/tcb.md),no,corpus/CWE-243,,verified
+CWE-244,Improper Clearing of Heap Memory Before Release ('Heap Inspection'),Variant,Memory Safety,applies,C,,,C,,,,,,,,,unverified
 CWE-245,J2EE Bad Practices: Direct Management of Connections,Variant,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-246,J2EE Bad Practices: Direct Use of Sockets,Variant,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-248,Uncaught Exception,Base,Insufficient Control Flow Management,applies,E,A:C;D:C,"D E->C: Panic is not an error-handling mechanism; uncaught failure becomes process termination, so policy on crash behavior is C. | A E->C: Panics terminate components and can remain unhandled exceptional conditions.",C,"Doubly disputed (A, D). A panic terminates the component but is still an unhandled exceptional condition (must-use amendment); crash policy is C.",,,,,,,,unverified
@@ -345,7 +345,7 @@ CWE-397,Declaration of Throws for Generic Exception,Base,Insufficient Control Fl
 CWE-400,Uncontrolled Resource Consumption,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-401,Missing Release of Memory after Effective Lifetime,Variant,Memory Safety,applies,C,,,C,,,,,,,,,unverified
 CWE-402,Transmission of Private Resources into a New Sphere ('Resource Leak'),Class,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
-CWE-403,Exposure of File Descriptor to Unintended Control Sphere ('File Descriptor Leak'),Base,Exposed Resource,applies,E,A:C;B:C,"B E->C: Affine file descriptors successfully prevent double-free, but transferring a valid handle to the *wrong* explicitly authorized broker sphere remains syntactically valid. Preventing accidental exposure to unintended spheres requires a typestate or routing policy (C). | A E->C: Passing a descriptor capability to the wrong component is mechanically checkable only against a supplied sphere policy.",E,"Doubly disputed (A, B). Kept E for the weakness as defined, implicit inheritance by a child: every descriptor is close-on-exec and the process broker passes only declared handles. Explicitly handing a capability to the wrong component is a policy question (C).",3,checker,Descriptors are close-on-exec; the process broker passes only declared handles (spec 4.14),std opens with O_CLOEXEC; corten-std broker (docs/tcb.md),yes,corpus/CWE-403,,verified
+CWE-403,Exposure of File Descriptor to Unintended Control Sphere ('File Descriptor Leak'),Base,Exposed Resource,unsafe-rust-only,E,A:C;B:C,"B E->C: Affine file descriptors successfully prevent double-free, but transferring a valid handle to the *wrong* explicitly authorized broker sphere remains syntactically valid. Preventing accidental exposure to unintended spheres requires a typestate or routing policy (C). | A E->C: Passing a descriptor capability to the wrong component is mechanically checkable only against a supplied sphere policy.",E,"Doubly disputed (A, B). Kept E for the weakness as defined, implicit inheritance by a child: every descriptor is close-on-exec and the process broker passes only declared handles. Explicitly handing a capability to the wrong component is a policy question (C).",3,checker,Descriptors are close-on-exec; the process broker passes only declared handles (spec 4.14),std opens with O_CLOEXEC; corten-std broker (docs/tcb.md),yes,corpus/CWE-403,,verified
 CWE-404,Improper Resource Shutdown or Release,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-405,Asymmetric Resource Consumption (Amplification),Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-406,Insufficient Control of Network Message Volume (Network Amplification),Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
@@ -369,7 +369,7 @@ CWE-427,Uncontrolled Search Path Element,Base,Exposed Resource,applies,E,F:C,F E
 CWE-428,Unquoted Search Path or Element,Base,Exposed Resource,applies,E,F:C,F E->C: quoting/search-path policy depends on process broker,E,,2,checker,"process! sink (spec 4.5): a program is an ExecCap handle, never a name searched in PATH; arguments are an argv vector, never a shell string",corten-std process sink; std::process::Command is banned by the checker,yes,corpus/CWE-428,,verified
 CWE-430,Deployment of Wrong Handler,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
 CWE-431,Missing Handler,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-432,Dangerous Signal Handler not Disabled During Sensitive Operations,Base,Concurrency,applies,C,,,C,,,,,,,,,unverified
+CWE-432,Dangerous Signal Handler not Disabled During Sensitive Operations,Base,Concurrency,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-433,Unparsed Raw Web Content Delivery,Variant,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-434,Unrestricted Upload of File with Dangerous Type,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-435,Improper Interaction Between Multiple Correctly-Behaving Entities,Pillar,Component Interaction,applies,C,,,C,,,,,,,,,unverified
@@ -388,33 +388,33 @@ CWE-451,User Interface (UI) Misrepresentation of Critical Information,Class,Poor
 CWE-453,Insecure Default Variable Initialization,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-454,External Initialization of Trusted Variables or Data Stores,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-455,Non-exit on Failed Initialization,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-456,Missing Initialization of a Variable,Variant,Resource Lifecycle Management,applies,E,,,E,,1,language,Definite initialisation: reading an unassigned variable is E0381 (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-456,,verified
-CWE-457,Use of Uninitialized Variable,Variant,Resource Lifecycle Management,applies,E,,,E,,1,language,Definite initialisation: reading an unassigned variable is E0381 (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-457,,verified
+CWE-456,Missing Initialization of a Variable,Variant,Resource Lifecycle Management,unsafe-rust-only,E,,,E,,1,language,Definite initialisation: reading an unassigned variable is E0381 (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-456,,verified
+CWE-457,Use of Uninitialized Variable,Variant,Resource Lifecycle Management,unsafe-rust-only,E,,,E,,1,language,Definite initialisation: reading an unassigned variable is E0381 (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-457,,verified
 CWE-459,Incomplete Cleanup,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-460,Improper Cleanup on Thrown Exception,Base,Resource Lifecycle Management,applies,E,,,E,,1,language,"No exceptions, catch or finally; errors are Result values and cleanup is drop (spec 4.7)",rustc front end (docs/tcb.md),no,corpus/CWE-460,,verified
 CWE-462,Duplicate Key in Associative List (Alist),Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-463,Deletion of Data Structure Sentinel,Base,Improper Neutralization,unsafe-rust-only,E,C:C,C E->C: sentinel-terminated arrays remain expressible in safe code.,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-463,,verified
-CWE-464,Addition of Data Structure Sentinel,Base,Improper Neutralization,unsafe-rust-only,E,C:C,C E->C: same; adding a sentinel is ordinary data manipulation.,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-464,,verified
+CWE-463,Deletion of Data Structure Sentinel,Base,Improper Neutralization,applies,E,C:C,C E->C: sentinel-terminated arrays remain expressible in safe code.,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-463,,verified
+CWE-464,Addition of Data Structure Sentinel,Base,Improper Neutralization,applies,E,C:C,C E->C: same; adding a sentinel is ordinary data manipulation.,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-464,,verified
 CWE-466,Return of Pointer Value Outside of Expected Range,Base,Memory Safety,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-466,,verified
-CWE-467,Use of sizeof() on a Pointer Type,Variant,Incorrect Calculation,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-467,,verified
+CWE-467,Use of sizeof() on a Pointer Type,Variant,Incorrect Calculation,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-467,,verified
 CWE-468,Incorrect Pointer Scaling,Base,Incorrect Calculation,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-468,,verified
-CWE-469,Use of Pointer Subtraction to Determine Size,Base,Incorrect Calculation,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-469,,verified
-CWE-470,Use of Externally-Controlled Input to Select Classes or Code ('Unsafe Reflection'),Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
+CWE-469,Use of Pointer Subtraction to Determine Size,Base,Incorrect Calculation,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-469,,verified
+CWE-470,Use of Externally-Controlled Input to Select Classes or Code ('Unsafe Reflection'),Base,Resource Control,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-471,Modification of Assumed-Immutable Data (MAID),Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-472,External Control of Assumed-Immutable Web Parameter,Base,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-473,PHP External Variable Modification,Variant,Resource Control,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-474,Use of Function with Inconsistent Implementations,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-475,Undefined Behavior for Input to API,Base,Poor Coding Practices,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-475,,verified
+CWE-475,Undefined Behavior for Input to API,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-475,,verified
 CWE-476,NULL Pointer Dereference,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-476,,verified
 CWE-477,Use of Obsolete Function,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-478,Missing Default Case in Multiple Condition Expression,Base,Comparison,applies,E,,,E,,1,language,match must be exhaustive (E0004) (spec 4.7),rustc front end (docs/tcb.md),no,corpus/CWE-478,,verified
 CWE-479,Signal Handler Use of a Non-reentrant Function,Variant,Concurrency,unsafe-rust-only,E,,,E,,1,checker,Installing a signal handler needs unsafe; signals are typed events (spec 4.8),"rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-479,,verified
 CWE-480,Use of Incorrect Operator,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-481,Assigning instead of Comparing,Variant,Insufficient Control Flow Management,applies,E,,,E,,1,language,"An assignment has type (), so `if x = y` is a type error (E0308)",rustc front end (docs/tcb.md),no,corpus/CWE-481,,verified
-CWE-482,Comparing instead of Assigning,Variant,Insufficient Control Flow Management,unsafe-rust-only,E,,,E,,1,checker,A comparison used as a statement is an unused must-use value; the checker passes -F unused_must_use,rustc front end (docs/tcb.md),no,corpus/CWE-482,,verified
-CWE-483,Incorrect Block Delimitation,Base,Insufficient Control Flow Management,unsafe-rust-only,E,,,E,,1,language,Rust requires braces around every block body,rustc front end (docs/tcb.md),no,corpus/CWE-483,,verified
-CWE-484,Omitted Break Statement in Switch,Base,Poor Coding Practices,applies,E,,,E,,1,language,match arms do not fall through,rustc front end (docs/tcb.md),no,corpus/CWE-484,,verified
-CWE-486,Comparison of Classes by Name,Variant,Comparison,not-applicable,C,,,C,,,,,,,,,unverified
+CWE-481,Assigning instead of Comparing,Variant,Insufficient Control Flow Management,not-applicable,E,,,E,,1,language,"An assignment has type (), so `if x = y` is a type error (E0308)",rustc front end (docs/tcb.md),no,corpus/CWE-481,,verified
+CWE-482,Comparing instead of Assigning,Variant,Insufficient Control Flow Management,applies,E,,,E,,1,checker,A comparison used as a statement is an unused must-use value; the checker passes -F unused_must_use,rustc front end (docs/tcb.md),no,corpus/CWE-482,,verified
+CWE-483,Incorrect Block Delimitation,Base,Insufficient Control Flow Management,not-applicable,E,,,E,,1,language,Rust requires braces around every block body,rustc front end (docs/tcb.md),no,corpus/CWE-483,,verified
+CWE-484,Omitted Break Statement in Switch,Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,match arms do not fall through,rustc front end (docs/tcb.md),no,corpus/CWE-484,,verified
+CWE-486,Comparison of Classes by Name,Variant,Comparison,applies,C,,,C,,,,,,,,,unverified
 CWE-487,Reliance on Package-level Scope,Base,Resource Lifecycle Management,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-488,Exposure of Data Element to Wrong Session,Base,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-489,Active Debug Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -426,7 +426,7 @@ CWE-495,Private Data Structure Returned From A Public Method,Variant,Resource Li
 CWE-496,Public Data Assigned to Private Array-Typed Field,Variant,Resource Lifecycle Management,applies,E,C:C,C E->C: a public input can still be stored into a private field.,E,,1,language,A shared borrow of private data is read-only; returning or storing &mut requires an explicit signature (spec 4.1),rustc borrow checker and std are sound (docs/tcb.md),no,corpus/CWE-496,,verified
 CWE-497,Exposure of Sensitive System Information to an Unauthorized Control Sphere,Base,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
 CWE-498,Cloneable Class Containing Sensitive Information,Variant,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
-CWE-499,Serializable Class Containing Sensitive Data,Variant,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
+CWE-499,Serializable Class Containing Sensitive Data,Variant,Exposed Resource,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-500,Public Static Field Not Marked Final,Variant,Exposed Resource,applies,E,,,E,,1,checker,No mutable public statics: static mut needs unsafe (forbidden); interior-mutable pub statics are banned by a checker lint (spec 4.8),"rustc borrow checker and std are sound (docs/tcb.md); the interior-mutability lint corten_pub_interior_mut_static (corten-driver; owner decision 10) is implemented as documented; unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-500,,verified
 CWE-501,Trust Boundary Violation,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-502,Deserialization of Untrusted Data,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
@@ -439,7 +439,7 @@ CWE-511,Logic/Time Bomb,Base,Poor Coding Practices,applies,O,,,O,,,,,,,,,unverif
 CWE-512,Spyware,Base,Poor Coding Practices,applies,O,,,O,,,,,,,,,unverified
 CWE-514,Covert Channel,Class,Resource Control,applies,C,C:O,C C->O: declared flows do not decide undeclared covert channels (Rice).,C,,,,,,,,,unverified
 CWE-515,Covert Storage Channel,Base,Resource Control,applies,C,C:O,C C->O: a storage covert channel can be ordinary permitted data; labels do not identify it.,C,,,,,,,,,unverified
-CWE-520,.NET Misconfiguration: Use of Impersonation,Variant,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-520,.NET Misconfiguration: Use of Impersonation,Variant,Access Control,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-521,Weak Password Requirements,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-522,Insufficiently Protected Credentials,Class,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-523,Unprotected Transport of Credentials,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
@@ -459,7 +459,7 @@ CWE-538,Insertion of Sensitive Information into Externally-Accessible File or Di
 CWE-539,Use of Persistent Cookies Containing Sensitive Information,Variant,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-540,Inclusion of Sensitive Information in Source Code,Base,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
 CWE-541,Inclusion of Sensitive Information in an Include File,Variant,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
-CWE-543,Use of Singleton Pattern Without Synchronization in a Multithreaded Context,Variant,Concurrency,unsafe-rust-only,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-543,,verified
+CWE-543,Use of Singleton Pattern Without Synchronization in a Multithreaded Context,Variant,Concurrency,applies,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-543,,verified
 CWE-544,Missing Standardized Error Handling Mechanism,Base,Improper Check or Handling of Exceptional Conditions,applies,C,,,C,,,,,,,,,unverified
 CWE-546,Suspicious Comment,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-547,"Use of Hard-coded, Security-relevant Constants",Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -480,7 +480,7 @@ CWE-563,Assignment to Variable without Use,Base,Poor Coding Practices,applies,C,
 CWE-564,SQL Injection: Hibernate,Variant,Injection,not-applicable,E,F:C,F E->C: ORM/query-builder policy and schema choice remain supplied,E,,2,language,Typed sink with no raw constructor (spec 4.5): SqlQuery from sql!; no HQL string API exists,corten-std encoder for this sink is correct and independently reviewed (docs/tcb.md),yes,corpus/CWE-564,required,unverified
 CWE-565,Reliance on Cookies without Validation and Integrity Checking,Base,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-566,Authorization Bypass Through User-Controlled SQL Primary Key,Variant,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-567,Unsynchronized Access to Shared Data in a Multithreaded Context,Base,Concurrency,applies,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-567,,verified
+CWE-567,Unsynchronized Access to Shared Data in a Multithreaded Context,Base,Concurrency,unsafe-rust-only,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-567,,verified
 CWE-568,finalize() Method Without super.finalize(),Variant,Resource Lifecycle Management,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-568,,verified
 CWE-570,Expression is Always False,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-571,Expression is Always True,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -496,9 +496,9 @@ CWE-580,clone() Method Without super.clone(),Variant,Resource Lifecycle Manageme
 CWE-581,Object Model Violation: Just One of Equals and Hashcode Defined,Variant,Poor Coding Practices,applies,E,,,E,,1,language,"Hash containers require both Eq and Hash bounds, so a type with only one cannot be used as a key",rustc front end (docs/tcb.md),no,corpus/CWE-581,,verified
 CWE-582,"Array Declared Public, Final, and Static",Variant,Exposed Resource,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-582,,verified
 CWE-583,finalize() Method Declared Public,Variant,Exposed Resource,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-583,,verified
-CWE-584,Return Inside Finally Block,Base,Insufficient Control Flow Management,applies,E,,,E,,1,language,"No exceptions, catch or finally; errors are Result values and cleanup is drop (spec 4.7)",rustc front end (docs/tcb.md),no,corpus/CWE-584,,verified
-CWE-585,Empty Synchronized Block,Variant,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
-CWE-586,Explicit Call to Finalize(),Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-586,,verified
+CWE-584,Return Inside Finally Block,Base,Insufficient Control Flow Management,not-applicable,E,,,E,,1,language,"No exceptions, catch or finally; errors are Result values and cleanup is drop (spec 4.7)",rustc front end (docs/tcb.md),no,corpus/CWE-584,,verified
+CWE-585,Empty Synchronized Block,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
+CWE-586,Explicit Call to Finalize(),Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-586,,verified
 CWE-587,Assignment of a Fixed Address to a Pointer,Variant,Memory Safety,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-587,,verified
 CWE-588,Attempt to Access Child of a Non-structure Pointer,Variant,Resource Lifecycle Management,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-588,,verified
 CWE-589,Call to Non-ubiquitous API,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -574,13 +574,13 @@ CWE-672,Operation on a Resource after Expiration or Release,Class,Resource Contr
 CWE-673,External Influence of Sphere Definition,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-674,Uncontrolled Recursion,Class,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
 CWE-675,Multiple Operations on Resource in Single-Operation Context,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-676,Use of Potentially Dangerous Function,Base,Poor Coding Practices,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-676,Use of Potentially Dangerous Function,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-680,Integer Overflow to Buffer Overflow,Compound,Memory Safety,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-681,Incorrect Conversion between Numeric Types,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-682,Incorrect Calculation,Pillar,Incorrect Calculation,applies,O,,,O,,,,,,,,,unverified
 CWE-683,Function Call With Incorrect Order of Arguments,Variant,Poor Coding Practices,applies,E,,,E,,1,checker,Public functions with several same-typed parameters require labelled arguments (spec 4.2),Corten labelled-parameter lint corten_labelled_params on exported functions (corten-driver; owner decision 10); private functions are not covered,no,corpus/CWE-683,,unverified
 CWE-684,Incorrect Provision of Specified Functionality,Class,Poor Coding Practices,applies,O,,,O,,,,,,,,,unverified
-CWE-685,Function Call With Incorrect Number of Arguments,Variant,Poor Coding Practices,applies,E,,,E,,1,language,Calls are checked for argument count (E0061) and type (E0308),rustc front end (docs/tcb.md),no,corpus/CWE-685,,verified
+CWE-685,Function Call With Incorrect Number of Arguments,Variant,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,language,Calls are checked for argument count (E0061) and type (E0308),rustc front end (docs/tcb.md),no,corpus/CWE-685,,verified
 CWE-686,Function Call With Incorrect Argument Type,Variant,Poor Coding Practices,applies,E,,,E,,1,language,Calls are checked for argument count (E0061) and type (E0308),rustc front end (docs/tcb.md),no,corpus/CWE-686,,verified
 CWE-687,Function Call With Incorrectly Specified Argument Value,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-688,Function Call With Incorrect Variable or Reference as Argument,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -631,7 +631,7 @@ CWE-778,Insufficient Logging,Base,Protection Mechanism Failure,applies,C,,,C,,,,
 CWE-779,Logging of Excessive Data,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-780,Use of RSA Algorithm without OAEP,Variant,Encryption,applies,C,,,C,,,,,,,,,unverified
 CWE-781,Improper Address Validation in IOCTL with METHOD_NEITHER I/O Control Code,Variant,Improper Input Validation,unsafe-rust-only,C,,,C,,,,,,,,,unverified
-CWE-782,Exposed IOCTL with Insufficient Access Control,Variant,Resource Lifecycle Management,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-782,Exposed IOCTL with Insufficient Access Control,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-783,Operator Precedence Logic Error,Base,Insufficient Control Flow Management,applies,E,A:C;B:O;C:C;F:C,"B E->O: Operator precedence rules are inherently built into the language grammar. Writing `a + b * c` when `(a + b) * c` was intended compiles perfectly. The compiler cannot deduce mathematical intent, making this a human logic flaw (O) or caught via optional linters (C), not eliminated by construction. | A E->C: Rust retains operator precedence; a mandatory-parenthesization rule or proof obligation would be needed. | F E->C: precedence mistakes are not eliminated unless explicit-parenthesis rule is specified | C E->C: no precedence restriction is specified.",C,"Doubly disputed (A, B, C, F). No mandatory-parenthesisation rule is specified (amendment: reject mixed precedence or leave it C); Clippy's precedence lint covers only some operator pairs.",,,,,,,,unverified
 CWE-784,Reliance on Cookies without Validation and Integrity Checking in a Security Decision,Variant,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
 CWE-785,Use of Path Manipulation Function without Maximum-sized Buffer,Variant,Poor Coding Practices,unsafe-rust-only,C,,,C,,,,,,,,,unverified
@@ -661,10 +661,10 @@ CWE-824,Access of Uninitialized Pointer,Base,Memory Safety,unsafe-rust-only,E,,,
 CWE-825,Expired Pointer Dereference,Base,Memory Safety,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-825,,verified
 CWE-826,Premature Release of Resource During Expected Lifetime,Base,Resource Control,applies,E,A:C;C:C,A E->C: The draft itself says intended retention lifetime is policy and remains C. | C E->C: early `drop` during the intended semantic lifetime is expressible; §2.1 already says retention policy is C.,C,"Doubly disputed (A, C). Section 4.1 already says retention lifetime is policy; an early drop during the intended semantic lifetime is expressible.",,,,,,,,unverified
 CWE-827,Improper Control of Document Type Definition,Variant,Resource Lifecycle Management,applies,E,,,E,,3,checker,The prelude XML API has no DTD or external-entity processing; DTD-capable XML crates are banned by dependency policy (spec 4.5),corten-std XML API; cargo corten dependency policy (docs/tcb.md),yes,corpus/CWE-827,,unverified
-CWE-828,Signal Handler with Functionality that is not Asynchronous-Safe,Variant,Concurrency,applies,C,,,C,,,,,,,,,unverified
+CWE-828,Signal Handler with Functionality that is not Asynchronous-Safe,Variant,Concurrency,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-829,Inclusion of Functionality from Untrusted Control Sphere,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-830,Inclusion of Web Functionality from an Untrusted Source,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-831,Signal Handler Function Associated with Multiple Signals,Variant,Concurrency,applies,C,,,C,,,,,,,,,unverified
+CWE-831,Signal Handler Function Associated with Multiple Signals,Variant,Concurrency,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-832,Unlock of a Resource that is not Locked,Base,Concurrency,applies,E,,,E,,1,checker,"Affine handles and guards: release is the owner's drop, once; re-use after move is a compile error (spec 4.1, 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-832,,verified
 CWE-833,Deadlock,Base,Concurrency,applies,C,,,C,,,,,,,,,unverified
 CWE-834,Excessive Iteration,Class,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
@@ -672,22 +672,22 @@ CWE-835,Loop with Unreachable Exit Condition ('Infinite Loop'),Base,Insufficient
 CWE-836,Use of Password Hash Instead of Password for Authentication,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-837,"Improper Enforcement of a Single, Unique Action",Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
 CWE-838,Inappropriate Encoding for Output Context,Base,Improper Neutralization,applies,E,C:C,C E->C: context typing covers prelude sinks only; other output contexts stay programmer-defined.,E,,2,language,"Typed sink with no raw constructor (spec 4.5): Html from html!, with contextual escaping of every interpolation; no Html::raw",corten-std encoder for this sink is correct and independently reviewed (docs/tcb.md),yes,corpus/CWE-838,required,unverified
-CWE-839,Numeric Range Comparison Without Minimum Check,Base,Comparison,unsafe-rust-only,C,,,C,,,,,,,,,unverified
+CWE-839,Numeric Range Comparison Without Minimum Check,Base,Comparison,applies,C,,,C,,,,,,,,,unverified
 CWE-841,Improper Enforcement of Behavioral Workflow,Class,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
 CWE-842,Placement of User into Incorrect Group,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-843,Access of Resource Using Incompatible Type ('Type Confusion'),Base,Resource Lifecycle Management,unsafe-rust-only,E,D:C,"D E->C: Type confusion is E in Ferrum memory, but broker IPC schema mismatches are a C concern.",E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-843,,verified
 CWE-862,Missing Authorization,Class,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-863,Incorrect Authorization,Class,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-908,Use of Uninitialized Resource,Base,Resource Lifecycle Management,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-908,,verified
+CWE-908,Use of Uninitialized Resource,Base,Resource Lifecycle Management,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-908,,verified
 CWE-909,Missing Initialization of Resource,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-910,Use of Expired File Descriptor,Base,Resource Control,applies,E,,,E,,1,checker,"Affine handles and guards: release is the owner's drop, once; re-use after move is a compile error (spec 4.1, 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-910,,verified
+CWE-910,Use of Expired File Descriptor,Base,Resource Control,unsafe-rust-only,E,,,E,,1,checker,"Affine handles and guards: release is the owner's drop, once; re-use after move is a compile error (spec 4.1, 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-910,,verified
 CWE-911,Improper Update of Reference Count,Base,Resource Lifecycle Management,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-911,,verified
 CWE-912,Hidden Functionality,Class,Poor Coding Practices,applies,O,,,O,,,,,,,,,unverified
 CWE-913,Improper Control of Dynamically-Managed Code Resources,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-914,Improper Control of Dynamically-Identified Variables,Base,Injection,applies,E,,,E,,1,language,"No eval, dynamic variables, include-by-name or expression-language interpreter in Rust or the prelude (spec 4.5)",rustc front end (docs/tcb.md); dependency policy for interpreter crates,no,corpus/CWE-914,,verified
+CWE-914,Improper Control of Dynamically-Identified Variables,Base,Injection,not-applicable,E,,,E,,1,language,"No eval, dynamic variables, include-by-name or expression-language interpreter in Rust or the prelude (spec 4.5)",rustc front end (docs/tcb.md); dependency policy for interpreter crates,no,corpus/CWE-914,,verified
 CWE-915,Improperly Controlled Modification of Dynamically-Determined Object Attributes,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
 CWE-916,Use of Password Hash With Insufficient Computational Effort,Base,Encryption,applies,C,,,C,,,,,,,,,unverified
-CWE-917,Improper Neutralization of Special Elements used in an Expression Language Statement ('Expression Language Injection'),Base,Injection,not-applicable,E,,,E,,1,language,"No eval, dynamic variables, include-by-name or expression-language interpreter in Rust or the prelude (spec 4.5)",rustc front end (docs/tcb.md); dependency policy for interpreter crates,no,corpus/CWE-917,,verified
+CWE-917,Improper Neutralization of Special Elements used in an Expression Language Statement ('Expression Language Injection'),Base,Injection,applies,E,,,E,,1,language,"No eval, dynamic variables, include-by-name or expression-language interpreter in Rust or the prelude (spec 4.5)",rustc front end (docs/tcb.md); dependency policy for interpreter crates,no,corpus/CWE-917,,verified
 CWE-918,Server-Side Request Forgery (SSRF),Base,Access Control,applies,C,,,C,,,,,,,,,unverified
 CWE-920,Improper Restriction of Power Consumption,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-921,Storage of Sensitive Data in a Mechanism without Access Control,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
@@ -709,14 +709,14 @@ CWE-1022,Use of Web Link to Untrusted Target with window.opener Access,Variant,A
 CWE-1023,Incomplete Comparison with Missing Factors,Class,Comparison,applies,O,,,O,,,,,,,,,unverified
 CWE-1024,Comparison of Incompatible Types,Base,Comparison,applies,C,C:E,"C C->E: with no unchecked casts, comparison of incompatible types does not type-check.",C,,,,,,,,,unverified
 CWE-1025,Comparison Using Wrong Factors,Base,Comparison,applies,O,,,O,,,,,,,,,unverified
-CWE-1037,Processor Optimization Removal or Modification of Security-critical Code,Base,Component Interaction,applies,C,,,C,,,,,,,,,unverified
+CWE-1037,Processor Optimization Removal or Modification of Security-critical Code,Base,Component Interaction,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1038,Insecure Automated Optimizations,Class,Component Interaction,applies,C,,,C,,,,,,,,,unverified
 CWE-1039,Inadequate Detection or Handling of Adversarial Input Perturbations in Automated Recognition Mechanism,Class,Protection Mechanism Failure,applies,C,,,C,,,,,,,,,unverified
 CWE-1041,Use of Redundant Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1042,Static Member Data Element outside of a Singleton Class Element,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1042,Static Member Data Element outside of a Singleton Class Element,Variant,Resource Lifecycle Management,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-1043,Data Element Aggregating an Excessively Large Number of Non-Primitive Elements,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1044,Architecture with Number of Horizontal Layers Outside of Expected Range,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1045,Parent Class with a Virtual Destructor and a Child Class without a Virtual Destructor,Base,Poor Coding Practices,applies,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1045,,verified
+CWE-1045,Parent Class with a Virtual Destructor and a Child Class without a Virtual Destructor,Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1045,,verified
 CWE-1046,Creation of Immutable Text Using String Concatenation,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1047,Modules with Circular Dependencies,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1048,Invokable Control Element with Large Number of Outward Calls,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -726,22 +726,22 @@ CWE-1051,Initialization with Hard-Coded Network Resource Configuration Data,Base
 CWE-1052,Excessive Use of Hard-Coded Literals in Initialization,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1053,Missing Documentation for Design,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1054,Invocation of a Control Element at an Unnecessarily Deep Horizontal Layer,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1055,Multiple Inheritance from Concrete Classes,Base,Poor Coding Practices,applies,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1055,,verified
-CWE-1056,Invokable Control Element with Variadic Parameters,Base,Poor Coding Practices,applies,E,,,E,,1,language,"Rust has no variadic functions outside unsafe extern blocks, which the checker forbids",rustc front end (docs/tcb.md),no,corpus/CWE-1056,,verified
+CWE-1055,Multiple Inheritance from Concrete Classes,Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1055,,verified
+CWE-1056,Invokable Control Element with Variadic Parameters,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,language,"Rust has no variadic functions outside unsafe extern blocks, which the checker forbids",rustc front end (docs/tcb.md),no,corpus/CWE-1056,,verified
 CWE-1057,Data Access Operations Outside of Expected Data Manager Component,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1058,Invokable Control Element in Multi-Thread Context with non-Final Static Storable or Member Element,Base,Concurrency,applies,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1058,,verified
+CWE-1058,Invokable Control Element in Multi-Thread Context with non-Final Static Storable or Member Element,Base,Concurrency,unsafe-rust-only,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1058,,verified
 CWE-1059,Insufficient Technical Documentation,Class,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1060,Excessive Number of Inefficient Server-Side Data Accesses,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1061,Insufficient Encapsulation,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1062,Parent Class with References to Child Class,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1063,Creation of Class Instance within a Static Code Block,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1063,Creation of Class Instance within a Static Code Block,Base,Resource Lifecycle Management,unsafe-rust-only,C,,,C,,,,,,,,,unverified
 CWE-1064,Invokable Control Element with Signature Containing an Excessive Number of Parameters,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1065,Runtime Resource Management Control Element in a Component Built to Run on Application Servers,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1066,Missing Serialization Control Element,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1067,Excessive Execution of Sequential Searches of Data Resource,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1068,Inconsistency Between Implementation and Documented Design,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1069,Empty Exception Block,Variant,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1070,Serializable Data Element Containing non-Serializable Item Elements,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
+CWE-1070,Serializable Data Element Containing non-Serializable Item Elements,Base,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
 CWE-1071,Empty Code Block,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1072,Data Resource Access without Use of Connection Pooling,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1073,Non-SQL Invokable Control Element with Excessive Number of Data Resource Accesses,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
@@ -750,31 +750,31 @@ CWE-1075,Unconditional Control Flow Transfer outside of Switch Block,Base,Poor C
 CWE-1076,Insufficient Adherence to Expected Conventions,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1077,Floating Point Comparison with Incorrect Operator,Variant,Comparison,applies,C,,,C,,,,,,,,,unverified
 CWE-1078,Inappropriate Source Code Style or Formatting,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1079,Parent Class without Virtual Destructor Method,Base,Poor Coding Practices,applies,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1079,,verified
+CWE-1079,Parent Class without Virtual Destructor Method,Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1079,,verified
 CWE-1080,Source Code File with Excessive Number of Lines of Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1082,Class Instance Self Destruction Control Element,Base,Poor Coding Practices,applies,E,,,E,,1,language,An object cannot drop itself while borrowed; no delete this (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-1082,,verified
+CWE-1082,Class Instance Self Destruction Control Element,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,language,An object cannot drop itself while borrowed; no delete this (spec 4.1),rustc front end (docs/tcb.md),no,corpus/CWE-1082,,verified
 CWE-1083,Data Access from Outside Expected Data Manager Component,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1084,Invokable Control Element with Excessive File or Data Access Operations,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1085,Invokable Control Element with Excessive Volume of Commented-out Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1086,Class with Excessive Number of Child Classes,Base,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
+CWE-1086,Class with Excessive Number of Child Classes,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1087,Class with Virtual Method without a Virtual Destructor,Base,Poor Coding Practices,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1087,,verified
 CWE-1088,Synchronous Access of Remote Resource without Timeout,Base,Concurrency,applies,C,,,C,,,,,,,,,unverified
 CWE-1089,Large Data Table with Excessive Number of Indices,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1090,Method Containing Access of a Member Element from Another Class,Base,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
+CWE-1090,Method Containing Access of a Member Element from Another Class,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1091,Use of Object without Invoking Destructor Method,Base,Resource Lifecycle Management,applies,E,,,E,,4,checker,"Destructors run at end of ownership; mem::forget, Box::leak and ManuallyDrop are banned by the checker; no Rc/Arc cycles of linear resources (spec 4.1)",rustc borrow checker and std are sound (docs/tcb.md); the cycle rule corten_rc_cycle decided on types (corten-driver; owner decision 10) is implemented as documented,no,corpus/CWE-1091,,verified
 CWE-1092,Use of Same Invokable Control Element in Multiple Architectural Layers,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1093,Excessively Complex Data Representation,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1094,Excessive Index Range Scan for a Data Resource,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1095,Loop Condition Value Update within the Loop,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1096,Singleton Class Instance Creation without Proper Locking or Synchronization,Variant,Concurrency,applies,E,,,E,,1,checker,"Send/Sync: a static must be Sync and shared mutable access needs a lock or atomic; static mut needs unsafe, forbidden by the checker (spec 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1096,,verified
-CWE-1097,Persistent Storable Data Element without Associated Comparison Control Element,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1098,Data Element containing Pointer Item without Proper Copy Control Element,Base,Poor Coding Practices,applies,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1098,,verified
+CWE-1097,Persistent Storable Data Element without Associated Comparison Control Element,Base,Poor Coding Practices,not-applicable,C,,,C,,,,,,,,,unverified
+CWE-1098,Data Element containing Pointer Item without Proper Copy Control Element,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,checker,"Ownership, borrowing and definite initialisation (spec 4.1); the operations that bypass them need unsafe, which cargo corten check forbids (-F unsafe_code)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1098,,verified
 CWE-1099,Inconsistent Naming Conventions for Identifiers,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1100,Insufficient Isolation of System-Dependent Functions,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1101,Reliance on Runtime Component in Generated Code,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1102,Reliance on Machine-Dependent Data Representation,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1103,Use of Platform-Dependent Third Party Components,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
-CWE-1104,Use of Unmaintained Third Party Components,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1104,Use of Unmaintained Third Party Components,Base,Resource Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1105,Insufficient Encapsulation of Machine-Dependent Functionality,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1106,Insufficient Use of Symbolic Constants,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1107,Insufficient Isolation of Symbolic Constant Definitions,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -783,11 +783,11 @@ CWE-1109,Use of Same Variable for Multiple Purposes,Base,Poor Coding Practices,a
 CWE-1110,Incomplete Design Documentation,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1111,Incomplete I/O Documentation,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1112,Incomplete Documentation of Program Execution,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1113,Inappropriate Comment Style,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1114,Inappropriate Whitespace Style,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1115,Source Code Element without Standard Prologue,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1116,Inaccurate Source Code Comments,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1117,Callable with Insufficient Behavioral Summary,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
+CWE-1113,Inappropriate Comment Style,Base,Poor Coding Practices,applies,N,,,N,,,,,,,,,unverified
+CWE-1114,Inappropriate Whitespace Style,Base,Poor Coding Practices,applies,N,,,N,,,,,,,,,unverified
+CWE-1115,Source Code Element without Standard Prologue,Base,Poor Coding Practices,applies,N,,,N,,,,,,,,,unverified
+CWE-1116,Inaccurate Source Code Comments,Base,Poor Coding Practices,applies,N,,,N,,,,,,,,,unverified
+CWE-1117,Callable with Insufficient Behavioral Summary,Base,Poor Coding Practices,applies,N,,,N,,,,,,,,,unverified
 CWE-1118,Insufficient Documentation of Error Handling Techniques,Base,Poor Coding Practices,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1119,Excessive Use of Unconditional Branching,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1120,Excessive Code Complexity,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
@@ -804,122 +804,122 @@ CWE-1174,ASP.NET Misconfiguration: Improper Model Validation,Variant,Improper In
 CWE-1176,Inefficient CPU Computation,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1177,Use of Prohibited Code,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1188,Initialization of a Resource with an Insecure Default,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1189,Improper Isolation of Shared Resources on System-on-a-Chip (SoC),Base,Violation of Secure Design Principles,applies,C,,,C,,,,,,,,,unverified
-CWE-1190,DMA Device Enabled Too Early in Boot Phase,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1191,On-Chip Debug and Test Interface With Improper Access Control,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1192,Improper Identifier for IP Block used in System-On-Chip (SOC),Base,Violation of Secure Design Principles,applies,C,A:N,A C->N: SoC IP-block identifier wiring is hardware design; no Ferrum checker is specified.,C,,,,,,,,,unverified
-CWE-1193,Power-On of Untrusted Execution Core Before Enabling Fabric Access Control,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1189,Improper Isolation of Shared Resources on System-on-a-Chip (SoC),Base,Violation of Secure Design Principles,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1190,DMA Device Enabled Too Early in Boot Phase,Base,Insufficient Control Flow Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1191,On-Chip Debug and Test Interface With Improper Access Control,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1192,Improper Identifier for IP Block used in System-On-Chip (SOC),Base,Violation of Secure Design Principles,not-coding,C,A:N,A C->N: SoC IP-block identifier wiring is hardware design; no Ferrum checker is specified.,C,,,,,,,,,unverified
+CWE-1193,Power-On of Untrusted Execution Core Before Enabling Fabric Access Control,Base,Insufficient Control Flow Management,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1204,Generation of Weak Initialization Vector (IV),Base,Randomness,applies,C,,,C,,,,,,,,,unverified
-CWE-1209,Failure to Disable Reserved Bits,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
+CWE-1209,Failure to Disable Reserved Bits,Base,Poor Coding Practices,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1220,Insufficient Granularity of Access Control,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1221,Incorrect Register Defaults or Module Parameters,Base,Resource Lifecycle Management,not-applicable,C,A:N,A C->N: Register reset defaults and RTL module parameters are hardware design.,C,,,,,,,,,unverified
-CWE-1222,Insufficient Granularity of Address Regions Protected by Register Locks,Variant,Access Control,applies,C,A:N,A C->N: Register-lock address-region granularity is hardware design.,C,,,,,,,,,unverified
-CWE-1223,Race Condition for Write-Once Attributes,Base,Concurrency,not-applicable,C,A:N,A C->N: A race in write-once hardware attributes is an RTL/hardware defect.,C,,,,,,,,,unverified
-CWE-1224,Improper Restriction of Write-Once Bit Fields,Base,Access Control,not-applicable,C,A:N,A C->N: Enforcement of write-once bit fields is hardware logic.,C,,,,,,,,,unverified
+CWE-1221,Incorrect Register Defaults or Module Parameters,Base,Resource Lifecycle Management,not-coding,C,A:N,A C->N: Register reset defaults and RTL module parameters are hardware design.,C,,,,,,,,,unverified
+CWE-1222,Insufficient Granularity of Address Regions Protected by Register Locks,Variant,Access Control,not-coding,C,A:N,A C->N: Register-lock address-region granularity is hardware design.,C,,,,,,,,,unverified
+CWE-1223,Race Condition for Write-Once Attributes,Base,Concurrency,not-coding,C,A:N,A C->N: A race in write-once hardware attributes is an RTL/hardware defect.,C,,,,,,,,,unverified
+CWE-1224,Improper Restriction of Write-Once Bit Fields,Base,Access Control,not-coding,C,A:N,A C->N: Enforcement of write-once bit fields is hardware logic.,C,,,,,,,,,unverified
 CWE-1229,Creation of Emergent Resource,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1230,Exposure of Sensitive Information Through Metadata,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1231,Improper Prevention of Lock Bit Modification,Base,Access Control,applies,C,A:N,A C->N: Prevention of lock-bit modification is hardware logic.,C,,,,,,,,,unverified
-CWE-1232,Improper Lock Behavior After Power State Transition,Base,Concurrency,applies,C,A:N,A C->N: Lock behavior across power transitions is hardware state-machine design.,C,,,,,,,,,unverified
-CWE-1233,Security-Sensitive Hardware Controls with Missing Lock Bit Protection,Base,Access Control,applies,C,A:N,A C->N: Missing hardware lock-bit protection is not checked by Ferrum.,C,,,,,,,,,unverified
-CWE-1234,Hardware Internal or Debug Modes Allow Override of Locks,Base,Concurrency,applies,C,A:N,A C->N: Debug-mode override of hardware locks is hardware design.,C,,,,,,,,,unverified
+CWE-1231,Improper Prevention of Lock Bit Modification,Base,Access Control,not-coding,C,A:N,A C->N: Prevention of lock-bit modification is hardware logic.,C,,,,,,,,,unverified
+CWE-1232,Improper Lock Behavior After Power State Transition,Base,Concurrency,not-coding,C,A:N,A C->N: Lock behavior across power transitions is hardware state-machine design.,C,,,,,,,,,unverified
+CWE-1233,Security-Sensitive Hardware Controls with Missing Lock Bit Protection,Base,Access Control,not-coding,C,A:N,A C->N: Missing hardware lock-bit protection is not checked by Ferrum.,C,,,,,,,,,unverified
+CWE-1234,Hardware Internal or Debug Modes Allow Override of Locks,Base,Concurrency,not-coding,C,A:N,A C->N: Debug-mode override of hardware locks is hardware design.,C,,,,,,,,,unverified
 CWE-1235,Incorrect Use of Autoboxing and Unboxing for Performance Critical Operations,Base,Resource Lifecycle Management,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1235,,verified
 CWE-1236,Improper Neutralization of Formula Elements in a CSV File,Base,Injection,applies,E,,,E,,2,language,Typed sink with no raw constructor (spec 4.5): CsvCell neutralises leading = + - @ tab and CR,corten-std encoder for this sink is correct and independently reviewed (docs/tcb.md),yes,corpus/CWE-1236,required,unverified
-CWE-1239,Improper Zeroization of Hardware Register,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1239,Improper Zeroization of Hardware Register,Variant,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1240,Use of a Cryptographic Primitive with a Risky Implementation,Base,Encryption,applies,C,,,C,,,,,,,,,unverified
 CWE-1241,Use of Predictable Algorithm in Random Number Generator,Base,Randomness,applies,C,,,C,,,,,,,,,unverified
-CWE-1242,Inclusion of Undocumented Features or Chicken Bits,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1243,Sensitive Non-Volatile Information Not Protected During Debug,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1244,Internal Asset Exposed to Unsafe Debug Access Level or State,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1245,Improper Finite State Machines (FSMs) in Hardware Logic,Base,Poor Coding Practices,applies,C,A:N,A C->N: Improper hardware FSM design requires HDL/formal hardware verification.,C,,,,,,,,,unverified
+CWE-1242,Inclusion of Undocumented Features or Chicken Bits,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1243,Sensitive Non-Volatile Information Not Protected During Debug,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1244,Internal Asset Exposed to Unsafe Debug Access Level or State,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1245,Improper Finite State Machines (FSMs) in Hardware Logic,Base,Poor Coding Practices,not-coding,C,A:N,A C->N: Improper hardware FSM design requires HDL/formal hardware verification.,C,,,,,,,,,unverified
 CWE-1246,Improper Write Handling in Limited-write Non-Volatile Memories,Base,Resource Lifecycle Management,applies,C,A:N,A C->N: Limited-write nonvolatile-memory controller behavior is hardware design.,C,,,,,,,,,unverified
 CWE-1247,Improper Protection Against Voltage and Clock Glitches,Base,Improper Check or Handling of Exceptional Conditions,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1248,Semiconductor Defects in Hardware Logic with Security-Sensitive Implications,Base,Protection Mechanism Failure,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1249,Application-Level Admin Tool with Inconsistent View of Underlying Operating System,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
 CWE-1250,Improper Preservation of Consistency Between Independent Representations of Shared State,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1251,Mirrored Regions with Different Values,Base,Resource Control,not-applicable,C,A:N,A C->N: Divergent mirrored hardware regions are not mechanically checked by Ferrum.,C,,,,,,,,,unverified
-CWE-1252,CPU Hardware Not Configured to Support Exclusivity of Write and Execute Operations,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1253,Incorrect Selection of Fuse Values,Base,Protection Mechanism Failure,applies,C,,,C,,,,,,,,,unverified
+CWE-1251,Mirrored Regions with Different Values,Base,Resource Control,not-coding,C,A:N,A C->N: Divergent mirrored hardware regions are not mechanically checked by Ferrum.,C,,,,,,,,,unverified
+CWE-1252,CPU Hardware Not Configured to Support Exclusivity of Write and Execute Operations,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1253,Incorrect Selection of Fuse Values,Base,Protection Mechanism Failure,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1254,Incorrect Comparison Logic Granularity,Base,Sensitive Information Exposure,applies,C,A:N,A C->N: Hardware comparison-logic granularity is an RTL property.,C,,,,,,,,,unverified
 CWE-1255,Comparison Logic is Vulnerable to Power Side-Channel Attacks,Variant,Sensitive Information Exposure,applies,C,A:N;C:N,"A C->N: Power side-channel susceptibility of comparison logic is a hardware property. | C C->N: power side-channels of hardware comparators are silicon; software constant-time is CWE-208, not this entry.",C,,,,,,,,,unverified
-CWE-1256,Improper Restriction of Software Interfaces to Hardware Features,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1257,Improper Access Control Applied to Mirrored or Aliased Memory Regions,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1258,Exposure of Sensitive System Information Due to Uncleared Debug Information,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1259,Improper Restriction of Security Token Assignment,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1260,Improper Handling of Overlap Between Protected Memory Ranges,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1256,Improper Restriction of Software Interfaces to Hardware Features,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1257,Improper Access Control Applied to Mirrored or Aliased Memory Regions,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1258,Exposure of Sensitive System Information Due to Uncleared Debug Information,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1259,Improper Restriction of Security Token Assignment,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1260,Improper Handling of Overlap Between Protected Memory Ranges,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1261,Improper Handling of Single Event Upsets,Base,Improper Check or Handling of Exceptional Conditions,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1262,Improper Access Control for Register Interface,Base,Access Control,applies,C,A:N,A C->N: Register-interface access-control circuitry is hardware design.,C,,,,,,,,,unverified
+CWE-1262,Improper Access Control for Register Interface,Base,Access Control,not-coding,C,A:N,A C->N: Register-interface access-control circuitry is hardware design.,C,,,,,,,,,unverified
 CWE-1263,Improper Physical Access Control,Class,Access Control,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1264,Hardware Logic with Insecure De-Synchronization between Control and Data Channels,Base,Concurrency,applies,C,A:N,A C->N: Hardware control/data-channel de-synchronization is an RTL property.,C,,,,,,,,,unverified
+CWE-1264,Hardware Logic with Insecure De-Synchronization between Control and Data Channels,Base,Concurrency,not-coding,C,A:N,A C->N: Hardware control/data-channel de-synchronization is an RTL property.,C,,,,,,,,,unverified
 CWE-1265,Unintended Reentrant Invocation of Non-reentrant Code Via Nested Calls,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1266,Improper Scrubbing of Sensitive Data from Decommissioned Device,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1267,Policy Uses Obsolete Encoding,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1268,Policy Privileges are not Assigned Consistently Between Control and Data Agents,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1267,Policy Uses Obsolete Encoding,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1268,Policy Privileges are not Assigned Consistently Between Control and Data Agents,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1269,Product Released in Non-Release Configuration,Base,Protection Mechanism Failure,applies,C,,,C,,,,,,,,,unverified
-CWE-1270,Generation of Incorrect Security Tokens,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1271,Uninitialized Value on Reset for Registers Holding Security Settings,Base,Resource Lifecycle Management,applies,C,A:N,A C->N: Register reset values are hardware implementation properties.,C,,,,,,,,,unverified
-CWE-1272,Sensitive Information Uncleared Before Debug/Power State Transition,Base,Resource Lifecycle Management,not-applicable,C,,,C,,,,,,,,,unverified
-CWE-1273,Device Unlock Credential Sharing,Base,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
-CWE-1274,Improper Access Control for Volatile Memory Containing Boot Code,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1270,Generation of Incorrect Security Tokens,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1271,Uninitialized Value on Reset for Registers Holding Security Settings,Base,Resource Lifecycle Management,not-coding,C,A:N,A C->N: Register reset values are hardware implementation properties.,C,,,,,,,,,unverified
+CWE-1272,Sensitive Information Uncleared Before Debug/Power State Transition,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1273,Device Unlock Credential Sharing,Base,Sensitive Information Exposure,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1274,Improper Access Control for Volatile Memory Containing Boot Code,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1275,Sensitive Cookie with Improper SameSite Attribute,Variant,Access Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1276,Hardware Child Block Incorrectly Connected to Parent System,Base,Access Control,applies,C,A:N,A C->N: Incorrect hardware child-block connectivity is an integration defect.,C,,,,,,,,,unverified
+CWE-1276,Hardware Child Block Incorrectly Connected to Parent System,Base,Access Control,not-coding,C,A:N,A C->N: Incorrect hardware child-block connectivity is an integration defect.,C,,,,,,,,,unverified
 CWE-1277,Firmware Not Updateable,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
 CWE-1278,Missing Protection Against Hardware Reverse Engineering Using Integrated Circuit (IC) Imaging Techniques,Base,Protection Mechanism Failure,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1279,Cryptographic Operations are run Before Supporting Units are Ready,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1280,Access Control Check Implemented After Asset is Accessed,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1281,Sequence of Processor Instructions Leads to Unexpected Behavior,Base,Insufficient Control Flow Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1282,Assumed-Immutable Data is Stored in Writable Memory,Base,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
-CWE-1283,Mutable Attestation or Measurement Reporting Data,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1280,Access Control Check Implemented After Asset is Accessed,Base,Insufficient Control Flow Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1281,Sequence of Processor Instructions Leads to Unexpected Behavior,Base,Insufficient Control Flow Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1282,Assumed-Immutable Data is Stored in Writable Memory,Base,Exposed Resource,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1283,Mutable Attestation or Measurement Reporting Data,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1284,Improper Validation of Specified Quantity in Input,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-1285,"Improper Validation of Specified Index, Position, or Offset in Input",Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-1286,Improper Validation of Syntactic Correctness of Input,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-1287,Improper Validation of Specified Type of Input,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-1288,Improper Validation of Consistency within Input,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
 CWE-1289,Improper Validation of Unsafe Equivalence in Input,Base,Improper Input Validation,applies,C,,,C,,,,,,,,,unverified
-CWE-1290,Incorrect Decoding of Security Identifiers,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1290,Incorrect Decoding of Security Identifiers,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1291,Public Key Re-Use for Signing both Debug and Production Code,Base,Protection Mechanism Failure,applies,C,,,C,,,,,,,,,unverified
-CWE-1292,Incorrect Conversion of Security Identifiers,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1292,Incorrect Conversion of Security Identifiers,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1293,Missing Source Correlation of Multiple Independent Data,Base,Insufficient Verification of Data Authenticity,applies,C,,,C,,,,,,,,,unverified
-CWE-1294,Insecure Security Identifier Mechanism,Class,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1294,Insecure Security Identifier Mechanism,Class,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1295,Debug Messages Revealing Unnecessary Information,Base,Sensitive Information Exposure,applies,C,,,C,,,,,,,,,unverified
-CWE-1296,Incorrect Chaining or Granularity of Debug Components,Base,Access Control,applies,C,A:N,A C->N: Chaining and granularity of physical debug components is hardware design.,C,,,,,,,,,unverified
+CWE-1296,Incorrect Chaining or Granularity of Debug Components,Base,Access Control,not-coding,C,A:N,A C->N: Chaining and granularity of physical debug components is hardware design.,C,,,,,,,,,unverified
 CWE-1297,Unprotected Confidential Information on Device is Accessible by OSAT Vendors,Base,Access Control,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1298,Hardware Logic Contains Race Conditions,Base,Concurrency,not-applicable,C,A:N,A C->N: Hardware-logic race conditions require HDL/hardware analysis.,C,,,,,,,,,unverified
-CWE-1299,Missing Protection Mechanism for Alternate Hardware Interface,Base,Access Control,applies,C,A:N,A C->N: Missing protection on an alternate hardware interface is hardware design.,C,,,,,,,,,unverified
+CWE-1298,Hardware Logic Contains Race Conditions,Base,Concurrency,not-coding,C,A:N,A C->N: Hardware-logic race conditions require HDL/hardware analysis.,C,,,,,,,,,unverified
+CWE-1299,Missing Protection Mechanism for Alternate Hardware Interface,Base,Access Control,not-coding,C,A:N,A C->N: Missing protection on an alternate hardware interface is hardware design.,C,,,,,,,,,unverified
 CWE-1300,Improper Protection of Physical Side Channels,Base,Sensitive Information Exposure,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1301,Insufficient or Incomplete Data Removal within Hardware Component,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1302,Missing Source Identifier in Entity Transactions on a System-On-Chip (SOC),Base,Access Control,applies,C,A:N,A C->N: Source identifiers in SoC transactions are on-chip protocol design.,C,,,,,,,,,unverified
-CWE-1303,Non-Transparent Sharing of Microarchitectural Resources,Base,Violation of Secure Design Principles,applies,C,A:N,A C->N: Microarchitectural resource sharing is a processor-design property.,C,,,,,,,,,unverified
-CWE-1304,Improperly Preserved Integrity of Hardware Configuration State During a Power Save/Restore Operation,Base,Access Control,applies,C,A:N,A C->N: Preservation of hardware configuration across power transitions is hardware design.,C,,,,,,,,,unverified
-CWE-1310,Missing Ability to Patch ROM Code,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1311,Improper Translation of Security Attributes by Fabric Bridge,Base,Access Control,not-applicable,C,A:N,A C->N: Fabric-bridge security-attribute translation is hardware logic.,C,,,,,,,,,unverified
-CWE-1312,Missing Protection for Mirrored Regions in On-Chip Fabric Firewall,Base,Access Control,applies,C,A:N,A C->N: On-chip firewall protection for mirrored regions is hardware design.,C,,,,,,,,,unverified
-CWE-1313,Hardware Allows Activation of Test or Debug Logic at Runtime,Base,Access Control,applies,C,A:N,A C->N: Runtime activation of test/debug logic is hardware design.,C,,,,,,,,,unverified
-CWE-1314,Missing Write Protection for Parametric Data Values,Base,Access Control,applies,C,A:N,A C->N: Parametric-data write protection is hardware logic.,C,,,,,,,,,unverified
-CWE-1315,Improper Setting of Bus Controlling Capability in Fabric End-point,Base,Access Control,applies,C,A:N,A C->N: Fabric endpoint bus-control capability is hardware design.,C,,,,,,,,,unverified
-CWE-1316,Fabric-Address Map Allows Programming of Unwarranted Overlaps of Protected and Unprotected Ranges,Base,Access Control,applies,C,A:N,A C->N: Programmable overlap behavior in a fabric address map is hardware design.,C,,,,,,,,,unverified
-CWE-1317,Improper Access Control in Fabric Bridge,Base,Access Control,applies,C,A:N,A C->N: Fabric-bridge access control is hardware design.,C,,,,,,,,,unverified
-CWE-1318,Missing Support for Security Features in On-chip Fabrics or Buses,Base,Protection Mechanism Failure,applies,C,A:N,A C->N: Missing on-chip bus security features is hardware architecture.,C,,,,,,,,,unverified
+CWE-1301,Insufficient or Incomplete Data Removal within Hardware Component,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1302,Missing Source Identifier in Entity Transactions on a System-On-Chip (SOC),Base,Access Control,not-coding,C,A:N,A C->N: Source identifiers in SoC transactions are on-chip protocol design.,C,,,,,,,,,unverified
+CWE-1303,Non-Transparent Sharing of Microarchitectural Resources,Base,Violation of Secure Design Principles,not-coding,C,A:N,A C->N: Microarchitectural resource sharing is a processor-design property.,C,,,,,,,,,unverified
+CWE-1304,Improperly Preserved Integrity of Hardware Configuration State During a Power Save/Restore Operation,Base,Access Control,not-coding,C,A:N,A C->N: Preservation of hardware configuration across power transitions is hardware design.,C,,,,,,,,,unverified
+CWE-1310,Missing Ability to Patch ROM Code,Base,Resource Control,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1311,Improper Translation of Security Attributes by Fabric Bridge,Base,Access Control,not-coding,C,A:N,A C->N: Fabric-bridge security-attribute translation is hardware logic.,C,,,,,,,,,unverified
+CWE-1312,Missing Protection for Mirrored Regions in On-Chip Fabric Firewall,Base,Access Control,not-coding,C,A:N,A C->N: On-chip firewall protection for mirrored regions is hardware design.,C,,,,,,,,,unverified
+CWE-1313,Hardware Allows Activation of Test or Debug Logic at Runtime,Base,Access Control,not-coding,C,A:N,A C->N: Runtime activation of test/debug logic is hardware design.,C,,,,,,,,,unverified
+CWE-1314,Missing Write Protection for Parametric Data Values,Base,Access Control,not-coding,C,A:N,A C->N: Parametric-data write protection is hardware logic.,C,,,,,,,,,unverified
+CWE-1315,Improper Setting of Bus Controlling Capability in Fabric End-point,Base,Access Control,not-coding,C,A:N,A C->N: Fabric endpoint bus-control capability is hardware design.,C,,,,,,,,,unverified
+CWE-1316,Fabric-Address Map Allows Programming of Unwarranted Overlaps of Protected and Unprotected Ranges,Base,Access Control,not-coding,C,A:N,A C->N: Programmable overlap behavior in a fabric address map is hardware design.,C,,,,,,,,,unverified
+CWE-1317,Improper Access Control in Fabric Bridge,Base,Access Control,not-coding,C,A:N,A C->N: Fabric-bridge access control is hardware design.,C,,,,,,,,,unverified
+CWE-1318,Missing Support for Security Features in On-chip Fabrics or Buses,Base,Protection Mechanism Failure,not-coding,C,A:N,A C->N: Missing on-chip bus security features is hardware architecture.,C,,,,,,,,,unverified
 CWE-1319,Improper Protection against Electromagnetic Fault Injection (EM-FI),Base,Protection Mechanism Failure,not-coding,N,,,N,,,,,,,,,unverified
-CWE-1320,Improper Protection for Outbound Error Messages and Alert Signals,Base,Access Control,applies,C,A:N,A C->N: Protection of hardware alert and error signals is hardware design.,C,,,,,,,,,unverified
+CWE-1320,Improper Protection for Outbound Error Messages and Alert Signals,Base,Access Control,not-coding,C,A:N,A C->N: Protection of hardware alert and error signals is hardware design.,C,,,,,,,,,unverified
 CWE-1321,Improperly Controlled Modification of Object Prototype Attributes ('Prototype Pollution'),Variant,Resource Control,not-applicable,E,,,E,,1,language,"The language has no class inheritance, virtual destructors, finalizers, Java clone, autoboxing or object prototypes",rustc front end (docs/tcb.md),no,corpus/CWE-1321,,verified
 CWE-1322,"Use of Blocking Code in Single-threaded, Non-blocking Context",Base,Insufficient Control Flow Management,applies,E,,,E,,4,checker,blocking effect is ill-typed inside a non-blocking event loop (spec 4.8),blocking-effect inference corten_blocking_in_async over local functions and listed std primitives (corten-driver; owner decision 10),no,corpus/CWE-1322,,verified
-CWE-1323,Improper Management of Sensitive Trace Data,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1323,Improper Management of Sensitive Trace Data,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1325,Improperly Controlled Sequential Memory Allocation,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1326,Missing Immutable Root of Trust in Hardware,Base,Protection Mechanism Failure,applies,C,A:N,A C->N: An immutable hardware root of trust cannot be supplied by Ferrum.,C,,,,,,,,,unverified
+CWE-1326,Missing Immutable Root of Trust in Hardware,Base,Protection Mechanism Failure,not-coding,C,A:N,A C->N: An immutable hardware root of trust cannot be supplied by Ferrum.,C,,,,,,,,,unverified
 CWE-1327,Binding to an Unrestricted IP Address,Base,Exposed Resource,applies,C,,,C,,,,,,,,,unverified
-CWE-1328,Security Version Number Mutable to Older Versions,Base,Access Control,applies,C,,,C,,,,,,,,,unverified
+CWE-1328,Security Version Number Mutable to Older Versions,Base,Access Control,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1329,Reliance on Component That is Not Updateable,Base,Resource Control,applies,C,,,C,,,,,,,,,unverified
-CWE-1330,Remanent Data Readable after Memory Erase,Variant,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1331,Improper Isolation of Shared Resources in Network On Chip (NoC),Base,Violation of Secure Design Principles,applies,C,A:N,A C->N: NoC resource isolation is hardware architecture.,C,,,,,,,,,unverified
-CWE-1332,Improper Handling of Faults that Lead to Instruction Skips,Base,Improper Check or Handling of Exceptional Conditions,applies,C,,,C,,,,,,,,,unverified
+CWE-1330,Remanent Data Readable after Memory Erase,Variant,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
+CWE-1331,Improper Isolation of Shared Resources in Network On Chip (NoC),Base,Violation of Secure Design Principles,not-coding,C,A:N,A C->N: NoC resource isolation is hardware architecture.,C,,,,,,,,,unverified
+CWE-1332,Improper Handling of Faults that Lead to Instruction Skips,Base,Improper Check or Handling of Exceptional Conditions,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1333,Inefficient Regular Expression Complexity,Base,Resource Lifecycle Management,applies,E,F:C,F E->C: linear regex helps but pattern size/quotas remain policy,E,,3,checker,Prelude regex is linear-time (RE2-style); backtracking regex crates are banned by dependency policy (spec 4.5),regex engine is linear-time; dependency policy (docs/tcb.md),yes,corpus/CWE-1333,,unverified
-CWE-1334,Unauthorized Error Injection Can Degrade Hardware Redundancy,Base,Access Control,applies,C,A:N,A C->N: Hardware-redundancy degradation through error injection is hardware design.,C,,,,,,,,,unverified
+CWE-1334,Unauthorized Error Injection Can Degrade Hardware Redundancy,Base,Access Control,not-coding,C,A:N,A C->N: Hardware-redundancy degradation through error injection is hardware design.,C,,,,,,,,,unverified
 CWE-1335,Incorrect Bitwise Shift of Integer,Base,Incorrect Calculation,applies,C,,,C,,,,,,,,,unverified
 CWE-1336,Improper Neutralization of Special Elements Used in a Template Engine,Base,Injection,applies,E,,,E,,2,language,Typed sink with no raw constructor (spec 4.5): Template from a literal; values escaped for the output context,corten-std encoder for this sink is correct and independently reviewed (docs/tcb.md),yes,corpus/CWE-1336,required,unverified
 CWE-1338,Improper Protections Against Hardware Overheating,Base,Protection Mechanism Failure,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1339,Insufficient Precision or Accuracy of a Real Number,Base,Incorrect Calculation,applies,O,,,O,,,,,,,,,unverified
-CWE-1341,Multiple Releases of Same Resource or Handle,Base,Poor Coding Practices,applies,E,,,E,,1,checker,"Affine handles and guards: release is the owner's drop, once; re-use after move is a compile error (spec 4.1, 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1341,,verified
-CWE-1342,Information Exposure through Microarchitectural State after Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1341,Multiple Releases of Same Resource or Handle,Base,Poor Coding Practices,unsafe-rust-only,E,,,E,,1,checker,"Affine handles and guards: release is the owner's drop, once; re-use after move is a compile error (spec 4.1, 4.8)","rustc borrow checker and std are sound (docs/tcb.md); unsafe that a dependency's macro expands into the crate is refused by layer 3 and, for allowlisted dependencies, by corten_unsafe_from_macro (docs/gates/phase-3b.md)",no,corpus/CWE-1341,,verified
+CWE-1342,Information Exposure through Microarchitectural State after Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1351,Improper Handling of Hardware Behavior in Exceptionally Cold Environments,Base,Improper Check or Handling of Exceptional Conditions,not-coding,N,,,N,,,,,,,,,unverified
 CWE-1357,Reliance on Insufficiently Trustworthy Component,Class,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified
 CWE-1384,Improper Handling of Physical or Environmental Conditions,Class,Improper Check or Handling of Exceptional Conditions,not-coding,N,,,N,,,,,,,,,unverified
@@ -935,11 +935,11 @@ CWE-1395,Dependency on Vulnerable Third-Party Component,Class,Violation of Secur
 CWE-1419,Incorrect Initialization of Resource,Class,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1420,Exposure of Sensitive Information during Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1421,Exposure of Sensitive Information in Shared Microarchitectural Structures during Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
-CWE-1422,Exposure of Sensitive Information caused by Incorrect Data Forwarding during Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
+CWE-1422,Exposure of Sensitive Information caused by Incorrect Data Forwarding during Transient Execution,Base,Resource Lifecycle Management,not-coding,C,,,C,,,,,,,,,unverified
 CWE-1423,Exposure of Sensitive Information caused by Shared Microarchitectural Predictor State that Influences Transient Execution,Base,Resource Lifecycle Management,applies,C,,,C,,,,,,,,,unverified
 CWE-1426,Improper Validation of Generative AI Output,Base,Injection,applies,C,,,C,,,,,,,,,unverified
 CWE-1427,Improper Neutralization of Input Used for LLM Prompting,Base,Injection,applies,O,D:C,"D O->C: Prompt injection can be made partially checkable by typed in-context data boundaries and output policies, though semantic danger remains; O is too strong.",O,,,,,,,,,unverified
 CWE-1428,Reliance on HTTP instead of HTTPS,Base,Encryption,applies,C,,,C,,,,,,,,,unverified
 CWE-1429,Missing Security-Relevant Feedback for Unexecuted Operations in Hardware Interface,Base,Protection Mechanism Failure,applies,C,A:N,A C->N: Feedback behavior of a hardware interface is hardware design unless implemented in firmware.,C,,,,,,,,,unverified
-CWE-1431,Driving Intermediate Cryptographic State/Results to Hardware Module Outputs,Base,Sensitive Information Exposure,applies,C,A:N,A C->N: Driving intermediate cryptographic state onto hardware outputs is an RTL/interface defect.,C,,,,,,,,,unverified
+CWE-1431,Driving Intermediate Cryptographic State/Results to Hardware Module Outputs,Base,Sensitive Information Exposure,not-coding,C,A:N,A C->N: Driving intermediate cryptographic state onto hardware outputs is an RTL/interface defect.,C,,,,,,,,,unverified
 CWE-1434,Insecure Setting of Generative AI/ML Model Inference Parameters,Base,Poor Coding Practices,applies,C,,,C,,,,,,,,,unverified

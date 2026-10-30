@@ -1,0 +1,139 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-8,no,no,none,"Construct absent: Rust has no J2EE, entity beans or deployment descriptors; there is no 'remote interface' declaration to misconfigure."
+CWE-14,yes,yes,CWE-14.rs,rustc/LLVM dead-store elimination may delete a wipe of a buffer that is never read again; safe code cannot force the store (write_volatile is unsafe).
+CWE-15,yes,yes,none,"Letting input set a configuration value is a design/authorization decision; any language, safe Rust included, can pass request data to a config setter."
+CWE-22,yes,yes,CWE-22.rs,Path::join and std::fs perform no containment check; restricting to a directory is application logic no compiler can infer.
+CWE-23,yes,yes,none,Path-string validation logic: std::fs accepts relative '../' segments like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-24,yes,yes,none,Path-string validation logic: std::fs accepts '../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-25,yes,yes,none,Path-string validation logic: std::fs accepts '/../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-26,yes,yes,none,Path-string validation logic: std::fs accepts '/dir/../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-27,yes,yes,none,Path-string validation logic: std::fs accepts 'dir/../../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-28,yes,yes,none,Path-string validation logic: std::fs accepts Windows '..\filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-29,yes,yes,none,Path-string validation logic: std::fs accepts Windows '\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-30,yes,yes,none,Path-string validation logic: std::fs accepts '\dir\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-31,yes,yes,none,Path-string validation logic: std::fs accepts 'dir\..\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-32,yes,yes,none,Flawed sanitiser logic (stripping '..' leaves '...' variants) is string handling any language can get wrong; Rust's str APIs neither prevent nor detect it.
+CWE-33,yes,yes,none,Non-recursive removal of '..' from '....' is a sanitiser logic bug; str::replace behaves as in any language and the compiler cannot judge the filter.
+CWE-34,yes,yes,none,A single-pass filter turning '....//' into '../' is sanitiser logic; Rust's string APIs reproduce it exactly and no type system checks filter completeness.
+CWE-35,yes,yes,none,"Collapsing '.../...//' to '../' via incomplete filtering is sanitiser logic; Rust provides no path-safety type, so safe code exhibits it."
+CWE-36,yes,yes,CWE-36.rs,"std's Path::join replaces the base when the argument is absolute, so join(user_input) reaches any absolute path in safe Rust."
+CWE-37,yes,yes,none,Path-string validation logic: std::fs accepts an absolute '/abs/path' (Path::join replaces the base) like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-38,yes,yes,none,Path-string validation logic: std::fs accepts '\absolute\path' on Windows (Path::join replaces the base) like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-39,yes,yes,none,Path-string validation logic: std::fs accepts drive-relative 'C:dirname' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-40,yes,yes,none,Path-string validation logic: std::fs accepts UNC '\\server\share' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-41,yes,yes,none,"Resolving equivalent path spellings before a security decision is application logic; std::fs passes names to the OS, and no compiler can enforce canonicalisation."
+CWE-42,yes,yes,none,Path-equivalence handling (trailing dot) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-43,yes,yes,none,Path-equivalence handling (multiple trailing dots) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-44,yes,yes,none,Path-equivalence handling (internal dot) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-45,yes,yes,none,Path-equivalence handling (multiple internal dots) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-46,yes,yes,none,Path-equivalence handling (trailing space) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-47,yes,yes,none,Path-equivalence handling (leading space) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-48,yes,yes,none,Path-equivalence handling (internal whitespace) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-49,yes,yes,none,Path-equivalence handling (trailing slash) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-50,yes,yes,none,Path-equivalence handling (multiple leading slashes) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-51,yes,yes,none,Path-equivalence handling (multiple internal slashes) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-52,yes,yes,none,Path-equivalence handling (multiple trailing slashes) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-53,yes,yes,none,Path-equivalence handling (doubled internal backslash) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-54,yes,yes,none,Path-equivalence handling (trailing backslash) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-55,yes,yes,none,Path-equivalence handling ('/./' segment) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-56,yes,yes,none,Path-equivalence handling (wildcard '*') is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-57,yes,yes,none,Path-equivalence handling ('fakedir/../realdir') is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-58,yes,yes,none,Path-equivalence handling (Windows 8.3 short names) is string/filesystem semantics checked by application logic; std::fs passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-59,yes,yes,CWE-59.rs,std::fs::write/read/File::open follow symlinks by default; checking link targets is application logic the compiler cannot enforce.
+CWE-61,yes,yes,none,"std::fs opens follow UNIX symlinks by default (no O_NOFOLLOW unless requested via OpenOptionsExt); failing to guard is logic, not a type error."
+CWE-62,yes,yes,none,Hard links are indistinguishable from the original name at open; not checking link count/ownership is filesystem logic no compiler can verify.
+CWE-64,yes,yes,none,Following a .LNK target supplied by a user is application logic in a Windows program (shell API as stub); no language rule prevents it.
+CWE-65,yes,yes,none,"Windows hard links, like UNIX ones, are transparent to std::fs; not detecting them is logic outside any type system."
+CWE-66,yes,yes,none,"Names like /dev/zero, /proc/self/... or CON are valid paths to std::fs; recognising virtual resources is application logic."
+CWE-67,yes,yes,none,"std::fs on Windows passes 'CON', 'AUX', 'COM1' to the OS as device names; filtering them is application logic no compiler performs."
+CWE-69,yes,yes,none,'file.txt::$DATA' is a valid name to std::fs on Windows/NTFS; extension checks that miss the stream suffix are logic errors.
+CWE-72,yes,yes,none,'file/..namedfork/rsrc' is a valid path on macOS; extension/access checks that ignore it are logic errors any safe program can make.
+CWE-73,yes,yes,CWE-73.rs,"Passing request data straight into std::fs functions compiles in safe Rust; deciding which paths are allowed is policy, not typing."
+CWE-114,yes,yes,CWE-114.rs,std::process::Command runs whatever path it is given (and loading a library is an OS stub); trusting the source is policy no compiler checks.
+CWE-115,yes,yes,none,"Misinterpreting input (e.g. type or encoding of a field) is a semantic/design error; Rust's types check representation, not intended meaning."
+CWE-200,yes,yes,none,"Exposing data to the wrong actor is an authorization/design flaw; Rust's privacy rules govern modules, not runtime actors, so safe code can send anything."
+CWE-201,yes,yes,none,Including sensitive fields in a response is a data-selection decision; serialization and I/O are safe in Rust and no compiler knows which fields are secret.
+CWE-203,yes,yes,none,Observable discrepancies (different responses/timing per secret-dependent path) arise from program logic; Rust has no secret-type or constant-time enforcement.
+CWE-204,yes,yes,none,Returning 'no such user' vs 'wrong password' is response logic; safe Rust compiles either and no compiler judges the information leak.
+CWE-205,yes,yes,none,Behaviour that differs observably by secret state (e.g. extra work for valid users) is control-flow logic; no type system tracks it.
+CWE-206,yes,yes,none,"Internal steps whose observable behaviour leaks state are a design property; Rust's checks cover memory/types, not information flow."
+CWE-207,yes,yes,none,Behaving differently from equivalent products (fingerprintable) is a product-design matter outside any compiler's reach.
+CWE-208,yes,yes,CWE-208.rs,"Slice and String == short-circuit at the first mismatch; std has no constant-time comparison, so naive token checks leak timing in safe Rust."
+CWE-209,yes,yes,CWE-209.rs,"Formatting internal errors (Debug of errors, DSNs, paths) into client-visible messages is safe string handling; no compiler knows which data is sensitive."
+CWE-210,yes,yes,none,Self-generated error text containing secrets is ordinary format!/Display output; the compiler cannot classify message content.
+CWE-211,yes,yes,none,"Forwarding an external component's error (OS, database stub) to users is a safe pass-through of strings; filtering it is logic."
+CWE-213,yes,yes,none,Policy mismatch between stakeholders about what is sensitive is a requirements issue; code of any language implements whatever policy it is given.
+CWE-214,yes,yes,CWE-214.rs,"Command::arg places secrets on the child's argv, visible via ps/proc; std permits it and no compiler flags sensitive arguments."
+CWE-215,yes,yes,none,Debug output or dbg!/eprintln! of secrets (e.g. #[derive(Debug)] on a credential) is safe Rust; choosing what to print is the developer's logic.
+CWE-219,yes,yes,none,Writing sensitive files under a served document root is a deployment/path choice; std::fs writes wherever told and no compiler knows the web root.
+CWE-220,yes,yes,none,Storing sensitive files under an FTP root is a path/deployment choice; safe std::fs writes there freely and the compiler cannot know exposure.
+CWE-359,yes,yes,none,Exposing personal data to unauthorized actors is an authorization/privacy design flaw; Rust types do not encode data-subject policy.
+CWE-374,yes,yes,CWE-374.rs,"Passing &mut (or a RefCell) to untrusted code grants mutation; the borrow checker only blocks it for plain & borrows, and the choice of &mut is the developer's."
+CWE-375,yes,yes,CWE-375.rs,"A public method returning &mut to internal state is ordinary safe Rust; the borrow checker enforces exclusivity, not who should be trusted to mutate."
+CWE-377,yes,yes,CWE-377.rs,"std has no secure temp-file API; File::create on a predictable temp_dir() name follows symlinks and races, all in safe code."
+CWE-378,yes,yes,CWE-378.rs,OpenOptionsExt::mode(0o666) or default umask permissions on a temp file are safe std calls; choosing restrictive modes is the developer's job.
+CWE-379,yes,yes,none,Creating temp files in a world-writable directory (temp_dir()) without checks is a safe std operation; directory trust is environment logic.
+CWE-402,yes,yes,none,"Handing private resources (handles, data, sessions) to another sphere is a design decision; ownership transfer in Rust is explicit but not policy-checked."
+CWE-403,yes,no,CWE-403.rejected.rs CWE-403.unsafe.rs,"std opens files, sockets and pipes close-on-exec: a child saw no new descriptor (measured on macOS and Linux, 2026-10-27). Leaking one needs unsafe FFI (fcntl, dup) or pre_exec."
+CWE-426,yes,yes,CWE-426.rs,"Command::new(""name"") resolves through the inherited PATH; trusting the search path is environment policy no compiler checks."
+CWE-427,yes,yes,CWE-427.rs,"Command::env(""PATH"", ...) or current-dir lookup can add attacker-writable entries in safe Rust; search-path hygiene is application logic."
+CWE-428,yes,yes,none,"std's Windows Command quotes argv[0] and passes the resolved application name, but a program can still register an unquoted path (service/registry stub) in safe code."
+CWE-433,yes,yes,none,Serving source/config files raw instead of executing or denying them is web-server configuration logic; a Rust file server does it with safe std I/O.
+CWE-435,yes,yes,none,Unsafe interaction among correctly-behaving components is a system-composition property no single program's type system can see.
+CWE-436,yes,yes,none,"Two components parsing the same input differently is a protocol/design issue; Rust guarantees memory safety of each parser, not agreement between them."
+CWE-437,yes,yes,none,An incomplete model of the peer's features is a design gap; no compiler knows the external endpoint's behaviour.
+CWE-439,yes,yes,none,Behaviour changing across versions or environments is an external-dependency matter; Rust programs depend on OS and library behaviour like any other.
+CWE-444,yes,yes,none,Request smuggling comes from inconsistent HTTP framing (Content-Length vs Transfer-Encoding) between parsers; Rust parsers can be memory-safe yet disagree.
+CWE-472,yes,yes,none,Trusting a hidden form field or URL parameter is web-application logic; Rust types cannot mark client data as tamperable.
+CWE-488,yes,yes,CWE-488.rs,"A process-wide static Mutex or cache shared across request threads compiles in safe Rust; Send/Sync prevent data races, not cross-session data mixing."
+CWE-491,no,no,none,"Construct absent: Rust has no inheritance, no Object.clone() to override, and no 'final' modifier; a type cannot be subclassed to hijack cloning."
+CWE-492,no,no,none,Construct absent: Rust has no Java inner classes whose private members are compiled to package-visible accessors; nested items keep module privacy.
+CWE-493,yes,yes,CWE-493.rs,A pub static Mutex/atomic or a pub field of a security-critical struct is writable by any holder in safe Rust; Rust has no per-field final.
+CWE-497,yes,yes,none,"Revealing OS, version, paths or environment details to untrusted parties is an output-content decision; safe std exposes all of them freely."
+CWE-498,yes,yes,CWE-498.rs,"#[derive(Clone)] on a secret-holding type lets any holder duplicate it; Clone is opt-in, but writing it is ordinary safe Rust."
+CWE-499,yes,no,CWE-499.rejected.rs CWE-499.unsafe.rs,No implicit serialization: Debug/serde need the author's opt-in and privacy blocks other modules from reading fields; dumping raw bytes via pointer cast needs unsafe.
+CWE-500,yes,yes,CWE-500.rs,"Plain pub static is immutable and static mut needs unsafe, but a pub static AtomicBool/Mutex is a public writable global in safe Rust."
+CWE-524,yes,yes,none,Caching sensitive data where others can read it is a design/policy decision; a safe HashMap cache shared across users compiles fine.
+CWE-525,yes,yes,none,Omitting Cache-Control: no-store on sensitive responses is HTTP logic in a server stub; no compiler knows which responses are sensitive.
+CWE-526,yes,yes,CWE-526.rs,Command::env puts secrets into a child's environment in safe Rust (only env::set_var is unsafe in edition 2024); env exposure is policy.
+CWE-527,yes,yes,none,Serving or packaging a .git directory is deployment/path logic; a safe Rust file server exposes it if not filtered.
+CWE-528,yes,yes,none,Core dumps landing in served or shared locations is process/deployment configuration; a Rust program can crash-dump or serve them like any other.
+CWE-529,yes,yes,none,Exposing ACL files is a file-placement/serving decision; safe std::fs and server code expose whatever path they are given.
+CWE-530,yes,yes,none,"Leaving backup copies (.bak, ~) in served directories is deployment logic; nothing in Rust's type system knows what is served."
+CWE-531,yes,yes,none,Real credentials in #[test] code or fixtures are a development-practice issue; the compiler accepts any literal.
+CWE-532,yes,yes,CWE-532.rs,Logging secrets via eprintln!/log macros is safe Rust; the compiler cannot tell which values are sensitive.
+CWE-535,yes,yes,none,Returning a shell/child process's stderr (Command::output) to users is safe string handling; filtering it is logic.
+CWE-536,no,no,none,"Construct absent: Rust has no servlet container or servlet runtime errors; the general leak of server error details is CWE-209/550, both yes."
+CWE-537,no,no,none,Construct absent: no Java runtime or Java exception traces exist in Rust; the analogous panic/error-message leak is covered by CWE-209/550 (yes).
+CWE-538,yes,yes,none,Writing secrets into externally accessible files or directories is a path/content decision safe std::fs makes on request.
+CWE-539,yes,yes,none,Setting a persistent cookie (Expires/Max-Age) with sensitive data is HTTP logic in a server stub; no type system classifies cookie content.
+CWE-540,yes,yes,none,Hard-coded secrets in source are accepted as literals by rustc; keeping them out of source is development practice.
+CWE-541,yes,yes,none,include!/include_str!/include_bytes! embed files (secrets included) into source or binary; the compiler does not judge their content.
+CWE-548,yes,yes,none,Generating directory listings from std::fs::read_dir for any request is server logic; no compiler knows which directories are private.
+CWE-550,yes,yes,none,"Server error pages carrying internal details (panic messages, Debug of errors) are safe output choices no compiler judges."
+CWE-552,yes,yes,none,Making files reachable by external parties is access-control/deployment logic; std::fs and safe serving code impose no such policy.
+CWE-553,yes,yes,none,Placing a shell or command executor in a web-accessible location is deployment logic; nothing language-level prevents it.
+CWE-565,yes,yes,none,Trusting unsigned cookie values is web-application logic; Rust types cannot tell client-controlled data from validated data.
+CWE-582,no,no,CWE-582.rs,"A Rust static is deeply immutable, so element assignment is rejected; the shallow-final-array trap does not exist (static mut or Cell types are explicitly mutable)."
+CWE-583,no,no,CWE-583.rs,Construct absent: Rust has no finalize(); Drop::drop cannot be called explicitly (E0040) and runs exactly once via the compiler.
+CWE-598,yes,yes,none,Putting secrets in a GET query string is request-construction logic (HTTP client stub); safe string formatting does it freely.
+CWE-608,no,no,none,"Construct absent: Rust has no Struts framework or ActionForm classes, so a non-private ActionForm field cannot be written."
+CWE-615,yes,yes,none,"Rust has // and /// comments, and doc comments can even ship in generated docs; secrets in comments are a development-practice issue."
+CWE-619,yes,yes,CWE-619.rs,A Drop-based cursor close can be skipped by safe std::mem::forget or an Rc cycle; Rust does not guarantee destructors run.
+CWE-642,yes,yes,none,"Keeping critical state in client-controlled storage (cookies, hidden fields, files) is design logic; Rust types cannot mark data as attacker-controlled."
+CWE-650,yes,yes,none,Trusting that GET/HEAD are side-effect-free while handlers mutate state is web logic in a framework stub; no compiler checks HTTP semantics.
+CWE-651,yes,yes,none,"Publishing a WSDL/service description that exposes sensitive operations is deployment/design logic, independent of implementation language."
+CWE-668,yes,yes,none,"Exposing a resource to the wrong control sphere is an access-control design flaw; Rust privacy is compile-time module scope, not runtime spheres."
+CWE-733,yes,yes,CWE-733.rs,"LLVM may delete a wipe loop on a Vec about to be freed, or other security code it deems dead; safe Rust cannot pin it (volatile/fences need unsafe or crates)."
+CWE-767,yes,yes,CWE-767.rs,"A pub fn that writes a private field unchecked compiles in safe Rust; privacy is per-module, and what a public method exposes is design."
+CWE-784,yes,yes,none,Making authorization decisions from unsigned cookie values is web logic; no compiler distinguishes validated from client-supplied data.
+CWE-1037,n/a,n/a,none,"MITRE introduces it only in processor design: the CPU's optimization removes a software check. The software-reachable case, a bounds check speculated past, is CWE-1420."
+CWE-1038,yes,yes,CWE-1038.rs,Release builds remove debug_assert! checks and LLVM may eliminate wipes or reorder security code; automated optimization applies to safe Rust.
+CWE-1254,yes,yes,CWE-1254.rs,"Chunked comparison with early exit is ordinary safe Rust (slice ==, loops); std offers no constant-time comparison to enforce whole-value checks."
+CWE-1255,yes,yes,none,Firmware written in Rust comparing tokens with data-dependent branches leaks via power draw; no compiler models power side channels.
+CWE-1273,n/a,n/a,none,"Not about code: sharing device-unlock credentials among multiple parties (vendors, integrators) is an organizational/process decision."
+CWE-1282,n/a,n/a,none,"Not about code: whether bootloaders and IDs sit in ROM or re-programmable memory is a hardware/memory-map design choice, not source-level behaviour."
+CWE-1295,yes,yes,none,"Debug messages that over-share (e.g. #[derive(Debug)] dumps, verbose eprintln!) are safe Rust; content choice is beyond any compiler."
+CWE-1300,n/a,n/a,none,"Not about code: protection against physical power, EM and acoustic side channels is a hardware/physical design property."
+CWE-1327,yes,yes,CWE-1327.rs,"TcpListener::bind(""0.0.0.0:..."") is safe std; choosing the bind address is configuration logic."
+CWE-1431,n/a,n/a,none,Not about code: a hardware crypto module driving intermediate state onto its output wires is an RTL/hardware design flaw.

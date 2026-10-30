@@ -1,0 +1,157 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-9,no,no,CWE-9.rs,"EJB method permissions live in a J2EE deployment descriptor/annotations; Rust has no EJB container or descriptor, and the closest attribute spelling is rejected by rustc."
+CWE-13,no,no,none,Specific to ASP.NET web.config; Rust has no ASP.NET configuration construct. The generic weakness (password in a Rust program's config file) is CWE-260.
+CWE-202,yes,yes,none,Pure logic: no compiler of any language can tell whether aggregate query results leak individual records; the type system does not model statistical inference.
+CWE-256,yes,yes,CWE-256.rs,Writing a password string to a file unhashed is ordinary safe std I/O; the type system does not distinguish secret from public strings.
+CWE-257,yes,yes,none,Pure logic: no compiler of any language can tell whether passwords are stored reversibly encrypted rather than hashed; it is an algorithm/design choice.
+CWE-258,yes,yes,none,Pure logic: no compiler of any language can tell whether an empty string from a config file is an acceptable password; String admits empty values.
+CWE-259,yes,yes,CWE-259.rs,A const string literal compared with user input compiles in safe Rust; nothing in rustc flags embedded secrets.
+CWE-260,yes,yes,none,Pure logic: no compiler of any language can tell whether a password belongs in a configuration file; reading one with std::fs is ordinary safe code.
+CWE-261,yes,yes,CWE-261.rs,Hex/base64-encoding a password is plain safe string manipulation; no type distinguishes encoding from encryption or hashing.
+CWE-262,yes,yes,none,"Pure logic: no compiler of any language can tell whether a password-aging policy is missing; it is an absent feature, not a language construct."
+CWE-263,yes,yes,none,Pure logic: no compiler of any language can tell whether an expiration period is too long; it is a policy constant.
+CWE-266,yes,yes,none,Pure logic: no compiler of any language can tell whether a privilege is assigned to the wrong actor; role assignment is application data.
+CWE-267,yes,yes,none,Pure logic: no compiler of any language can tell whether a privilege permits unintended unsafe actions; it is a policy-definition error.
+CWE-268,yes,yes,none,Pure logic: no compiler of any language can tell whether two privileges combine dangerously; privilege semantics are application logic.
+CWE-269,yes,yes,none,"Pure logic: no compiler of any language can tell whether privileges are assigned, tracked or checked correctly; this is application policy logic."
+CWE-270,yes,yes,none,"Pure logic: no compiler of any language can tell whether privileges are managed correctly across context switches; privilege state is runtime/OS data, not types."
+CWE-271,yes,yes,CWE-271.rs,std Command spawns a child that inherits root unless CommandExt::uid is called; omitting it compiles in safe Rust.
+CWE-272,yes,yes,CWE-272.rs,std::os::unix::fs::chroot is a safe std function; continuing to serve requests as root afterwards compiles without unsafe.
+CWE-273,yes,yes,CWE-273.rs,"Result is #[must_use] but only warns, and `let _ =` silences it; ignoring a failed privilege drop compiles in safe Rust."
+CWE-274,yes,yes,CWE-274.rs,"Matching ErrorKind::PermissionDenied and silently degrading (e.g. disabling auditing) compiles; Result forces acknowledgement, not correct handling."
+CWE-276,yes,yes,CWE-276.rs,OpenOptionsExt::mode(0o777) is safe std; the permission value is a plain integer the compiler does not judge.
+CWE-277,yes,yes,none,Pure logic: no compiler of any language can tell whether permissions set on a parent (e.g. DirBuilderExt::mode) are too loose for inherited objects; modes are integers.
+CWE-278,yes,yes,none,Pure logic: no compiler of any language can tell whether permissions preserved from an archive are insecure; extraction code choosing to keep them is ordinary safe code.
+CWE-279,yes,yes,none,Pure logic: no compiler of any language can tell whether runtime permission changes violate user intent; set_permissions is a safe std call taking any mode.
+CWE-280,yes,yes,CWE-280.rs,"A failed set_permissions can be discarded with .ok() and success reported; Result is must_use only as a lint, so the mishandling compiles safely."
+CWE-281,yes,yes,CWE-281.rs,Copying via File::create plus io::copy drops the source mode bits; safe std code with no compiler diagnostic.
+CWE-282,yes,yes,none,Pure logic: no compiler of any language can tell whether ownership is assigned or verified correctly; uid/gid values are runtime data.
+CWE-283,yes,yes,none,Pure logic: no compiler of any language can tell whether code checks MetadataExt::uid before trusting a resource; skipping the check is valid safe Rust.
+CWE-284,yes,yes,none,Pure logic: no compiler of any language can tell whether access to a resource is properly restricted; access control is application policy.
+CWE-285,yes,yes,none,Pure logic: no compiler of any language can tell whether an authorization check is present and correct; it is application logic.
+CWE-286,yes,yes,none,Pure logic: no compiler of any language can tell whether users are managed correctly; account management is application logic.
+CWE-287,yes,yes,none,Pure logic: no compiler of any language can tell whether an identity claim is sufficiently proven; authentication strength is a protocol design matter.
+CWE-288,yes,yes,none,Pure logic: no compiler of any language can tell whether every path to a function requires authentication; routing is application logic.
+CWE-289,yes,yes,CWE-289.rs,A case-sensitive deny-list comparison beside a case-insensitive lookup compiles; string == is exact and the compiler cannot know which names are equivalent.
+CWE-290,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication scheme is spoofable; it is a protocol design flaw.
+CWE-291,yes,yes,CWE-291.rs,Comparing a std::net::IpAddr against an allow-listed address to authenticate compiles in safe Rust; trust in source addresses is a design choice.
+CWE-293,yes,yes,none,Pure logic: no compiler of any language can tell whether a Referer header is trusted for authentication; headers are just strings.
+CWE-294,yes,yes,none,Pure logic: no compiler of any language can tell whether a protocol lacks nonces or freshness; replay resistance is protocol design.
+CWE-295,yes,yes,none,Pure logic: no compiler of any language can tell whether a certificate is validated; a verifier callback returning true is valid code in any language.
+CWE-296,yes,yes,none,Pure logic: no compiler of any language can tell whether chain-of-trust walking is correct; it is X.509 validation logic.
+CWE-297,yes,yes,none,Pure logic: no compiler of any language can tell whether the certificate's names are matched to the host; it is validation logic.
+CWE-298,yes,yes,none,Pure logic: no compiler of any language can tell whether certificate expiry is checked; time comparison omission is logic.
+CWE-299,yes,yes,none,Pure logic: no compiler of any language can tell whether revocation status is checked; it is validation logic.
+CWE-300,yes,yes,none,Pure logic: no compiler of any language can tell whether a channel authenticates both endpoints; man-in-the-middle exposure is protocol design.
+CWE-301,yes,yes,none,Pure logic: no compiler of any language can tell whether a challenge-response protocol resists reflection; it is protocol design.
+CWE-302,yes,yes,CWE-302.rs,"Trusting a client cookie's role=admin compiles; Rust immutability applies to in-process bindings, not data an attacker controls outside the process."
+CWE-303,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication algorithm is implemented to specification; it is algorithmic correctness.
+CWE-304,yes,yes,none,Pure logic: no compiler of any language can tell whether a protocol step is skipped; omitted logic is not a type or memory error.
+CWE-305,yes,yes,none,"Bypass through a separate primary weakness; any primary weakness reachable in safe Rust (logic, injection, path) enables it, so safe Rust cannot exclude it."
+CWE-306,yes,yes,none,Pure logic: no compiler of any language can tell whether a critical function demands authentication; it is a missing application check.
+CWE-307,yes,yes,none,Pure logic: no compiler of any language can tell whether login attempts are rate-limited; absence of a counter is a missing feature.
+CWE-308,yes,yes,none,Pure logic: no compiler of any language can tell whether single-factor authentication suffices for a context; it is a design choice.
+CWE-309,yes,yes,none,Pure logic: no compiler of any language can tell whether passwords are an adequate primary authenticator; it is a design choice.
+CWE-321,yes,yes,CWE-321.rs,A const [u8; 16] key literal used for encryption compiles in safe Rust; rustc does not detect embedded key material.
+CWE-322,yes,yes,none,Pure logic: no compiler of any language can tell whether a key exchange authenticates the peer; it is protocol design.
+CWE-350,yes,yes,none,Pure logic: no compiler of any language can tell whether reverse DNS results are forward-confirmed; it is a missing security check (lookup via a stubbed resolver).
+CWE-370,yes,yes,none,Pure logic: no compiler of any language can tell whether revocation is re-checked over a session's life; it is protocol logic.
+CWE-384,yes,yes,CWE-384.rs,Marking an existing session id authenticated instead of rotating it compiles; session ids are ordinary strings.
+CWE-419,yes,yes,none,Pure logic: no compiler of any language can tell whether an administrative channel is protected; it is deployment and protocol design.
+CWE-420,yes,yes,none,Pure logic: no compiler of any language can tell whether an alternate channel gets the same protection as the primary; it is design.
+CWE-421,yes,yes,CWE-421.rs,"Create-then-chmod leaves a window where another process can open the channel; the borrow checker governs in-process aliasing, not OS-level races between processes."
+CWE-422,yes,yes,none,A message handler that trusts unverified window messages is logic; the Win32 messaging API can be stubbed and the missing sender check is not a language matter.
+CWE-425,yes,yes,none,Pure logic: no compiler of any language can tell whether every restricted URL enforces authorization; it is routing logic.
+CWE-441,yes,yes,none,Pure logic: no compiler of any language can tell whether a forwarded request preserves its original source; confused-deputy behaviour is design.
+CWE-520,no,no,none,.NET impersonation/trust-level configuration; Rust has no CLR trust levels or impersonation config. Running a Rust process with excess OS rights is CWE-250/272 instead.
+CWE-521,yes,yes,none,Pure logic: no compiler of any language can tell whether a password policy is strong enough; it is a policy constant.
+CWE-522,yes,yes,none,Pure logic: no compiler of any language can tell whether credentials are protected in transit or at rest; it is a design choice.
+CWE-523,yes,yes,none,Pure logic: no compiler of any language can tell whether a login form is served over TLS; sending credentials over plain TcpStream compiles.
+CWE-549,yes,yes,none,"Pure logic: no compiler of any language can tell whether password input is echoed; reading a password with std::io::stdin().read_line echoes it, which is valid safe code."
+CWE-551,yes,yes,CWE-551.rs,Checking a path prefix before percent-decoding compiles in safe Rust; ordering of validation and canonicalization is logic the compiler does not see.
+CWE-555,no,no,none,J2EE-specific (plaintext password in a J2EE descriptor); Rust has no J2EE configuration construct. The generic form is CWE-260.
+CWE-556,no,no,none,ASP.NET identity impersonation configured in web.config; Rust has no ASP.NET runtime or such configuration element.
+CWE-566,yes,yes,CWE-566.rs,A parameterised query keyed only by a caller-supplied id compiles; parameterisation stops injection but the missing owner predicate is logic. DB driver stubbed.
+CWE-593,yes,yes,CWE-593.rs,"With a shared Arc<Mutex<ctx>> whose settings are copied into sessions at creation, changing the context later compiles in safe Rust; the borrow checker only blocks it if the binding uses plain borrows."
+CWE-599,yes,yes,CWE-599.rs,"Never calling the verify-result function compiles: an unused check function raises no error, and the TLS library is stubbed."
+CWE-601,yes,yes,CWE-601.rs,Formatting a query parameter into a Location header compiles; URLs are strings with no type-level origin tracking.
+CWE-603,yes,yes,none,Pure logic: no compiler of any language can tell whether authentication runs server-side rather than in a client; it is architecture.
+CWE-611,yes,yes,none,"Pure logic: no compiler of any language can tell whether an XML parser resolves external entities; std has no XML parser, but a parser written in safe Rust (or a stubbed one) can fetch entity URIs."
+CWE-612,yes,yes,none,Pure logic: no compiler of any language can tell whether a search index enforces the source documents' permissions; it is design.
+CWE-613,yes,yes,CWE-613.rs,A session lookup that never compares the stored SystemTime to now compiles; unused fields are at most a lint.
+CWE-620,yes,yes,none,Pure logic: no compiler of any language can tell whether a password change asks for the old password; it is a missing step.
+CWE-623,yes,yes,none,"A COM control registered safe-for-scripting is a registration/IObjectSafety choice; Rust can implement COM (Win32 stubbed), and the flag is data, not a language construct."
+CWE-639,yes,yes,CWE-639.rs,Using a request-supplied id to index a HashMap without comparing the owner compiles; the type system does not encode who may read which record.
+CWE-640,yes,yes,none,Pure logic: no compiler of any language can tell whether a recovery flow is strong; security questions or guessable tokens are design.
+CWE-645,yes,yes,none,Pure logic: no compiler of any language can tell whether lockout thresholds are too strict; it is a policy constant.
+CWE-647,yes,yes,CWE-647.rs,"str::starts_with on a raw, non-canonical path compiles; the compiler cannot know that //admin and /./admin resolve to /admin."
+CWE-648,yes,yes,none,"Pure logic: no compiler of any language can tell whether a privileged API's preconditions are met; with OS APIs stubbed, calling them in the wrong order is valid safe code."
+CWE-708,yes,yes,none,Pure logic: no compiler of any language can tell whether the assigned owner is within the control sphere; uid values are runtime data.
+CWE-732,yes,yes,CWE-732.rs,"set_permissions(path, Permissions::from_mode(0o644)) on a private key is safe std; modes are untyped integers."
+CWE-798,yes,yes,CWE-798.rs,A const API token literal compiles in safe Rust; rustc has no secret-detection.
+CWE-804,yes,yes,none,Pure logic: no compiler of any language can tell whether a CAPTCHA is machine-solvable; it is a design property.
+CWE-836,yes,yes,CWE-836.rs,Comparing a client-supplied hash string with the stored hash compiles; string equality says nothing about which value should be the credential.
+CWE-842,yes,yes,none,Pure logic: no compiler of any language can tell whether a user is placed in the correct group; group membership is data.
+CWE-862,yes,yes,CWE-862.rs,A handler that removes any account without checking the caller compiles; an unused parameter is at most a lint.
+CWE-863,yes,yes,none,Pure logic: no compiler of any language can tell whether an authorization predicate is correct; it is application logic.
+CWE-918,yes,yes,CWE-918.rs,TcpStream::connect on a request-supplied host:port is safe std; no type distinguishes internal from external destinations.
+CWE-921,yes,yes,none,"Pure logic: no compiler of any language can tell whether storage (e.g. removable media, FAT) lacks access control; it is a deployment choice."
+CWE-923,yes,yes,none,Pure logic: no compiler of any language can tell whether the endpoint is authenticated; it is protocol design.
+CWE-925,yes,yes,none,"A broadcast handler that acts without checking the sender is logic; an Android receiver can delegate to Rust via JNI (stubbed), and the missing check is not a language matter."
+CWE-926,yes,yes,none,Pure logic: no compiler of any language can tell whether a component is exported; the Android manifest is the same for apps written in Rust via the NDK/JNI as in Java.
+CWE-927,yes,yes,none,"Pure logic: no compiler of any language can tell whether an intent is implicit; Rust can send intents via JNI (stubbed), and choosing an implicit intent is design."
+CWE-939,yes,yes,none,Pure logic: no compiler of any language can tell whether a custom URL scheme handler restricts callers; it is a missing check.
+CWE-940,yes,yes,none,Pure logic: no compiler of any language can tell whether an incoming channel's origin is verified; it is a missing check.
+CWE-941,yes,yes,none,Pure logic: no compiler of any language can tell whether an outgoing destination is specified correctly; addresses are runtime data.
+CWE-942,yes,yes,none,Pure logic: no compiler of any language can tell whether a CSP or cross-domain policy lists untrusted domains; the policy is a string the server emits.
+CWE-1004,yes,yes,CWE-1004.rs,A Set-Cookie string without HttpOnly compiles; header text has no type-level attributes.
+CWE-1021,yes,yes,none,Pure logic: no compiler of any language can tell whether frame-ancestor/X-Frame-Options headers are emitted; it is missing response configuration.
+CWE-1022,yes,yes,none,Pure logic: no compiler of any language can tell whether emitted HTML links carry rel=noopener; a Rust server generating markup can omit it.
+CWE-1191,n/a,n/a,none,n/a: hardware/SoC design weakness (chip debug/test interface access control); not about program code in any software language.
+CWE-1220,yes,yes,none,"Pure logic: no compiler of any language can tell whether an access-control policy is fine-grained enough; MITRE frames it for hardware, but coarse software policies (one permission for read and write) are the same flaw."
+CWE-1222,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bits covering too large an address region).
+CWE-1224,n/a,n/a,none,n/a: hardware/SoC design weakness (write-once/sticky bit fields implemented in RTL).
+CWE-1230,yes,yes,none,"Pure logic: no compiler of any language can tell whether derived metadata (indices, statistics, sizes) is protected like the source; it is design."
+CWE-1231,n/a,n/a,none,n/a: hardware/SoC design weakness (lock bit modifiable after being set).
+CWE-1233,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bit not covering security-sensitive controls).
+CWE-1242,n/a,n/a,none,n/a: hardware/SoC design weakness (chicken bits and undocumented device features).
+CWE-1243,n/a,n/a,none,n/a: hardware/SoC design weakness (fuse contents exposed during debug).
+CWE-1244,n/a,n/a,none,n/a: hardware/SoC design weakness (debug access levels assigned to internal assets).
+CWE-1252,n/a,n/a,none,"n/a: hardware/SoC design weakness (CPU lacks configured W^X support); a CPU property, not program code."
+CWE-1256,n/a,n/a,none,n/a: hardware/SoC design weakness (software-reachable power/clock controls not restricted by the device design).
+CWE-1257,n/a,n/a,none,n/a: hardware/SoC design weakness (mirrored/aliased memory regions with inconsistent hardware permissions).
+CWE-1259,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security-token protection).
+CWE-1260,n/a,n/a,none,n/a: hardware/SoC design weakness (overlapping protected memory ranges in hardware protection units).
+CWE-1262,n/a,n/a,none,n/a: hardware/SoC design weakness (access control on memory-mapped register interfaces is enforced by the SoC design).
+CWE-1263,n/a,n/a,none,n/a: physical access control to a device or facility; not a property of code.
+CWE-1267,n/a,n/a,none,n/a: hardware/SoC design weakness (obsolete encoding of SoC transaction source identifiers).
+CWE-1268,n/a,n/a,none,n/a: hardware/SoC design weakness (hardware-enforced control vs write policy privilege mismatch).
+CWE-1270,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC generates incorrect security tokens).
+CWE-1274,n/a,n/a,none,n/a: hardware/SoC design weakness (secure-boot volatile memory lacks hardware access control).
+CWE-1275,yes,yes,none,Pure logic: no compiler of any language can tell whether a Set-Cookie header carries SameSite=Strict/Lax; it is header text.
+CWE-1276,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block signals wired incorrectly to the parent design).
+CWE-1283,n/a,n/a,none,n/a: hardware/SoC design weakness (attestation/measurement registers writable by adversary).
+CWE-1290,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-transaction decoding to security identifiers).
+CWE-1292,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-signal conversion to security identifiers).
+CWE-1294,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security identifier mechanism).
+CWE-1296,n/a,n/a,none,n/a: hardware/SoC design weakness (debug component chaining and granularity).
+CWE-1297,n/a,n/a,none,n/a: supply-chain/process weakness (confidential data accessible to OSAT vendors); not a property of code.
+CWE-1299,n/a,n/a,none,n/a: hardware/SoC design weakness (unprotected shadow registers and alternate hardware paths).
+CWE-1302,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC transactions sent without a security identifier).
+CWE-1304,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block configuration state integrity across power save/restore).
+CWE-1311,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge translation of security attributes).
+CWE-1312,n/a,n/a,none,n/a: hardware/SoC design weakness (on-chip fabric firewall missing mirrored regions).
+CWE-1313,n/a,n/a,none,n/a: hardware/SoC design weakness (test/debug logic activatable at runtime).
+CWE-1314,n/a,n/a,none,n/a: hardware/SoC design weakness (sensor parametric data not write-protected by the device).
+CWE-1315,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-controller capability bits in fabric end-points).
+CWE-1316,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric address map allows overlapping protected regions).
+CWE-1317,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge lacks access checks between IP blocks).
+CWE-1320,n/a,n/a,none,n/a: hardware/SoC design weakness (alert/sensor signal response disableable by untrusted agents).
+CWE-1323,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC trace data stored or routed to untrusted agents).
+CWE-1328,n/a,n/a,none,n/a: hardware/SoC design weakness (security version number mutable in hardware).
+CWE-1334,n/a,n/a,none,n/a: hardware/SoC design weakness (error injection into redundant hardware blocks).
+CWE-1390,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication mechanism proves identity strongly enough; it is design.
+CWE-1391,yes,yes,none,Pure logic: no compiler of any language can tell whether credentials are guessable or derivable; credential values are data.
+CWE-1392,yes,yes,none,Pure logic: no compiler of any language can tell whether shipped default credentials exist; they are data/configuration.
+CWE-1393,yes,yes,none,Pure logic: no compiler of any language can tell whether a default password ships; it is a constant like any other.
+CWE-1394,yes,yes,none,Pure logic: no compiler of any language can tell whether a default cryptographic key ships; key bytes are data.

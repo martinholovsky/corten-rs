@@ -58,6 +58,25 @@ jobs:
       - run: cargo test --doc --workspace --locked
       - name: Ledger gate
         run: cargo run --locked -p corten-ledger -- check
+      # Re-checks every applicability program against the pinned rustc, and
+      # fails if the generated table or doc, or the ledger's
+      # rust_applicability column, no longer matches the evidence, or if the
+      # chart's SVG is not what the table generates.
+      - name: Rust applicability evidence
+        run: |
+          bash scripts/applicability-check.sh > /dev/null
+          python3 scripts/applicability-table.py
+          git diff --exit-code -- audit/applicability/table.csv docs/rust-applicability.md
+          python3 scripts/applicability-chart.py --check
+      # docs/rust-comparison.md is generated against the ledger at a baseline
+      # commit, which the shallow checkout lacks: fetch exactly that commit.
+      - name: Rust comparison is current
+        run: |
+          base=$(sed -n 's/^BASELINE = "\([0-9a-f]\{40\}\)".*/\1/p' scripts/applicability-comparison.py)
+          test -n "$base"
+          git fetch --no-tags --depth=1 origin "$base"
+          python3 scripts/applicability-comparison.py
+          git diff --exit-code -- docs/rust-comparison.md
       - name: Compile-fail corpus
         run: |
           cargo build --locked -p cargo-corten

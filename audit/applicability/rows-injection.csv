@@ -1,0 +1,129 @@
+cwe_id,unsafe_rust,safe_rust,evidence,reasoning
+CWE-20,yes,yes,CWE-20.rs,"Validation is program logic: parse() or the type system guarantees a value is an i64, not that it is in the range the business rules need."
+CWE-74,yes,yes,none,"Splicing input into text a downstream interpreter parses is string formatting; Rust's String carries no taint or context, and no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-75,yes,yes,none,Failing to sanitize special elements crossing into another plane is data-flow logic; Rust strings and bytes carry no plane or trust marking.
+CWE-76,yes,yes,none,Missing equivalent special elements in a filter is a logic gap in the filter's denylist; nothing in Rust's types or std checks filter completeness.
+CWE-77,yes,yes,none,"Building a command string for any interpreter (shell, Redis, SMTP) with format! is safe Rust; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-78,yes,yes,CWE-78.rs,"std::process::Command skips the shell by default, but Command::new(""sh"").arg(""-c"").arg(format!(..)) is safe Rust and re-enables injection."
+CWE-79,yes,yes,CWE-79.rs,HTML is built with format! into a plain String; std has no HTML escaping and the type system does not distinguish trusted markup from user text.
+CWE-80,yes,yes,none,"Writing <script> tags from input into HTML unescaped is string handling; Rust's String has no HTML context, so the compiler cannot flag it."
+CWE-81,yes,yes,none,Echoing the request into an HTML error page is ordinary string formatting in safe Rust; escaping is the program's responsibility.
+CWE-82,yes,yes,none,"Emitting user-controlled IMG attributes (javascript: src, onerror) unescaped is string formatting; no Rust language or std mechanism applies HTML attribute escaping."
+CWE-83,yes,yes,none,Event-handler attributes such as onmouseover from input are written as text; Rust's type system does not model HTML attribute contexts.
+CWE-84,yes,yes,none,"Failing to neutralize encoded URI schemes (javascript:, data:) is filter logic over strings; Rust provides no URL-scheme validation in std."
+CWE-85,yes,yes,none,Doubled-character XSS evades a naive filter that removes one occurrence; that filter is program logic Rust compiles as written.
+CWE-86,yes,yes,none,Browsers ignoring invalid characters inside tag names defeats a filter; the filter is program logic and the browser is outside the program.
+CWE-87,yes,yes,none,"Alternate XSS syntax bypassing a denylist is a filter-completeness bug; Rust's compiler checks types, not denylist coverage."
+CWE-88,yes,yes,CWE-88.rs,"Command passes args without a shell, but a value starting with ""--"" is still parsed as an option by the callee; Rust cannot know the callee's argument grammar."
+CWE-89,yes,yes,CWE-89.rs,"SQL built with format! is safe Rust; std has no database API and parameter binding is a library choice, so no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-90,yes,yes,CWE-90.rs,An LDAP filter built with format! is safe Rust; LDAP escaping is the program's job and the compiler sees only a String.
+CWE-91,yes,yes,none,Writing input into XML or an XPath without escaping is string formatting in safe Rust; std has no XML API that could enforce escaping.
+CWE-93,yes,yes,CWE-93.rs,"CRLF in input written into a line-based protocol (SMTP, HTTP) is plain string concatenation; Rust strings allow \r\n and nothing checks protocol framing."
+CWE-94,yes,yes,CWE-94.rs,"Rust has no eval, but a Rust program can generate source for another interpreter or rustc from input; code generation is string formatting."
+CWE-95,yes,yes,CWE-95.rs,"Rust itself has no eval, but embedded interpreters (Lua, Rhai, JS engines) are called with strings; passing unneutralized input to them is safe Rust."
+CWE-96,yes,yes,CWE-96.rs,"Writing input into a config file, script or template that is later executed is file output in safe Rust; the compiler cannot see the later execution."
+CWE-97,yes,yes,none,Emitting <!--#exec ...--> from input into a page a server processes for SSI is string output; the SSI processor is outside the Rust program.
+CWE-99,yes,yes,none,"Letting input name a file, port or resource identifier is program logic; Rust's types check that it is a str, not that it is permitted."
+CWE-102,no,no,none,Struts Validator forms do not exist in Rust; the weakness is defined by duplicate form names in a Java Struts validation.xml.
+CWE-105,no,no,none,"Requires Struts ActionForm fields and a Struts validator configuration, a Java framework construct with no Rust counterpart."
+CWE-106,no,no,none,Defined as not using the Struts Validator plug-in; Rust has no Struts. Not using any validation library is CWE-1173 instead.
+CWE-108,no,no,none,Requires a Struts ActionForm mapping without a validation form; Java Struts construct absent from Rust.
+CWE-109,no,no,none,Requires a Struts ActionForm with validate disabled; the Java Struts Validator does not exist in Rust.
+CWE-112,yes,yes,none,Parsing XML without schema validation is a program choice; std has no XML parser and any parser crate is used or not by program logic.
+CWE-113,yes,yes,CWE-113.rs,Writing input containing CRLF into an HTTP header is string formatting in safe Rust; header validation is a library or program choice.
+CWE-116,yes,yes,none,"Improper encoding of output is a mismatch between data and downstream grammar; Rust Strings carry no encoding context, so the compiler cannot detect it."
+CWE-117,yes,yes,CWE-117.rs,writeln! of a user string containing newlines forges log entries; Rust's formatting does not escape control characters with {}.
+CWE-130,yes,yes,CWE-130.rs,"Bounds checks stop reads leaving the buffer, but trusting a length field inside a reused buffer still returns stale bytes in safe Rust (Heartbleed shape) or panics."
+CWE-138,yes,yes,none,Neutralizing special elements for a downstream parser is application logic; Rust's type system and std do not model downstream grammars.
+CWE-140,yes,yes,none,Delimiters in input breaking a record format is a serialization bug; Rust's String accepts any delimiter character and nothing checks the format.
+CWE-141,yes,yes,none,"Unescaped parameter or argument delimiters (&, ;, spaces) in input are string handling; Rust has no type distinguishing a delimited list from a value."
+CWE-142,yes,yes,none,"Value delimiters (commas, colons) in input split one value into several downstream; safe Rust format!/join permits this freely."
+CWE-143,yes,yes,none,Record delimiters (newlines) in input create extra records in a file or stream; Rust's write APIs do not inspect content.
+CWE-144,yes,yes,none,Line delimiters in input inject lines into line-oriented output; nothing in Rust's String or io::Write rejects \n.
+CWE-145,yes,yes,none,"Section delimiters (e.g. MIME boundaries, INI headers) in input create new sections; a formatting logic bug no compiler can see."
+CWE-146,yes,yes,none,Expression or command delimiters such as ; in input end the intended statement downstream; Rust only sees string concatenation.
+CWE-147,yes,yes,none,"An input terminator (e.g. a lone ""."" in SMTP data) inside input ends the input early downstream; protocol framing is program logic."
+CWE-148,yes,yes,none,Leading special elements (e.g. - or !) change how a downstream parser reads the value; Rust has no notion of that parser's grammar.
+CWE-149,yes,yes,none,Quotes in input closing a quoted context downstream is an escaping bug; format! inserts quotes verbatim and the compiler cannot know the quoting rules.
+CWE-150,yes,yes,CWE-150.rs,Rust strings may contain ESC and other control bytes; printing them to a terminal or log with {} passes them through unneutralized.
+CWE-151,yes,yes,none,"Comment delimiters (--, /*, #) in input comment out the rest of a downstream statement; string formatting in safe Rust allows it."
+CWE-152,yes,yes,none,Macro symbols in input expanded by a downstream macro processor is a neutralization bug outside Rust's type system.
+CWE-153,yes,yes,none,"Substitution characters (e.g. $, %) in input triggering downstream substitution is string handling Rust does not inspect."
+CWE-154,yes,yes,none,Variable-name delimiters such as ${ } in input cause downstream variable expansion; the downstream interpreter's grammar is invisible to rustc.
+CWE-155,yes,yes,none,"Wildcards (*, ?, %) from input in a glob, LIKE or search pattern widen matches; Rust's String has no pattern-escaping requirement."
+CWE-156,yes,yes,none,Whitespace in input changing token boundaries downstream is a neutralization bug; Rust treats whitespace as ordinary string content.
+CWE-157,yes,yes,none,"Unbalanced paired delimiters (brackets, quotes) in input break downstream parsing; this is grammar logic, not something rustc checks."
+CWE-158,yes,yes,CWE-158.rs,"Rust str may contain NUL; std::fs and Command reject interior NULs, but a NUL-delimited stream or C consumer built in safe code still splits on it."
+CWE-159,yes,yes,none,Mishandling invalid use of special elements is parser logic; a Rust parser can mis-handle them exactly as one in any language.
+CWE-160,yes,yes,none,"Leading special elements (e.g. ../, /) not neutralized is string-prefix logic; Rust's types do not constrain string prefixes."
+CWE-161,yes,yes,none,Stripping only one of several leading special elements is a filter loop bug; safe Rust compiles the incomplete filter as written.
+CWE-162,yes,yes,none,Trailing special elements (e.g. trailing dot or slash) not neutralized is string-suffix logic outside the type system.
+CWE-163,yes,yes,none,Removing only one of multiple trailing special elements is filter logic; trim_end_matches versus strip_suffix is a program choice.
+CWE-164,yes,yes,none,Internal special elements not neutralized is filter logic over string content; Rust cannot know which characters are special downstream.
+CWE-165,yes,yes,none,Handling only one of multiple internal special elements (replacen instead of replace) is a filter bug safe Rust compiles.
+CWE-166,yes,yes,none,A parser that assumes an expected delimiter is present can misbehave or panic when it is missing; Option forces a choice but expect() is safe Rust.
+CWE-167,yes,yes,none,"An extra special element confusing a parser is parse logic; Rust compiles any parser, including one that mishandles additions."
+CWE-168,yes,yes,none,Inconsistent special elements (e.g. mismatched quotes) mishandled by a parser is logic; Rust's type system does not model input grammars.
+CWE-170,yes,no,CWE-170.rs CWE-170.unsafe.rs,"Rust strings carry their length and CString::new always appends NUL; reading an unterminated buffer as a C string needs CStr::from_ptr, an unsafe call."
+CWE-172,yes,yes,none,"String enforces valid UTF-8, but choosing the wrong encoding or using from_utf8_lossy, which maps distinct inputs to one value, is safe Rust."
+CWE-173,yes,yes,none,"Validating input before decoding alternate encodings (percent, overlong, HTML entities) is order-of-operations logic Rust does not check."
+CWE-174,yes,yes,CWE-174.rs,Decoding twice after validating once is program logic; safe Rust compiles a validate-then-decode-again sequence without complaint.
+CWE-175,yes,yes,none,"Mixing encodings across components (UTF-8, Latin-1, UTF-16) is a data-interpretation bug; Rust's UTF-8 String does not stop mis-decoding bytes."
+CWE-176,yes,yes,CWE-176.rs,Byte-indexed str slicing panics at a non-char boundary and Unicode normalization is absent from std; both mishandle Unicode in safe Rust.
+CWE-177,yes,yes,none,"Validating before or without URL-decoding lets %2e%2e through; std has no URL decoder, so ordering is program logic."
+CWE-228,yes,yes,none,A parser mishandling syntactically invalid structures is logic; Rust parsers can panic on unwrap or accept malformed input like any other.
+CWE-229,yes,yes,none,"Improper handling of values in input is parse logic; Rust's types constrain representation, not whether values are expected."
+CWE-230,yes,yes,none,"Missing values are surfaced as Option/None, but unwrap or a default that changes meaning is safe Rust; the handling choice is the program's."
+CWE-231,yes,yes,none,Ignoring or mis-attributing extra values in input is parse logic; Rust compiles a parser that silently drops or misuses them.
+CWE-232,yes,yes,none,Undefined values (e.g. a status code outside the enum) need explicit handling; a catch-all match arm or unwrap mishandles them in safe Rust.
+CWE-233,yes,yes,none,"Mishandling parameters (count, order, names) is protocol logic; Rust function signatures do not constrain data-level parameters."
+CWE-234,yes,yes,none,"A missing request parameter is an Option, but treating absence as a default (e.g. unwrap_or(admin)) is safe Rust logic."
+CWE-235,yes,yes,none,Extra or duplicated parameters (HTTP parameter pollution) handled inconsistently is parse logic; HashMap insert silently keeps the last.
+CWE-236,yes,yes,none,"Undefined parameters not rejected is program logic; Rust's type system checks the program's own structures, not peer-sent names."
+CWE-237,yes,yes,none,"Mishandling structural elements of input is parser logic; any Rust parser can make it, the compiler checks only memory and types."
+CWE-238,yes,yes,none,Incomplete structural elements (truncated records) are a parser concern; Rust slicing panics or the parser mis-reads in safe code.
+CWE-239,yes,yes,none,Failing to handle an incomplete element is parse logic; Rust offers Result but the program may unwrap or accept the fragment.
+CWE-240,yes,yes,none,Inconsistent structural elements (e.g. two counts disagreeing) mishandled is parse logic outside what rustc verifies.
+CWE-241,yes,yes,CWE-241.rs,"External input is untyped bytes; parse().expect() on a non-numeric field panics in safe Rust. Static typing covers program values, not wire data."
+CWE-463,yes,yes,CWE-463.rs,"In a reused fixed buffer, overwriting a sentinel in safe Rust exposes stale bytes up to the buffer end; bounds checks stop only reads past the array."
+CWE-464,yes,yes,CWE-464.rs,Inserting an input value equal to the sentinel into a sentinel-terminated Vec truncates the list in safe Rust; the sentinel convention is program logic.
+CWE-554,no,no,none,Defined for ASP.NET applications not using the ASP.NET validation framework; that framework does not exist in Rust (the generic case is CWE-1173).
+CWE-564,no,no,none,"Defined for Hibernate, a Java ORM; Rust has no Hibernate. SQL injection through a Rust ORM's raw query API is CWE-89."
+CWE-606,yes,yes,CWE-606.rs,"A loop bound from input is a plain integer; Rust's ranges and iterators run to any bound, so unchecked iteration counts are safe Rust."
+CWE-621,no,no,none,Requires extracting input into variables named at runtime (PHP extract()); Rust has no runtime variable namespace or reflection.
+CWE-622,yes,yes,none,A hook (callback or wrapper) that forwards user-supplied arguments without validating them is logic; safe Rust allows trusting arguments.
+CWE-624,no,no,none,Requires a regex with an executable component (Perl/PHP /e modifier); std has no regex and the regex crate has no code-executing constructs.
+CWE-626,yes,yes,CWE-626.rs,"std::fs and Command reject interior NUL, but a safe check like ends_with("".jpg"") followed by a NUL-terminated consumer still sees two different names."
+CWE-627,no,no,none,Defined for languages where input chooses a variable name at runtime ($$var); Rust resolves all names at compile time and has no reflection.
+CWE-641,yes,yes,none,"Allowing input to choose file or resource names (reserved names, special characters) without restriction is logic; Path accepts them."
+CWE-643,yes,yes,CWE-643.rs,An XPath query built with format! from input is safe Rust; XPath escaping is program logic the compiler cannot check.
+CWE-644,yes,yes,none,Writing input into HTTP headers that a client interprets as script is output handling; Rust strings carry no header context.
+CWE-652,yes,yes,none,An XQuery built with format! from input is safe Rust; no compiler of any language can tell which characters a downstream parser treats as special.
+CWE-692,yes,yes,none,A denylist of XSS patterns missing cases is filter logic; rustc compiles an incomplete denylist exactly as written.
+CWE-694,yes,yes,CWE-694.rs,"Rustc rejects duplicate names in source, but runtime resources keyed by string (Vec, HashMap) can collide; uniqueness checks are program logic."
+CWE-707,yes,yes,none,Improper neutralization of structured messages is a data-to-grammar mismatch; Rust's type system does not model downstream message structure.
+CWE-781,yes,no,CWE-781.rs CWE-781.unsafe.rs,"A METHOD_NEITHER handler receives raw user addresses; dereferencing a raw pointer requires unsafe, so the unvalidated read exists only there."
+CWE-790,yes,yes,none,Improperly filtering special elements is filter logic over strings; Rust compiles a filter of any correctness.
+CWE-791,yes,yes,none,An incomplete filter is program logic; Rust's type system does not know the set of elements that should be filtered.
+CWE-792,yes,yes,none,Filtering only some instances (replacen versus replace) is a logic choice safe Rust permits.
+CWE-793,yes,yes,none,"Filtering only one instance (replacen(.., 1) or a single find) is safe Rust; the compiler cannot know all instances matter."
+CWE-794,yes,yes,none,"Incomplete filtering of multiple instances (e.g. non-recursive removal leaving ""....//"" as ""../"") is logic safe Rust compiles."
+CWE-795,yes,yes,none,Filtering only at a fixed location (strip_prefix only) leaves elsewhere unfiltered; a logic choice outside the type system.
+CWE-796,yes,yes,none,Filtering only relative to a marker is program logic; Rust's string APIs do whatever position logic the program chooses.
+CWE-797,yes,yes,none,Filtering only at an absolute position (e.g. index 0) is program logic that safe Rust compiles.
+CWE-838,yes,yes,none,Using HTML encoding in a JavaScript or URL context is an encoding-context mismatch; Rust Strings carry no context and std has no encoders.
+CWE-914,no,no,none,"Rust has no dynamically identified variables: no eval, reflection or runtime symbol table. A hand-written name-to-field dispatch is mass assignment (CWE-915)."
+CWE-917,yes,yes,CWE-917.rs,"Rust has no EL built in, but a Rust program feeding format!-built expressions to an embedded expression evaluator is safe Rust; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-943,yes,yes,none,"Query logic for any data store (SQL, NoSQL JSON filters) built from input is formatting or map construction in safe Rust; the compiler cannot see query semantics."
+CWE-1173,yes,yes,none,"Not using, or misusing, a validation library is a design choice; std provides no validation framework and rustc cannot require one."
+CWE-1174,no,no,none,Defined for ASP.NET MVC model validation (ModelState); that framework does not exist in Rust.
+CWE-1236,yes,yes,CWE-1236.rs,CSV output with a leading = from input is written verbatim; Rust's io::Write and format! do not neutralize spreadsheet formulas.
+CWE-1284,yes,yes,CWE-1284.rs,Vec::with_capacity takes any usize; an unchecked count from input aborts the process on allocation failure in safe Rust.
+CWE-1285,yes,yes,CWE-1285.rs,"Bounds checks turn an out-of-range index into a panic rather than a memory read, but an unvalidated index from input still crashes or selects the wrong element."
+CWE-1286,yes,yes,none,Not validating input syntax (e.g. JSON well-formedness) before use is program logic; Rust does not force validation of byte input.
+CWE-1287,yes,yes,none,"Input arrives as bytes or strings; not checking that it is of the expected type (number, date) before interpreting it is safe-Rust logic."
+CWE-1288,yes,yes,none,Not checking consistency between input fields (e.g. totals versus items) is business logic; types cannot express cross-field invariants on wire data.
+CWE-1289,yes,yes,none,"Validating before case-folding or normalization (eq versus eq_ignore_ascii_case, Unicode forms) is logic; std lacks normalization."
+CWE-1336,yes,yes,CWE-1336.rs,Putting input into a template's source rather than its context lets the engine evaluate it; the template engine is a library and rustc sees only a String.
+CWE-1426,yes,yes,none,Acting on generative-AI output without validating it is design logic; the model output is untyped text no compiler can vet.
+CWE-1427,yes,yes,CWE-1427.rs,"Concatenating untrusted text into an LLM prompt is string formatting; the instruction/data boundary exists only in the model, outside Rust."
