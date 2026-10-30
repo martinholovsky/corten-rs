@@ -172,6 +172,52 @@ fn tcp_connect_is_denied() {
     );
 }
 
+/// Whether the running kernel has Landlock ABI v6 (Linux 6.12), the first
+/// with signal and abstract UNIX socket scoping. Read from the release string:
+/// a test cannot ask Landlock directly without `unsafe`.
+fn kernel_has_scopes() -> bool {
+    let release = fs::read_to_string("/proc/sys/kernel/osrelease").unwrap();
+    let mut parts = release
+        .trim()
+        .split(|c: char| !c.is_ascii_digit())
+        .map(|n| n.parse::<u32>().unwrap_or(0));
+    let major = parts.next().unwrap_or(0);
+    let minor = parts.next().unwrap_or(0);
+    (major, minor) >= (6, 12)
+}
+
+#[test]
+fn signalling_a_process_outside_the_sandbox() {
+    // The target is this test process, which is outside the sandbox.
+    let script = format!("kill -0 {} && echo signalled", std::process::id());
+    // Control: the shell can signal it unconfined.
+    let plain = Command::new("/bin/sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .unwrap();
+    assert_eq!(
+        text(&plain.stdout),
+        "signalled\n",
+        "{}",
+        text(&plain.stderr)
+    );
+
+    let out = run(&shell(&script), &policy(), b"").unwrap();
+    if kernel_has_scopes() {
+        assert_ne!(out.code, Some(0));
+        assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));
+        assert!(
+            text(&out.stderr).contains("Operation not permitted"),
+            "{}",
+            text(&out.stderr)
+        );
+    } else {
+        // Below ABI v6 the sandbox still runs, without the scope (docs/tcb.md).
+        assert_eq!(text(&out.stdout), "signalled\n", "{}", text(&out.stderr));
+    }
+}
+
 #[test]
 fn deadline_kills_the_program() {
     let mut p = policy();

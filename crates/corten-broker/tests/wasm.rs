@@ -1,6 +1,22 @@
 //! Wasm broker tests with hand-encoded modules (no `wat` dependency).
+//!
+//! Each module is run twice where the platform allows: by the runner binary
+//! directly (every platform; the interpreter's behaviour), and on Linux
+//! through `wasm::run`, which starts the runner under `corten-sandbox`. The
+//! two must agree.
 
-use corten_broker::wasm::{WasmError, WasmPolicy, run};
+#![allow(
+    clippy::unwrap_used,
+    reason = "the test allowances cover #[test] bodies, not the setup helpers; a failed setup aborts the test either way"
+)]
+
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::Duration;
+
+use corten_broker::ipc::{read_message, write_message};
+use corten_broker::wasm::{Request, Response, WasmError, WasmPolicy};
 
 fn section(id: u8, body: &[u8]) -> Vec<u8> {
     let mut out = vec![id];
@@ -76,12 +92,64 @@ const GROW: &[u8] = &[
     0x41, 0xe8, 0x07, 0x40, 0x00, 0x41, 0x7f, 0x46, 0x04, 0x40, 0x00, 0x0b, 0x42, 0x00, 0x0b,
 ];
 
+fn runner() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_corten-wasm-runner"))
+}
+
+/// `corten-sandbox`, built beside the runner by a workspace build
+/// (`cargo test --workspace`, as CI runs it).
+fn sandbox() -> PathBuf {
+    let path = runner().with_file_name("corten-sandbox");
+    assert!(
+        path.is_file(),
+        "{} is missing: build the workspace (cargo build --workspace)",
+        path.display()
+    );
+    path
+}
+
 fn policy() -> WasmPolicy {
     WasmPolicy {
+        sandbox: sandbox(),
+        runner: runner(),
+        deadline: Duration::from_secs(10),
         fuel: 1_000_000,
         max_memory: 4 * 65_536,
         max_output: 1024,
     }
+}
+
+/// Runs the runner binary without the sandbox, speaking the wire protocol.
+fn direct(module: &[u8], input: &[u8], policy: &WasmPolicy) -> Result<Vec<u8>, WasmError> {
+    let mut child = Command::new(runner())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let request = Request {
+        fuel: policy.fuel,
+        max_memory: u64::try_from(policy.max_memory).unwrap(),
+        max_output: u64::try_from(policy.max_output).unwrap(),
+        module: module.to_vec(),
+        input: input.to_vec(),
+    };
+    let mut stdin = child.stdin.take().unwrap();
+    write_message(&mut stdin, &request).unwrap();
+    drop(stdin);
+    let Response(result) = read_message::<Response>(&mut child.stdout.take().unwrap()).unwrap();
+    assert!(child.wait().unwrap().success());
+    result
+}
+
+/// The direct result; on Linux, also checks the sandboxed broker agrees.
+fn run(module: &[u8], input: &[u8], policy: &WasmPolicy) -> Result<Vec<u8>, WasmError> {
+    let here = direct(module, input, policy);
+    if cfg!(target_os = "linux") {
+        let brokered = corten_broker::wasm::run(module, input, policy);
+        assert_eq!(format!("{here:?}"), format!("{brokered:?}"));
+    }
+    here
 }
 
 #[test]
@@ -118,7 +186,7 @@ fn memory_limit_holds() {
     };
     assert!(msg.contains("unreachable"), "{msg}");
     // Control: with room for 1001 pages, the same module runs.
-    let mut roomy = tight;
+    let mut roomy = tight.clone();
     roomy.max_memory = 1001 * 65_536;
     let roomy_run = run(&module(GROW, false), b"x", &roomy);
     assert!(roomy_run.is_ok(), "{roomy_run:?}");
@@ -138,4 +206,61 @@ fn garbage_is_invalid() {
         run(b"not wasm", b"", &policy()),
         Err(WasmError::Invalid(_))
     ));
+}
+
+#[test]
+fn a_malformed_request_is_refused_by_the_runner() {
+    let mut child = Command::new(runner())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    // Announces 3 bytes: too short for the 32-byte header.
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&[0, 0, 0, 3, 1, 2, 3])
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert_eq!(out.stdout, b"");
+}
+
+/// Only a separate process can be stopped from outside: an in-process
+/// interpreter thread cannot be killed. Fuel is effectively unlimited here,
+/// so only the deadline ends the run.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_deadline_kills_the_runner() {
+    let mut endless = policy();
+    endless.fuel = u64::MAX;
+    endless.deadline = Duration::from_millis(500);
+    let started = std::time::Instant::now();
+    let r = corten_broker::wasm::run(&module(SPIN, false), b"x", &endless);
+    assert!(
+        matches!(
+            r,
+            Err(WasmError::Broker(
+                corten_broker::process::BrokerError::Deadline
+            ))
+        ),
+        "{r:?}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+/// Off Linux there is no sandbox, and the broker refuses rather than
+/// running the module unconfined.
+#[cfg(not(target_os = "linux"))]
+#[test]
+fn the_broker_fails_closed_off_linux() {
+    let r = corten_broker::wasm::run(&module(ECHO, false), b"x", &policy());
+    assert!(matches!(r, Err(WasmError::Runner(_))), "{r:?}");
+}
+
+#[test]
+fn the_runner_binary_is_beside_the_sandbox() {
+    assert!(Path::new(&policy().runner).is_file());
 }

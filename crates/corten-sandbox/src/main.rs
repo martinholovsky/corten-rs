@@ -24,7 +24,9 @@
 //! are refused by the kernel for the program and everything it starts. The
 //! sandbox uses Landlock ABI v4 as a hard requirement: on a kernel that
 //! cannot enforce every rule, or off Linux, it refuses to run the program
-//! (exit 3). A path that does not exist is an error, not a skipped rule.
+//! (exit 3). Where the kernel has ABI v6 (Linux 6.12), the program also
+//! cannot signal a process outside the sandbox or connect to an abstract
+//! UNIX socket created outside it; older kernels run without those scopes. A path that does not exist is an error, not a skipped rule.
 //! A descriptor above 2 open without close-on-exec is refused the same way:
 //! the program would inherit it, and Landlock does not restrict a descriptor
 //! that is already open.
@@ -169,12 +171,17 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
 mod enforce {
     use super::Plan;
     use landlock::{
-        ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, PathBeneath, PathFd, Ruleset,
-        RulesetAttr, RulesetCreatedAttr, RulesetStatus,
+        ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, LandlockStatus, PathBeneath,
+        PathFd, RestrictionStatus, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus, Scope,
     };
     use std::path::Path;
 
     const ABI_REQUIRED: ABI = ABI::V4;
+    /// Scoping signals and abstract UNIX sockets to the sandbox's own domain
+    /// needs ABI v6 (Linux 6.12). It is requested wherever the kernel has it;
+    /// below v6 the v4 rules still hold and the scopes are absent
+    /// (`docs/tcb.md`).
+    const ABI_SCOPES: ABI = ABI::V6;
 
     fn rule(
         path: &Path,
@@ -204,6 +211,13 @@ mod enforce {
                 .handle_access(AccessNet::from_all(ABI_REQUIRED))
                 .map_err(|e| e.to_string())?;
         }
+        // Best effort for the scopes only, then back to a hard requirement:
+        // the created ruleset and its rules inherit the level set last.
+        let ruleset = ruleset
+            .set_compatibility(CompatLevel::BestEffort)
+            .scope(Scope::from_all(ABI_SCOPES))
+            .map_err(|e| e.to_string())?
+            .set_compatibility(CompatLevel::HardRequirement);
         let mut created = ruleset.create().map_err(|e| e.to_string())?;
         for (paths, access) in [
             (&plan.read_only, read),
@@ -219,11 +233,27 @@ mod enforce {
         // No network rules are added: with AccessNet handled, every TCP bind
         // and connect is denied.
         let status = created.restrict_self().map_err(|e| e.to_string())?;
-        if status.ruleset == RulesetStatus::FullyEnforced && status.no_new_privs {
+        if enforced(&status) {
             Ok(())
         } else {
             Err(format!("Landlock not fully enforced: {status:?}"))
         }
+    }
+
+    /// Full enforcement, except that below ABI v6 the scopes may be the part
+    /// left out: everything else was requested as a hard requirement, so a
+    /// missing v4 right is an error before this point, never a partial status.
+    fn enforced(status: &RestrictionStatus) -> bool {
+        let below_scopes = matches!(
+            status.landlock,
+            LandlockStatus::Available { effective_abi, .. } if effective_abi < ABI_SCOPES
+        );
+        status.no_new_privs
+            && match status.ruleset {
+                RulesetStatus::FullyEnforced => true,
+                RulesetStatus::PartiallyEnforced => below_scopes,
+                RulesetStatus::NotEnforced => false,
+            }
     }
 }
 

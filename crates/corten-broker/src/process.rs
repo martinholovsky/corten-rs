@@ -4,7 +4,7 @@
 use std::fmt;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -121,8 +121,25 @@ pub fn run(
         .arg(invocation.program())
         .arg("--")
         .arg(invocation.program())
-        .args(invocation.argv())
-        .env_clear()
+        .args(invocation.argv());
+    let (status, stdout, stderr) = supervise(cmd, input, policy.deadline, policy.max_output)?;
+    Ok(Output {
+        code: status.code(),
+        stdout,
+        stderr,
+    })
+}
+
+/// Spawns `cmd` with a cleared environment, `/` as its working directory and
+/// piped standard streams; feeds it `input`; kills it at `deadline` or when
+/// stdout or stderr exceeds `max_output`. Shared by both brokers.
+pub(crate) fn supervise(
+    mut cmd: Command,
+    input: &[u8],
+    deadline: Duration,
+    max_output: usize,
+) -> Result<(ExitStatus, Vec<u8>, Vec<u8>), BrokerError> {
+    cmd.env_clear()
         .current_dir("/")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -137,7 +154,7 @@ pub fn run(
             let _written = stdin.write_all(&data).is_ok();
         }
     });
-    let limit = policy.max_output;
+    let limit = max_output;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let out_reader = thread::spawn(move || stdout.map(|s| read_capped(s, limit)));
@@ -147,7 +164,7 @@ pub fn run(
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if started.elapsed() >= policy.deadline => {
+            Ok(None) if started.elapsed() >= deadline => {
                 kill(&mut child);
                 return Err(BrokerError::Deadline);
             }
@@ -172,9 +189,5 @@ pub fn run(
     if out_over || err_over {
         return Err(BrokerError::OutputQuota);
     }
-    Ok(Output {
-        code: status.code(),
-        stdout,
-        stderr,
-    })
+    Ok((status, stdout, stderr))
 }

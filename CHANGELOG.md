@@ -4,6 +4,11 @@ Newest first. Nothing is released yet.
 
 ## Unreleased
 
+### Changed
+
+- `corten-sandbox` requests Landlock ABI v6 scoping where the kernel has it (owner decision, 2026-10-29): a confined program cannot signal a process outside the sandbox or connect to an abstract UNIX socket created outside it. ABI v4 stays the hard requirement, so older kernels run as before, without the scopes. UDP is still unrestricted (`docs/tcb.md`).
+- The Wasm broker runs each module out of process (owner decision, 2026-10-27): `corten_broker::wasm::run` starts the new `corten-wasm-runner` binary under `corten-sandbox`, with a deadline and an output quota, and exchanges one size-checked frame each way. The interpreter is no longer linked into the caller, so a speculative read past `wasmi`'s bounds checks (CWE-1420, found by the applicability audit) reaches only the runner. `WasmPolicy` gains `sandbox`, `runner` and `deadline`; `WasmError` gains `Broker` and `Runner`, and `Abi` carries a `String`. Like the process broker, it now needs Linux. `docs/tcb.md` records what Landlock ABI v4 leaves open to a confined process (UDP, signals, abstract UNIX sockets).
+
 ### Added
 
 - `scripts/applicability-chart.py` generates `docs/assets/cwe-rust-corten.svg` from the applicability table, and CI fails when the SVG is stale (the PNG is still rendered by hand, since it needs the Archivo font). The Corten bar gains a hatched segment for the eliminations Corten claims but its corpus does not yet prove; they still count as writable.

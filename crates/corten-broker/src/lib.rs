@@ -5,7 +5,8 @@
 //! - [`process`]: a [`corten_std::process::ProcessInvocation`] run under
 //!   `corten-sandbox` (Landlock), with a deadline and input and output
 //!   quotas; the environment is cleared.
-//! - [`wasm`]: a Wasm module run on `wasmi` with no imports, fuel and a
+//! - [`wasm`]: a Wasm module run on `wasmi` in `corten-wasm-runner`, a
+//!   separate process under `corten-sandbox`, with no imports, fuel and a
 //!   memory limit.
 //! - [`ipc`]: length-prefixed, size-checked, decoded frames.
 //!
