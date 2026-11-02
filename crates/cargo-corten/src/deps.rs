@@ -25,7 +25,11 @@
 //!   skip the checks above. The prelude's own dependencies are exempt only
 //!   when the local package is the checker's own `corten-std`, identified by
 //!   its directory, never by its name: a repository can name a crate
-//!   anything, and rustix's safe API would bypass every path claim.
+//!   anything, and rustix's safe API would bypass every path claim. The same
+//!   exemption applies to the macro checks: the prelude's dependencies are
+//!   not walked, since program code cannot reach them through a prelude that
+//!   re-exports no dependency and invokes no dependency's macro
+//!   (`tests/prelude_surface.rs` enforces both; spec section 8, question 20).
 //!
 //! The operator accepts a package refused by one of the first three checks
 //! by name (`--allow-dep` or `CORTEN_ALLOW_DEPS`); that does not admit it.
@@ -250,16 +254,23 @@ fn scan_package(roots: &[PathBuf], limits: Limits) -> Result<Scan, String> {
 type Graph = BTreeMap<String, Vec<(String, String)>>;
 
 /// Reachable non-local packages, scanned: direct dependencies of local
-/// packages, then whatever a reachable package re-exports, transitively.
+/// packages other than the prelude, then whatever a reachable package
+/// re-exports, transitively. The prelude's own dependencies are not walked,
+/// as in [`admission_set`]: code outside the prelude cannot reach them,
+/// because the prelude re-exports no dependency and invokes no dependency's
+/// macro (both enforced by `tests/prelude_surface.rs`). Without this, a
+/// prelude dependency's proc macro named `main` or `test` (tokio's) collided
+/// with every program's `fn main` (spec section 8, question 20).
 fn reachable(
     pkgs: &[Package],
     graph: &Graph,
     by_id: &BTreeMap<&str, &Package>,
     limits: Limits,
+    is_prelude: &dyn Fn(&Package) -> bool,
 ) -> BTreeMap<String, Result<Scan, String>> {
     let mut queue: Vec<String> = pkgs
         .iter()
-        .filter(|p| p.local)
+        .filter(|p| p.local && !is_prelude(p))
         .flat_map(|p| graph.get(&p.id).into_iter().flatten())
         .map(|(dep, _)| dep.clone())
         .collect();
@@ -362,7 +373,6 @@ pub fn audit(
         }
     }
 
-    let scans = reachable(&pkgs, &graph, &by_id, limits);
     let prelude = prelude.and_then(|d| fs::canonicalize(d).ok());
     let is_prelude = |p: &Package| {
         p.local
@@ -370,6 +380,7 @@ pub fn audit(
                 .as_ref()
                 .is_some_and(|d| fs::canonicalize(&p.root).is_ok_and(|r| r == *d))
     };
+    let scans = reachable(&pkgs, &graph, &by_id, limits, &is_prelude);
     let must_admit = admission_set(&pkgs, &graph, &by_id, &scans, &is_prelude);
 
     for (id, scan) in &scans {
@@ -1045,6 +1056,67 @@ mod tests {
         .unwrap();
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].reason.contains("allowlist"), "{f:?}");
+    }
+
+    /// A proc macro named `main` behind the prelude is not a finding for a
+    /// program's `fn main`; the same crate as a direct dependency still is.
+    #[test]
+    fn prelude_dependency_macros_do_not_collide_with_program_names() {
+        let t = Tree::new("prelude-macros");
+        let prelude_manifest = t.package("corten-std", "pub fn p() {}");
+        let prelude = pkg("corten-std", true, false, &prelude_manifest);
+        let macros = pkg(
+            "tmacros",
+            false,
+            true,
+            &t.package(
+                "tmacros",
+                "#[proc_macro_attribute]\npub fn main(a: TokenStream, i: TokenStream) -> TokenStream { i }",
+            ),
+        );
+        let app = pkg("app", true, false, &t.package("app", "fn main() {}"));
+        let dir = Path::new(&prelude_manifest).parent().unwrap();
+        let none = DepPolicy::default();
+        let via_prelude = metadata(
+            &[app.clone(), prelude.clone(), macros.clone()],
+            &[("app", "corten-std"), ("corten-std", "tmacros")],
+        );
+        assert_eq!(
+            audit(
+                &via_prelude,
+                &none,
+                Some(dir),
+                &BTreeSet::new(),
+                Limits::default()
+            )
+            .unwrap(),
+            Vec::new()
+        );
+        // Control: the program depends on the macro crate itself.
+        let direct = metadata(
+            &[app, prelude, macros],
+            &[
+                ("app", "corten-std"),
+                ("app", "tmacros"),
+                ("corten-std", "tmacros"),
+            ],
+        );
+        let admitted: DepPolicy =
+            crate::dep_policy::parse("corten-dep-policy 1\nallow tmacros\n").unwrap();
+        let f = audit(
+            &direct,
+            &admitted,
+            Some(dir),
+            &BTreeSet::new(),
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(
+            f[0].reason
+                .contains("procedural macro used by local code (main)"),
+            "{f:?}"
+        );
     }
 
     const UNSAFE_MACRO: &str =

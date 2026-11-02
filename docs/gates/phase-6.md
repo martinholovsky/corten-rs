@@ -251,3 +251,25 @@ Each CWE is quoted from the ledger and is C today. The ledger changes only when 
 - **Mutation:** switching without the opt-in is caught by `the_public_resolver_is_used_only_by_opt_in`. The mutant compiled; the test failed with its message.
 - **Dependencies:** `cargo deny` passes; the lockfile grows from 134 to 238 packages (hickory, tokio).
 - **Not run here:** the corpus. CI runs it.
+
+## Remaining work (recorded 2026-11-02)
+
+Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Status lives here; the CHANGELOG and README summarise it.
+
+| Item | Status | Trigger or next step |
+| --- | --- | --- |
+| E claims, question 21: corpus cases and ledger moves for CWE-918, 319 and 1428 (verified by corpus); CWE-323, 916, 759, 760 and 347 to E with `review = required` | Decided, not built | Next pull request after question 20's fix lands |
+| Independent review of the encoders (25 rows) and of `corten_std::crypto` (the five question 21 rows) | Blocked | The owner names a reviewer who is not the author (AGENTS.md rule 1) |
+| F5: a dependency's build script can rewrite another dependency's vendored source inside `cargo corten build` (measured: binary built from the rewritten source, exit 0, with or without its checksum entry rewritten); the lint and build passes share `CARGO_HOME` and the vendor config in the writable target directory | Gap measured; fix designed (vendor and config outside the writable area, read-only; a fresh `CARGO_HOME` per pass; the probe as a smoke case) | Next item after the E claims |
+| Manifest signing helper (`cargo corten manifest sign`: bumps the serial, sets a default expiry), design principle 10 | Not started | After F5 |
+| F3: key rotation in `corten_std::crypto` (key identifiers in sealed messages, rehash signal, verifying key set) | Not started | After the signing helper |
+| F2: UDP from confined programs (empty network namespace through `rustix::thread::unshare`) | Not started | After F3; measure unprivileged user namespaces in the container and on GitHub's runners first |
+| F4: whether anything verifies the Layer 4 provenance before deployment | Not checked | Read Layer 5 (`corten-sandbox`) and the Action; then decide |
+| Resolver out of process (question 20, option C): hickory and tokio leave every program's address space | Deferred: an isolation improvement, not a fix | When strategy 7 is revisited, or if a hickory advisory affects the resolver path |
+| DNSSEC validation inside the prelude; DNS over HTTPS; Happy Eyeballs | Not built (`netcap.md` status) | DNSSEC: measured before enabling (question 17). The others when a deployment needs them |
+| `hickory_resolver::TlsConfig::insecure_skip_verify` ban in `docs/dep-policy.example` | Path checked, not shown to fire | With the next dependency-policy change: add it to the firing test |
+| CI: cached corpus timing; a docs-only pull request taking the light path end to end | Not yet measured | The next pull requests after #21 |
+| Batch 2b: labels on errors, logs and debug output (strategy 9) | Not started | Needs an API design first; propose it against the design principles |
+| Batch 3: budgets (strategy 4), safe deserialization and `ConfigCap` (strategy 3), DirCap extensions (strategy 8) | Not started | Strategy 8 first (fully specified, no dependency); strategy 3 needs a format and dependency review; strategy 4 changes every parsing entry point and needs a migration plan |
+| Batch 4: authorization proof types (strategy 2) | Not started | Prototype on the corpus; adopt only at 0 false rejections (question 14) |
+| Batch 6: web types, credentials, strict parsers, contracts, runtime, supply chain | Not started | After batch 3 |

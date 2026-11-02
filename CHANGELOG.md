@@ -6,6 +6,9 @@ Newest first. Nothing is released yet.
 
 ### Changed
 
+- `cargo corten check` no longer fails every program that uses a derive (spec section 8, question 22, applied pending owner confirmation). The nightly lint pass forced `RUSTC_BOOTSTRAP=-1` on dependencies, and `proc-macro2`'s nightly probe then broke its own compile (E0554). The driver now holds the checked code to stable's feature gates with `-Zallow-features=`, which refuses with E0725, measured with a control. The lint pass forces `RUSTC_BOOTSTRAP` empty; the stable first pass keeps `-1`.
+- Layer 3 no longer walks the prelude's own dependencies when it looks for macros program code can reach, as admission already did (spec section 8, question 20). `tokio-macros`, pulled in by `hickory-net`, has macros named `main` and `test`, so every program was refused; the corpus showed 83 false rejections. `crates/cargo-corten/tests/prelude_surface.rs` keeps the exemption sound: `corten-std` re-exports no dependency and invokes no dependency's macro. Its rules are shown on 7 known-bad snippets.
+- AGENTS.md gains **design principles** distilled from the owner's decisions, applied to every new item. Spec section 8 gains question 21: E claims where the prelude's API already makes the weakness inexpressible, and section 4.10 is amended to claim nothing about the primitives only.
 - CI is faster without seeing less (sota-devsecops rules/16).
   - **Measured first:** the corpus step went from 349 s to 1,416 s once `corten-std` gained aws-lc. Every corpus worker compiled it, and the `tests` job took 26 minutes.
   - **Caching:** compiled dependencies and the corpus's per-worker target directories (new `corten-corpus --work-dir`) are cached. Only `main` writes the cache; pull requests restore it read-only; `v*` tag (release) runs build clean.
