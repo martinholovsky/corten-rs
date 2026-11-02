@@ -18,7 +18,7 @@ A strategy that only strengthens C moves no bucket.
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
 | 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | not started | |
 | 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
-| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7: `NetCap` core **built** (2026-11-02, below), name resolution not yet ([`../netcap.md`](../netcap.md)) | Resolution (questions 16 and 17): the next pull request |
+| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 **built** (2026-11-02, below): `NetCap` core, then resolution, DNS logging and the opt-in fallback ([`../netcap.md`](../netcap.md)) | |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
 | — | 1 the independent encoder review (25 rows) | blocked | The owner naming a reviewer (AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
 | — | 16 code-quality metrics; 17 assurance tooling; 18 out of scope | reported, not gated | Spec section 7 |
@@ -227,3 +227,27 @@ Each CWE is quoted from the ledger and is C today. The ledger changes only when 
 - **Mutations on Linux:** 8 of 8 caught by failing tests: TLS 1.2 allowed, CRLs ignored, CRL expiry not enforced, address check bypassed, IPv4-mapped not canonicalized, metadata not refused, `Unchecked` not warned, refusal not logged. One mutant was first written so that it did not compile; re-run as a compiling mutant, it is caught.
 - **Profile:** `corten-std` passes its own profile under `cargo corten check`.
 - **Dependencies:** `cargo deny` passes; the lockfile grows from 79 to 134 packages.
+
+## Batch 5, strategy 7: name resolution and DNS logging (2026-11-02)
+
+`corten_std::net`, Linux. Host grants resolve with `hickory-resolver` 0.26.3 on a current-thread tokio runtime, bounded by the connect timeout, with at most 16 addresses kept.
+- **Logging:** every change of DNS state writes `net.dns` (source, transport, DNSSEC status, fallback), and a `net.warning` when the answers are plain or not validated (`netcap.md` section 3).
+- **DNSSEC status:** taken from resolving `dnssec-failed.org`, where SERVFAIL means validating.
+- **Fallback:** Cloudflare or Google is probed with the test name only. The program switches to it over DNS over TLS only with `dns fallback NAME` in the manifest (question 16).
+- **Sandbox:** `corten-sandbox` grants TCP 53 for host grants (the system resolver's TCP fallback) and 853 with `dns fallback`.
+- **Dependency policy:** `deny.toml` skips `core-foundation` 0.9.4 (hickory's macOS system-config reader; `corten-std` uses hickory on Linux only).
+- **Example policy:** `docs/dep-policy.example` bans `hickory_resolver::TlsConfig::insecure_skip_verify`. The path was checked against hickory's source; unlike the 24 bans of batch 5, it was not shown to fire.
+
+**Found while building.** hickory's DNS-over-TLS client starts from an empty root store unless `webpki-roots` or `rustls-platform-verifier` is enabled, and both are refused by the licence policy (CDLA-Permissive-2.0). The first live run showed `fallback="probed-unavailable"` even with the opt-in. The resolver now uses `NetCap`'s TLS configuration (the platform's roots, TLS 1.3).
+
+**Evidence.**
+- **Linux** (`--rm` container):
+  - Clippy clean;
+  - `corten-std` 25 of 25 net and manifest tests (one live test ignored by default);
+  - `corten-sandbox` 4 and 11.
+- **Live DNS** (run by hand with `--ignored`; `example.com`, 4 addresses each time):
+  - without opt-in: `net.dns source="system" transport="udp-tcp" dnssec="validating" fallback="probed-available"`, followed by the warning;
+  - with `dns fallback cloudflare`: `source="cloudflare" transport="dot" dnssec="validating" fallback="switched"`, with no warning.
+- **Mutation:** switching without the opt-in is caught by `the_public_resolver_is_used_only_by_opt_in`. The mutant compiled; the test failed with its message.
+- **Dependencies:** `cargo deny` passes; the lockfile grows from 134 to 238 packages (hickory, tokio).
+- **Not run here:** the corpus. CI runs it.
