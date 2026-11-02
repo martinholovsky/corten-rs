@@ -2,6 +2,7 @@
 //!
 //! ```text
 //! corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net]
+//!                [--allow-udp-without-netns]
 //!                [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE]
 //!                -- PROGRAM [ARGS]...
 //! ```
@@ -15,6 +16,14 @@
 //!   programs need.
 //! - `--allow-net`: leave TCP bind and connect unrestricted. Without it, both
 //!   are denied.
+//! - Without `--allow-net` and without a manifest `net` grant, the program
+//!   runs in a new, empty network namespace (inside a new user namespace,
+//!   with its user and group IDs mapped to themselves): no UDP, which
+//!   Landlock does not filter, and no TCP, not even loopback (finding F2).
+//!   If the kernel refuses the namespaces, the sandbox stops, unless
+//!   `--allow-udp-without-netns` is given: then the program runs with UDP
+//!   open and a warning is printed on every start (owner decision,
+//!   2026-11-02).
 //! - `--manifest`, `--signature`, `--trusted-key`, `--serial-state`: the
 //!   layer 5 mode. The signed capability manifest is verified as in
 //!   `corten_std::manifest`: with the key its `key` line names among the
@@ -50,7 +59,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
+const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--allow-udp-without-netns] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
 
 /// Exit status when the arguments are wrong.
 const EXIT_USAGE: u8 = 2;
@@ -66,6 +75,8 @@ struct Plan {
     read_write: Vec<PathBuf>,
     execute: Vec<PathBuf>,
     allow_net: bool,
+    /// Run with UDP open where the network namespace cannot be created.
+    allow_udp_without_netns: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
     manifest: Option<ManifestArgs>,
@@ -253,6 +264,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
                 .push(args.next().ok_or("--exec needs a path")?.into()),
             Some("--system") => plan.execute.extend(SYSTEM_PATHS.iter().map(PathBuf::from)),
             Some("--allow-net") => plan.allow_net = true,
+            Some("--allow-udp-without-netns") => plan.allow_udp_without_netns = true,
             Some("--manifest") => {
                 plan.manifest
                     .get_or_insert_with(ManifestArgs::default)
@@ -434,11 +446,72 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
+    // Before Landlock: the ID maps are written through /proc.
+    #[cfg(target_os = "linux")]
+    if needs_netns(&plan) {
+        match netns::isolate() {
+            Ok(()) => {}
+            Err(e) if plan.allow_udp_without_netns => {
+                eprintln!(
+                    "corten-sandbox: warning: no network namespace ({e}); the program can send UDP anywhere (--allow-udp-without-netns)"
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "corten-sandbox: cannot create an empty network namespace for a program without a network grant: {e}. Without it the program could send UDP anywhere; pass --allow-udp-without-netns to run it anyway"
+                );
+                return ExitCode::from(EXIT_UNENFORCEABLE);
+            }
+        }
+    }
     if let Err(e) = enforce::apply(&plan) {
         eprintln!("corten-sandbox: cannot enforce the sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
     exec(&plan, pinned.as_ref())
+}
+
+/// A program with no network grant gets an empty network namespace: no
+/// `--allow-net` and no TCP port from a manifest `net` grant (F2).
+#[cfg(target_os = "linux")]
+fn needs_netns(plan: &Plan) -> bool {
+    !plan.allow_net && plan.connect_ports.is_empty()
+}
+
+/// User and network namespaces (F2). Landlock ABI v4 filters TCP only; an
+/// empty network namespace stops UDP and everything else the program could
+/// send.
+#[cfg(target_os = "linux")]
+mod netns {
+    use rustix::thread::UnshareFlags;
+
+    /// Moves this process into a new user namespace, with its user and
+    /// group IDs mapped to themselves, and a new network namespace that has
+    /// only a loopback device, down. Must run while the process has one
+    /// thread (the kernel refuses a new user namespace otherwise).
+    pub(super) fn isolate() -> Result<(), String> {
+        let uid = rustix::process::getuid().as_raw();
+        let gid = rustix::process::getgid().as_raw();
+        unshare_user_and_net()
+            .map_err(|e| format!("unshare(CLONE_NEWUSER | CLONE_NEWNET): {e}"))?;
+        // `setgroups` must be denied before an unprivileged gid_map write.
+        for (file, text) in [
+            ("/proc/self/setgroups", "deny".to_owned()),
+            ("/proc/self/uid_map", format!("{uid} {uid} 1")),
+            ("/proc/self/gid_map", format!("{gid} {gid} 1")),
+        ] {
+            std::fs::write(file, text).map_err(|e| format!("{file}: {e}"))?;
+        }
+        Ok(())
+    }
+
+    #[expect(
+        deprecated,
+        reason = "rustix 1.1 deprecated the safe unshare because UnshareFlags::FILES can break other threads' descriptors; only NEWUSER and NEWNET are passed, the process is single-threaded here, and Corten's own code stays free of unsafe"
+    )]
+    fn unshare_user_and_net() -> std::io::Result<()> {
+        rustix::thread::unshare(UnshareFlags::NEWUSER | UnshareFlags::NEWNET).map_err(Into::into)
+    }
 }
 
 /// Refuses to run while a descriptor above 2 lacks close-on-exec: the program
@@ -515,6 +588,20 @@ fn exec(_plan: &Plan, _pinned: Option<&std::fs::File>) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn only_a_program_without_a_network_grant_gets_an_empty_namespace() {
+        let mut plan = run(&["--system", "--", "/bin/true"]).unwrap();
+        assert!(needs_netns(&plan));
+        assert!(!plan.allow_udp_without_netns);
+        plan.connect_ports.push(443);
+        assert!(!needs_netns(&plan), "a net grant needs the host's network");
+        let open = run(&["--allow-net", "--", "/bin/true"]).unwrap();
+        assert!(!needs_netns(&open));
+        let opted = run(&["--allow-udp-without-netns", "--", "/bin/true"]).unwrap();
+        assert!(opted.allow_udp_without_netns && needs_netns(&opted));
+    }
 
     #[test]
     fn a_program_must_match_the_manifest_digest() {

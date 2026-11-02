@@ -183,10 +183,87 @@ fn tcp_connect_is_denied() {
     let out = run(&inv, &policy(), b"").unwrap();
     assert_ne!(out.code, Some(0));
     assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));
+    // No network grant: the program is in an empty network namespace, so
+    // the connect fails there before Landlock is asked (F2). Landlock's own
+    // TCP denial is shown with a grant, below.
     assert!(
-        text(&out.stderr).contains("Permission denied"),
+        text(&out.stderr).contains("Network is unreachable"),
         "{}",
         text(&out.stderr)
+    );
+}
+
+/// F2: Landlock ABI v4 does not filter UDP; a program without a network
+/// grant runs in an empty network namespace, so it cannot send any.
+#[test]
+fn udp_is_refused_without_a_network_grant() {
+    let script = "echo x > /dev/udp/127.0.0.1/9 && echo sent";
+    // Control: bash sends a datagram unconfined.
+    let plain = Command::new("/bin/bash")
+        .arg("-c")
+        .arg(script)
+        .output()
+        .unwrap();
+    assert_eq!(text(&plain.stdout), "sent\n", "{}", text(&plain.stderr));
+    let inv = ProcessInvocation::new(
+        &exec_cap("/bin/bash"),
+        Options::from_template::<ShellC>(),
+        Operands(&[script]),
+    )
+    .unwrap();
+    let out = run(&inv, &policy(), b"").unwrap();
+    assert_ne!(out.code, Some(0));
+    assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));
+    assert!(
+        text(&out.stderr).contains("Network is unreachable"),
+        "{}",
+        text(&out.stderr)
+    );
+}
+
+/// With a `net` grant the program keeps the host's network, and Landlock
+/// allows TCP connects to the granted port only.
+#[test]
+fn landlock_denies_a_tcp_port_the_net_grant_does_not_name() {
+    let s = Scratch::new("netgrant");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let other = TcpListener::bind("127.0.0.1:0").unwrap();
+    let granted = other.local_addr().unwrap().port();
+    let kp = KeyPair::from_seed(Seed::new([13u8; 32]));
+    let bash = corten_sha256::hex_digest(&fs::read("/bin/bash").unwrap());
+    let manifest = format!(
+        "corten-manifest 3\nkey deploy\nserial 1\nnot-after 4102444800\nprogram sha256 {bash}\nnet db 127.0.0.1:{granted} private\n"
+    );
+    let (m, g, state) = (s.0.join("m"), s.0.join("m.sig"), s.0.join("serial"));
+    fs::write(&m, &manifest).unwrap();
+    fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+    let connect = |to: u16| {
+        Command::new(env!("CARGO_BIN_EXE_corten-sandbox"))
+            .arg("--manifest")
+            .arg(&m)
+            .arg("--signature")
+            .arg(&g)
+            .arg("--trusted-key")
+            .arg(format!("deploy={}", hex(kp.pk.as_ref())))
+            .arg("--serial-state")
+            .arg(&state)
+            .arg("--system")
+            .arg("--")
+            .arg("/bin/bash")
+            .arg("-c")
+            .arg(format!("exec 3<>/dev/tcp/127.0.0.1/{to} && echo connected"))
+            .output()
+            .unwrap()
+    };
+    let ok = connect(granted);
+    assert_eq!(text(&ok.stdout), "connected\n", "{}", text(&ok.stderr));
+    let denied = connect(port);
+    assert_ne!(denied.status.code(), Some(0));
+    assert!(
+        text(&denied.stderr).contains("Permission denied"),
+        "{}",
+        text(&denied.stderr)
     );
 }
 

@@ -328,6 +328,7 @@ dependencies = [
  "corten-std",
  "ed25519-compact",
  "landlock",
+ "rustix",
 ]
 
 [[package]]
