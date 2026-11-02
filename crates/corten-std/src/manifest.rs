@@ -1,20 +1,21 @@
 //! The signed capability manifest (spec 4.3): the only source of a root
 //! [`DirCap`], an [`ExecCap`] or a [`DeclassifyCap`].
 //!
-//! Format 2, UTF-8, one entry per line:
+//! Format 3, UTF-8, one entry per line:
 //!
 //! ```text
-//! corten-manifest 2
+//! corten-manifest 3
 //! key deploy-2026-11
 //! serial 42
 //! not-after 1767225600
+//! program sha256 3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b
 //! dir uploads /srv/app/uploads
 //! exec tar /usr/bin/tar
 //! declassify report
 //! ```
 //!
-//! The first four lines are required, in this order (spec section 8,
-//! question 19; CWE-294, 324):
+//! The first five lines are required, in this order (spec section 8,
+//! questions 19 and F4; CWE-294, 324, 494):
 //!
 //! - `key ID` names the deployer key that signed the manifest, in the
 //!   verifier's [`TrustedKeys`]. A key set lets a key be rotated: sign with
@@ -26,8 +27,13 @@
 //!   authority to write it.
 //! - `not-after T` is a Unix time in seconds; the manifest is refused at or
 //!   after it.
+//! - `program sha256 HEX` is the SHA-256 of the program the grants are for,
+//!   as the build's provenance records it (64 lowercase hex digits). The
+//!   launcher (`corten-sandbox`) refuses to start any other binary under
+//!   them, so the signed grants are bound to the build that was checked
+//!   (finding F4, `docs/gates/phase-6.md`).
 //!
-//! Format 1, which had none of these, is refused. Names follow the `PathSeg`
+//! Formats 1 and 2, which lacked these lines, are refused. Names follow the `PathSeg`
 //! grammar; paths are absolute. `declassify NAME` (Phase 4) grants the right
 //! to release a labelled value as public (`crate::label`); it names no path.
 //! The deployer signs the exact bytes with Ed25519. The key ID is read before
@@ -51,7 +57,7 @@ use crate::process::ExecCap;
 /// Largest manifest accepted, in bytes.
 pub const MAX_MANIFEST: usize = 65_536;
 
-const HEADER: &str = "corten-manifest 2";
+const HEADER: &str = "corten-manifest 3";
 
 /// Why a manifest was refused.
 #[derive(Debug)]
@@ -264,6 +270,8 @@ pub struct VerifiedManifest {
     pub serial: u64,
     /// Its `not-after`, Unix seconds.
     pub not_after: u64,
+    /// The SHA-256 of the only program the grants may be used by.
+    pub program_sha256: [u8; 32],
 }
 
 /// The key ID on line 2, read before the signature is checked, only to
@@ -330,6 +338,7 @@ pub fn verify(
         key: header.key,
         serial: header.serial,
         not_after: header.not_after,
+        program_sha256: header.program_sha256,
     })
 }
 
@@ -337,6 +346,31 @@ struct Header {
     key: String,
     serial: u64,
     not_after: u64,
+    program_sha256: [u8; 32],
+}
+
+/// Exactly 64 lowercase hexadecimal digits, as 32 bytes.
+fn sha256_hex(text: &str, number: usize) -> Result<[u8; 32], ManifestError> {
+    let bytes = text.as_bytes();
+    let mut out = [0u8; 32];
+    if bytes.len() != 64 {
+        return Err(ManifestError::Syntax(number));
+    }
+    let nibble = |b: u8| match b {
+        b'0'..=b'9' => Some(b.wrapping_sub(b'0')),
+        b'a'..=b'f' => Some(b.wrapping_sub(b'a').wrapping_add(10)),
+        _ => None,
+    };
+    let (pairs, []) = bytes.as_chunks::<2>() else {
+        return Err(ManifestError::Syntax(number));
+    };
+    for (o, &[hi, lo]) in out.iter_mut().zip(pairs) {
+        let (Some(hi), Some(lo)) = (nibble(hi), nibble(lo)) else {
+            return Err(ManifestError::Syntax(number));
+        };
+        *o = hi.wrapping_shl(4) | lo;
+    }
+    Ok(out)
 }
 
 /// `PREFIX VALUE` on line `number`, or a syntax error there.
@@ -376,10 +410,12 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
     }
     let serial = decimal(header_field(lines.next(), "serial ", 3)?, 3)?;
     let not_after = decimal(header_field(lines.next(), "not-after ", 4)?, 4)?;
+    let program_sha256 = sha256_hex(header_field(lines.next(), "program sha256 ", 5)?, 5)?;
     let header = Header {
         key: key.to_owned(),
         serial,
         not_after,
+        program_sha256,
     };
     let mut entries = Vec::new();
     for (number, line) in lines {
@@ -586,8 +622,14 @@ mod tests {
         kp.sk.sign(m, None).to_vec()
     }
 
+    /// The program line every test manifest carries (the SHA-256 of "abc").
+    const PROGRAM: &str =
+        "program sha256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
     fn manifest(key: &str, serial: u64, not_after: u64, body: &str) -> String {
-        format!("corten-manifest 2\nkey {key}\nserial {serial}\nnot-after {not_after}\n{body}")
+        format!(
+            "corten-manifest 3\nkey {key}\nserial {serial}\nnot-after {not_after}\n{PROGRAM}\n{body}"
+        )
     }
 
     fn load(
@@ -758,7 +800,7 @@ mod tests {
             assert!(
                 matches!(
                     load(&manifest("k1", 1, LATER, bad), &kp, &trusted("k1", &kp), 0),
-                    Err(ManifestError::Syntax(5))
+                    Err(ManifestError::Syntax(6))
                 ),
                 "{bad:?}"
             );
@@ -790,7 +832,7 @@ mod tests {
                 &t,
                 0
             ),
-            Err(ManifestError::Syntax(5))
+            Err(ManifestError::Syntax(6))
         ));
         assert!(matches!(
             load(
@@ -844,10 +886,30 @@ mod tests {
     }
 
     #[test]
+    fn the_program_digest_is_returned_verified() {
+        let kp = keys();
+        let m = manifest("k1", 1, LATER, "");
+        let v = verify(
+            m.as_bytes(),
+            Signature(&sign(&kp, m.as_bytes())),
+            &trusted("k1", &kp),
+            UnixTime(0),
+            MinSerial(0),
+        )
+        .unwrap();
+        // SHA-256 of "abc" (FIPS 180-4, appendix B.1).
+        assert_eq!(v.program_sha256[..4], [0xba, 0x78, 0x16, 0xbf]);
+        assert_eq!(v.program_sha256[28..], [0xf2, 0x00, 0x15, 0xad]);
+    }
+
+    #[test]
     fn malformed_headers_and_entries_are_refused() {
         let kp = keys();
         let t = trusted("k1", &kp);
-        let h = |rest: &str| format!("corten-manifest 2\nkey k1\n{rest}");
+        let h = |rest: &str| format!("corten-manifest 3\nkey k1\n{rest}");
+        let prog_line = |line: &str| {
+            format!("corten-manifest 3\nkey k1\nserial 1\nnot-after {LATER}\n{line}\n")
+        };
         for (m, want_line) in [
             // Format 1 is refused, even with a format-2 header below it.
             (
@@ -858,7 +920,27 @@ mod tests {
                 format!("corten-manifest 1\nkey k1\nserial 1\nnot-after {LATER}\n"),
                 Some(1),
             ),
-            ("corten-manifest 2\nserial 1\n".to_owned(), Some(1)),
+            // Format 2 (no program line) is refused.
+            (
+                format!("corten-manifest 2\nkey k1\nserial 1\nnot-after {LATER}\n"),
+                Some(1),
+            ),
+            ("corten-manifest 3\nserial 1\n".to_owned(), Some(1)),
+            // The program line: required, sha256, 64 lowercase hex digits.
+            (prog_line("exec tar /usr/bin/tar"), Some(5)),
+            (prog_line(""), Some(5)),
+            (prog_line("program sha512 ba78"), Some(5)),
+            (
+                prog_line(
+                    &PROGRAM
+                        .to_uppercase()
+                        .replace("PROGRAM SHA256", "program sha256"),
+                ),
+                Some(5),
+            ),
+            (prog_line(PROGRAM.strip_suffix('d').unwrap()), Some(5)),
+            (prog_line(&format!("{PROGRAM}0")), Some(5)),
+            (prog_line(&PROGRAM.replace("ba78", "ga78")), Some(5)),
             (h("not-after 9\nserial 1\n"), Some(3)),
             (h("serial 1\n"), Some(4)),
             (h("serial -1\nnot-after 9\n"), Some(3)),
@@ -866,17 +948,17 @@ mod tests {
             (h("serial 1 2\nnot-after 9\n"), Some(3)),
             (h("serial 18446744073709551616\nnot-after 9\n"), Some(3)),
             (h(&format!("serial 1\nnot-after {LATER}x\n")), Some(4)),
-            (manifest("k1", 1, LATER, "exec ../x /bin/x\n"), Some(5)),
-            (manifest("k1", 1, LATER, "exec tar relative/tar\n"), Some(5)),
-            (manifest("k1", 1, LATER, "net x /y\n"), Some(5)),
-            (manifest("k1", 1, LATER, "exec tar /a /b\n"), Some(5)),
+            (manifest("k1", 1, LATER, "exec ../x /bin/x\n"), Some(6)),
+            (manifest("k1", 1, LATER, "exec tar relative/tar\n"), Some(6)),
+            (manifest("k1", 1, LATER, "net x /y\n"), Some(6)),
+            (manifest("k1", 1, LATER, "exec tar /a /b\n"), Some(6)),
             (manifest("k1", 1, LATER, "exec tar /a\nexec tar /b\n"), None),
             (
                 manifest("k1", 1, LATER, "declassify report /etc\n"),
-                Some(5),
+                Some(6),
             ),
-            (manifest("k1", 1, LATER, "dir data\n"), Some(5)),
-            (manifest("k1", 1, LATER, "declassify ../up\n"), Some(5)),
+            (manifest("k1", 1, LATER, "dir data\n"), Some(6)),
+            (manifest("k1", 1, LATER, "declassify ../up\n"), Some(6)),
             (
                 manifest("k1", 1, LATER, "declassify tar\nexec tar /bin/tar\n"),
                 None,

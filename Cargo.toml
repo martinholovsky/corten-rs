@@ -4,8 +4,10 @@ members = [
     "crates/corten-broker",
     "crates/corten-corpus",
     "crates/corten-ledger",
+    "crates/corten-manifest",
     "crates/corten-runtime",
     "crates/corten-sandbox",
+    "crates/corten-sha256",
     "crates/corten-std",
 ]
 resolver = "3"

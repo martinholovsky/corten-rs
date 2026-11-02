@@ -1,4 +1,6 @@
-//! SHA-256 (FIPS 180-4), for provenance digests without a dependency.
+//! SHA-256 (FIPS 180-4) without a dependency: provenance digests in
+//! `cargo-corten`, and the program digest `corten-sandbox` checks against
+//! the signed manifest.
 
 const K: [u32; 64] = [
     0x428a_2f98,
@@ -164,7 +166,13 @@ pub fn digest(data: &[u8]) -> [u8; 32] {
 /// The digest as lowercase hexadecimal.
 #[must_use]
 pub fn hex_digest(data: &[u8]) -> String {
-    digest(data)
+    hex(&digest(data))
+}
+
+/// A digest as 64 lowercase hexadecimal digits.
+#[must_use]
+pub fn hex(digest: &[u8; 32]) -> String {
+    digest
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect::<Vec<_>>()

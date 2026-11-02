@@ -1,0 +1,21 @@
+[package]
+name = "corten-manifest"
+description = "Creates a deployer key and signs capability manifests for corten-sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# A separate tool, so the checker (cargo-corten) gains no signing code and no
+# dependency (design principle 6, smallest trusted base). It runs on the
+# deployer's machine, not inside the sandbox.
+[dependencies]
+cargo-corten = { path = "../cargo-corten" }
+corten-sha256 = { path = "../corten-sha256" }
+corten-std = { path = "../corten-std" }
+ed25519-compact = { version = "2.6.0", default-features = false, features = ["std"] }
+
+[lints]
+workspace = true
