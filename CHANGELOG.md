@@ -6,6 +6,7 @@ Newest first. Nothing is released yet.
 
 ### Changed
 
+- **Security fix (F5, CWE-494):** inside `cargo corten build` and `check`, a dependency's build script could rewrite another dependency's vendored source. Cargo checks vendored checksums before build scripts run, so the build used the rewritten code (measured). Vendored sources now live in a private directory (mode 0700) outside `target/`, read-only in the sandbox and removed afterwards, and `CARGO_HOME` is emptied before each sandboxed pass. `scripts/hermetic-smoke.sh` case 4 shows the rewrite refused, after a plain-cargo control where it succeeds.
 - CI is faster without seeing less (sota-devsecops rules/16).
   - **Measured first:** the corpus step went from 349 s to 1,416 s once `corten-std` gained aws-lc. Every corpus worker compiled it, and the `tests` job took 26 minutes.
   - **Caching:** compiled dependencies and the corpus's per-worker target directories (new `corten-corpus --work-dir`) are cached. Only `main` writes the cache; pull requests restore it read-only; `v*` tag (release) runs build clean.

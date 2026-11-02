@@ -366,13 +366,40 @@ fn local_paths(metadata: &Json, workspace_root: &Path) -> Vec<PathBuf> {
 /// Vendors the dependencies (outside the sandbox: the only step with
 /// network access) and returns where a sandboxed check or build runs.
 /// `locked` is passed to `cargo vendor`.
+/// The vendor root's lifetime: removed when dropped, on every return path.
+struct VendorRoot(PathBuf);
+
+impl Drop for VendorRoot {
+    fn drop(&mut self) {
+        if let Err(e) = fs::remove_dir_all(&self.0) {
+            eprintln!("warning: could not remove {}: {e}", self.0.display());
+        }
+    }
+}
+
+/// A new private directory for the vendored sources, outside the target
+/// directory: mode 0700, created (never reused) under the system
+/// temporary directory, so another user cannot plant or swap it.
+fn new_vendor_root() -> Result<VendorRoot, String> {
+    use std::os::unix::fs::DirBuilderExt;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let dir = env::temp_dir().join(format!("corten-vendor-{}-{nanos}", std::process::id()));
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?;
+    Ok(VendorRoot(dir))
+}
+
 fn prepare_sandbox(
     toolchain: &Toolchain,
     manifest_path: Option<&Path>,
     conf: &Path,
     metadata: &Json,
     locked: bool,
-) -> Result<BuildSandbox, String> {
+) -> Result<(BuildSandbox, VendorRoot), String> {
     let sandbox = find_sandbox()?;
     let workspace_root = PathBuf::from(str_field(metadata, "workspace_root")?);
     let target_dir = PathBuf::from(str_field(metadata, "target_directory")?);
@@ -382,7 +409,8 @@ fn prepare_sandbox(
         .and_then(Path::parent)
         .ok_or("cannot find the toolchain root")?
         .to_path_buf();
-    let vendor_dir = target_dir.join("corten-vendor");
+    let root = new_vendor_root()?;
+    let vendor_dir = root.0.join("vendor");
     let mut vendor = vendor_command(toolchain, manifest_path, conf, &vendor_dir, locked)
         .map_err(|e| e.to_string())?;
     let vendored = vendor
@@ -392,7 +420,7 @@ fn prepare_sandbox(
     if !vendored.status.success() {
         return Err(format!("cargo vendor failed ({})", vendored.status));
     }
-    let vendor_config = target_dir.join("corten-vendor.toml");
+    let vendor_config = root.0.join("config.toml");
     fs::write(&vendor_config, &vendored.stdout)
         .map_err(|e| format!("{}: {e}", vendor_config.display()))?;
     let local_paths = local_paths(metadata, &workspace_root);
@@ -402,17 +430,18 @@ fn prepare_sandbox(
         workspace_root,
         local_paths,
         target_dir,
+        vendor_root: root.0.clone(),
         vendor_config,
     };
     for dir in [plan.cargo_home(), plan.tmp_dir()] {
         fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    Ok(plan)
+    Ok((plan, root))
 }
 
 /// Vendor, then build inside the sandbox, then write the SBOM and provenance.
 fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
-    let plan = prepare_sandbox(
+    let (plan, _vendor_root) = prepare_sandbox(
         req.toolchain,
         req.manifest_path,
         req.conf,
@@ -420,7 +449,9 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
         true,
     )?;
     let (workspace_root, target_dir) = (&plan.workspace_root, &plan.target_dir);
-    // Corten's own lints first: the build pass applies only Clippy's.
+    // Corten's own lints first: the build pass applies only Clippy's. Each
+    // pass starts from an empty CARGO_HOME.
+    plan.fresh_cargo_home()?;
     if !lint_pass(
         req.toolchain,
         req.manifest_path,
@@ -430,6 +461,7 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
     )? {
         return Err("Corten's own lints failed".to_owned());
     }
+    plan.fresh_cargo_home()?;
     let mut build = build_command(req.toolchain, req.manifest_path, req.conf, Some(&plan))
         .map_err(|e| e.to_string())?;
     let build_status = build
@@ -474,9 +506,9 @@ fn run_check(
     // On Linux the check runs inside the sandbox, as the build does: build
     // scripts and procedural macros execute during a check. Elsewhere there
     // is no sandbox, and the check says so.
-    let plan = if cfg!(target_os = "linux") {
+    let (plan, _vendor_root) = if cfg!(target_os = "linux") {
         match prepare_sandbox(toolchain, manifest_path, conf.path(), metadata, false) {
-            Ok(plan) => Some(plan),
+            Ok((plan, root)) => (Some(plan), Some(root)),
             Err(e) => {
                 // Fail closed: no sandbox, no check.
                 eprintln!("cargo corten check: {e}");
@@ -487,7 +519,7 @@ fn run_check(
         eprintln!(
             "warning: no sandbox on this platform: build scripts and procedural macros run with your privileges"
         );
-        None
+        (None, None)
     };
     let mut command = match check_command(toolchain, manifest_path, conf.path(), plan.as_ref()) {
         Ok(command) => command,
@@ -496,6 +528,13 @@ fn run_check(
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    // Each sandboxed pass starts from an empty CARGO_HOME.
+    if let Some(p) = &plan
+        && let Err(e) = p.fresh_cargo_home()
+    {
+        eprintln!("cargo corten check: {e}");
+        return ExitCode::from(EXIT_FAILED);
+    }
     // No deadline: this is an interactive build, and Ctrl-C reaches cargo
     // through the shared process group. `status` waits, so no child outlives us.
     match command.status() {
@@ -508,6 +547,12 @@ fn run_check(
             eprintln!("error: could not run {}: {e}", toolchain.cargo.display());
             return ExitCode::from(EXIT_USAGE);
         }
+    }
+    if let Some(p) = &plan
+        && let Err(e) = p.fresh_cargo_home()
+    {
+        eprintln!("cargo corten check: {e}");
+        return ExitCode::from(EXIT_FAILED);
     }
     match lint_pass(
         toolchain,
