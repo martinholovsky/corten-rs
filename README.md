@@ -63,6 +63,7 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/rust-comparison.md`](docs/rust-comparison.md) | How many CWEs can be written in Rust (787 with `unsafe`, 724 safe), what plain Rust does about each category today, and how Corten mitigates it |
 | [`ledger/cwe-ledger.csv`](ledger/cwe-ledger.csv) | One row per CWE with its MITRE category, Rust applicability, drafted bucket, and the panel's disputes with their reasons; columns for mechanism, TCB assumption and proof test, to be filled in |
 | [`docs/pathseg.md`](docs/pathseg.md) | Normative `PathSeg` grammar and the `DirCap` monitor that the path-family E claims rest on |
+| [`docs/netcap.md`](docs/netcap.md) | Design (not built) of `NetCap`: name resolution and its logging, the public-resolver fallback, the TLS client, and the network attack vectors mapped to CWEs |
 | [`docs/gates/`](docs/gates) | Gate reports per phase, and the generated corpus report |
 | [`corpus/`](corpus) | Compile-fail corpus: per E row, programs exhibiting the weakness and a matched benign program |
 | [`docs/tcb.md`](docs/tcb.md) | What every E claim trusts, the fail-closed rule, and the enumerated implementation-defined behaviour |

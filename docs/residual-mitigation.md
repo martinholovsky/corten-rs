@@ -114,6 +114,8 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 
 **Claim.** E candidate for "TLS without verification" and "a request to an ungranted destination" through the prelude.
 
+**Design (2026-11-02).** [`netcap.md`](netcap.md): resolution and its logging, the public-resolver fallback, connecting and failover, and the attack vectors mapped to their CWEs (spec section 8, questions 16 to 18).
+
 ### 8. DirCap extensions (31)
 
 **Today.** `DirCap` opens beneath a root with `openat2` and `RESOLVE_BENEATH`, so the path family is verified.
