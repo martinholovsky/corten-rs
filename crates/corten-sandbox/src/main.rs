@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net]
-//!                [--manifest FILE --signature FILE --public-key HEX]
+//!                [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE]
 //!                -- PROGRAM [ARGS]...
 //! ```
 //!
@@ -15,10 +15,16 @@
 //!   programs need.
 //! - `--allow-net`: leave TCP bind and connect unrestricted. Without it, both
 //!   are denied.
-//! - `--manifest`, `--signature`, `--public-key`: the layer 5 mode. The
-//!   signed capability manifest is verified (Ed25519, as in
-//!   `corten_std::manifest`); each `dir` grant becomes a read-write rule and
-//!   each `exec` grant an execute rule. A bad signature refuses the run.
+//! - `--manifest`, `--signature`, `--trusted-key`, `--serial-state`: the
+//!   layer 5 mode. The signed capability manifest is verified as in
+//!   `corten_std::manifest`: with the key its `key` line names among the
+//!   `--trusted-key ID=HEX` keys (repeat the flag to rotate keys), refused
+//!   at or after its `not-after`, and refused when its serial is below the
+//!   one stored in the `--serial-state` file, so an older manifest cannot be
+//!   replayed (spec section 8, question 19). A higher serial is written to
+//!   that file, atomically, before the program starts; a missing file counts
+//!   as serial 0. Each `dir` grant becomes a read-write rule and each `exec`
+//!   grant an execute rule. Any refusal stops the run.
 //!
 //! Every other filesystem access and, by default, all TCP bind and connect
 //! are refused by the kernel for the program and everything it starts. The
@@ -38,7 +44,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--manifest FILE --signature FILE --public-key HEX] -- PROGRAM [ARGS]...";
+const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
 
 /// Exit status when the arguments are wrong.
 const EXIT_USAGE: u8 = 2;
@@ -63,7 +69,9 @@ struct Plan {
 struct ManifestArgs {
     manifest: PathBuf,
     signature: PathBuf,
-    public_key: String,
+    /// `(id, hex key)` pairs, in argument order.
+    trusted_keys: Vec<(String, String)>,
+    serial_state: PathBuf,
 }
 
 fn hex_decode(text: &str) -> Option<Vec<u8>> {
@@ -79,6 +87,44 @@ fn hex_decode(text: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
+/// The high-water serial in `path`: 0 when the file does not exist. Any
+/// other content than one decimal number (and an optional newline) is an
+/// error, never 0, so a damaged file cannot reopen replay.
+fn read_serial(path: &std::path::Path) -> Result<u64, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => {
+            let text = text.strip_suffix('\n').unwrap_or(&text);
+            let canonical = !text.is_empty()
+                && text.bytes().all(|b| b.is_ascii_digit())
+                && (text == "0" || !text.starts_with('0'));
+            if !canonical {
+                return Err(format!("{}: not a serial", path.display()));
+            }
+            text.parse()
+                .map_err(|_| format!("{}: not a serial", path.display()))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Writes `serial` to `path` atomically: a temporary file beside it, synced,
+/// then renamed over it.
+fn write_serial(path: &std::path::Path, serial: u64) -> Result<(), String> {
+    use std::io::Write as _;
+    let tmp = path.with_extension("tmp");
+    let err = |e: std::io::Error| format!("{}: {e}", tmp.display());
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&tmp)
+        .map_err(err)?;
+    f.write_all(format!("{serial}\n").as_bytes()).map_err(err)?;
+    f.sync_all().map_err(err)?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Verifies the manifest and adds its grants to the plan.
 fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
     let Some(m) = &plan.manifest else {
@@ -88,14 +134,32 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
         std::fs::read(&m.manifest).map_err(|e| format!("{}: {e}", m.manifest.display()))?;
     let signature =
         std::fs::read(&m.signature).map_err(|e| format!("{}: {e}", m.signature.display()))?;
-    let key = hex_decode(&m.public_key).ok_or("--public-key must be hexadecimal")?;
-    let grants = corten_std::manifest::verify(
+    let mut keys = corten_std::manifest::TrustedKeys::new();
+    for (id, hex) in &m.trusted_keys {
+        let key = hex_decode(hex).ok_or("--trusted-key must be ID=HEX")?;
+        keys.add(
+            corten_std::manifest::KeyId(id),
+            corten_std::manifest::PublicKey(&key),
+        )
+        .map_err(|e| format!("--trusted-key {id}: {e}"))?;
+    }
+    let stored = read_serial(&m.serial_state)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "the system clock is before 1970".to_owned())?
+        .as_secs();
+    let verified = corten_std::manifest::verify(
         &manifest,
         corten_std::manifest::Signature(&signature),
-        corten_std::manifest::PublicKey(&key),
+        &keys,
+        corten_std::manifest::UnixTime(now),
+        corten_std::manifest::MinSerial(stored),
     )
     .map_err(|e| e.to_string())?;
-    for grant in grants {
+    if verified.serial > stored {
+        write_serial(&m.serial_state, verified.serial)?;
+    }
+    for grant in verified.grants {
         match grant {
             corten_std::manifest::Grant::Dir { path, .. } => plan.read_write.push(path),
             corten_std::manifest::Grant::Exec { path, .. } => plan.execute.push(path),
@@ -133,15 +197,21 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
                     .get_or_insert_with(ManifestArgs::default)
                     .signature = args.next().ok_or("--signature needs a file")?.into();
             }
-            Some("--public-key") => {
-                let key = args.next().ok_or("--public-key needs a value")?;
-                let key = key.to_str().ok_or("--public-key must be hexadecimal")?;
-                key.clone_into(
-                    &mut plan
-                        .manifest
-                        .get_or_insert_with(ManifestArgs::default)
-                        .public_key,
-                );
+            Some("--trusted-key") => {
+                let value = args.next().ok_or("--trusted-key needs ID=HEX")?;
+                let value = value.to_str().ok_or("--trusted-key must be ID=HEX")?;
+                let (id, hex) = value
+                    .split_once('=')
+                    .ok_or("--trusted-key must be ID=HEX")?;
+                plan.manifest
+                    .get_or_insert_with(ManifestArgs::default)
+                    .trusted_keys
+                    .push((id.to_owned(), hex.to_owned()));
+            }
+            Some("--serial-state") => {
+                plan.manifest
+                    .get_or_insert_with(ManifestArgs::default)
+                    .serial_state = args.next().ok_or("--serial-state needs a file")?.into();
             }
             Some("--") => {
                 program = Some(PathBuf::from(
@@ -160,9 +230,12 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
     if let Some(m) = &plan.manifest
         && (m.manifest.as_os_str().is_empty()
             || m.signature.as_os_str().is_empty()
-            || m.public_key.is_empty())
+            || m.trusted_keys.is_empty()
+            || m.serial_state.as_os_str().is_empty())
     {
-        return Err("--manifest, --signature and --public-key go together".to_owned());
+        return Err(
+            "--manifest, --signature, --trusted-key and --serial-state go together".to_owned(),
+        );
     }
     Ok(plan)
 }
@@ -377,21 +450,69 @@ mod tests {
     #[test]
     fn manifest_arguments_go_together() {
         assert!(run(&["--manifest", "/m", "--", "/bin/true"]).is_err());
-        let plan = run(&[
+        let full = [
             "--manifest",
             "/m",
             "--signature",
             "/s",
-            "--public-key",
-            "00",
+            "--trusted-key",
+            "a=00",
+            "--trusted-key",
+            "b=11",
+            "--serial-state",
+            "/st",
             "--",
             "/bin/true",
-        ])
-        .unwrap();
-        assert!(plan.manifest.is_some());
+        ];
+        let plan = run(&full).unwrap();
+        let m = plan.manifest.unwrap();
+        assert_eq!(
+            m.trusted_keys,
+            [
+                ("a".to_owned(), "00".to_owned()),
+                ("b".to_owned(), "11".to_owned())
+            ]
+        );
+        assert_eq!(m.serial_state, PathBuf::from("/st"));
+        // Each of the four is required in manifest mode.
+        for skip in ["--signature", "--trusted-key", "--serial-state"] {
+            let mut partial: Vec<&str> = Vec::new();
+            let mut it = full.iter();
+            while let Some(a) = it.next() {
+                if *a == skip {
+                    it.next();
+                    continue;
+                }
+                partial.push(a);
+            }
+            assert!(run(&partial).is_err(), "{skip}");
+        }
+        assert!(run(&["--trusted-key", "noequals", "--", "/bin/true"]).is_err());
         assert_eq!(hex_decode("0aFF"), Some(vec![0x0a, 0xff]));
         assert_eq!(hex_decode("0g"), None);
         assert_eq!(hex_decode("abc"), None);
+    }
+
+    #[test]
+    fn the_serial_state_round_trips_and_refuses_damage() {
+        let dir = std::env::temp_dir().join(format!("corten-serial-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let state = dir.join("serial");
+        assert_eq!(read_serial(&state), Ok(0), "a missing file is serial 0");
+        write_serial(&state, 42).unwrap();
+        assert_eq!(read_serial(&state), Ok(42));
+        assert!(
+            !state.with_extension("tmp").exists(),
+            "the temporary file was renamed"
+        );
+        for bad in ["", "x", "-1", "01", "4 2", "18446744073709551616", "42\n\n"] {
+            std::fs::write(&state, bad).unwrap();
+            assert!(
+                read_serial(&state).is_err(),
+                "{bad:?} must not read as a serial"
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

@@ -17,18 +17,22 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use corten_broker::process::{BrokerError, ProcessPolicy, run};
-use corten_std::manifest::{Capabilities, PublicKey, Signature};
+use corten_std::manifest::{Capabilities, KeyId, MinSerial, PublicKey, Signature, TrustedKeys};
 use corten_std::process::{ExecCap, Operands, Options, OptionsTemplate, ProcessInvocation};
 use ed25519_compact::{KeyPair, Seed};
 
 fn exec_cap(program: &str) -> ExecCap {
     let kp = KeyPair::from_seed(Seed::new([9u8; 32]));
-    let manifest = format!("corten-manifest 1\nexec prog {program}\n");
+    let manifest =
+        format!("corten-manifest 2\nkey k\nserial 1\nnot-after 4102444800\nexec prog {program}\n");
     let sig = kp.sk.sign(manifest.as_bytes(), None);
+    let mut keys = TrustedKeys::new();
+    keys.add(KeyId("k"), PublicKey(kp.pk.as_ref())).unwrap();
     let mut caps = Capabilities::load(
         manifest.as_bytes(),
         Signature(sig.as_ref()),
-        PublicKey(kp.pk.as_ref()),
+        &keys,
+        MinSerial(0),
     )
     .unwrap();
     caps.take_exec("prog").unwrap()
@@ -327,7 +331,8 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
-/// Layer 5: the signed manifest decides what the program may touch.
+/// Layer 5: the signed manifest decides what the program may touch, and an
+/// older, expired or untrusted manifest is refused before anything runs.
 #[test]
 fn manifest_mode_grants_exactly_the_manifest() {
     let s = Scratch::new("manifest");
@@ -337,23 +342,30 @@ fn manifest_mode_grants_exactly_the_manifest() {
     let outside = s.0.join("outside.txt");
     fs::write(&outside, "not granted").unwrap();
     let kp = KeyPair::from_seed(Seed::new([11u8; 32]));
-    let manifest = format!(
-        "corten-manifest 1\ndir data {}\nexec cat /bin/cat\n",
-        data.display()
-    );
-    let m_path = s.0.join("manifest");
-    let s_path = s.0.join("manifest.sig");
-    fs::write(&m_path, &manifest).unwrap();
-    fs::write(&s_path, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+    let state = s.0.join("serial");
     let sandbox = env!("CARGO_BIN_EXE_corten-sandbox");
-    let run_cat = |file: &Path, sig: &Path| {
+    // Writes a manifest and its signature; returns their paths.
+    let write = |tag: &str, key: &str, serial: u64, not_after: u64, signer: &KeyPair| {
+        let manifest = format!(
+            "corten-manifest 2\nkey {key}\nserial {serial}\nnot-after {not_after}\ndir data {}\nexec cat /bin/cat\n",
+            data.display()
+        );
+        let m = s.0.join(format!("{tag}.manifest"));
+        let g = s.0.join(format!("{tag}.sig"));
+        fs::write(&m, &manifest).unwrap();
+        fs::write(&g, signer.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+        (m, g)
+    };
+    let run_cat = |(m, g): &(PathBuf, PathBuf), file: &Path| {
         Command::new(sandbox)
             .arg("--manifest")
-            .arg(&m_path)
+            .arg(m)
             .arg("--signature")
-            .arg(sig)
-            .arg("--public-key")
-            .arg(hex(kp.pk.as_ref()))
+            .arg(g)
+            .arg("--trusted-key")
+            .arg(format!("deploy={}", hex(kp.pk.as_ref())))
+            .arg("--serial-state")
+            .arg(&state)
             .arg("--system")
             .arg("--")
             .arg("/bin/cat")
@@ -361,9 +373,20 @@ fn manifest_mode_grants_exactly_the_manifest() {
             .output()
             .unwrap()
     };
-    let inside = run_cat(&data.join("in.txt"), &s_path);
+    let refused = |out: &std::process::Output, why: &str| {
+        assert_eq!(out.status.code(), Some(3), "{}", text(&out.stderr));
+        assert!(text(&out.stderr).contains(why), "{}", text(&out.stderr));
+    };
+    let later = 4_102_444_800;
+    let current = write("current", "deploy", 5, later, &kp);
+    let inside = run_cat(&current, &data.join("in.txt"));
     assert_eq!(text(&inside.stdout), "granted", "{}", text(&inside.stderr));
-    let denied = run_cat(&outside, &s_path);
+    assert_eq!(
+        fs::read_to_string(&state).unwrap(),
+        "5\n",
+        "the serial was recorded"
+    );
+    let denied = run_cat(&current, &outside);
     assert_ne!(denied.status.code(), Some(0));
     assert!(
         text(&denied.stderr).contains("Permission denied"),
@@ -371,9 +394,35 @@ fn manifest_mode_grants_exactly_the_manifest() {
         text(&denied.stderr)
     );
     // A signature over different bytes: refused before anything runs.
+    let (m, _) = &current;
     let bad_sig = s.0.join("bad.sig");
-    fs::write(&bad_sig, kp.sk.sign(b"corten-manifest 1\n", None).as_ref()).unwrap();
-    let refused = run_cat(&data.join("in.txt"), &bad_sig);
-    assert_eq!(refused.status.code(), Some(3), "{}", text(&refused.stderr));
-    assert!(text(&refused.stderr).contains("manifest refused"));
+    fs::write(&bad_sig, kp.sk.sign(b"corten-manifest 2\n", None).as_ref()).unwrap();
+    refused(
+        &run_cat(&(m.clone(), bad_sig), &data.join("in.txt")),
+        "manifest refused",
+    );
+    // An older manifest, validly signed: refused as a replay.
+    refused(
+        &run_cat(
+            &write("older", "deploy", 4, later, &kp),
+            &data.join("in.txt"),
+        ),
+        "replayed",
+    );
+    // An expired manifest.
+    refused(
+        &run_cat(&write("expired", "deploy", 6, 1, &kp), &data.join("in.txt")),
+        "expired",
+    );
+    // A manifest naming a key the launcher does not trust.
+    let other = KeyPair::from_seed(Seed::new([12u8; 32]));
+    refused(
+        &run_cat(
+            &write("untrusted", "other", 6, later, &other),
+            &data.join("in.txt"),
+        ),
+        "untrusted key",
+    );
+    // None of the refused manifests moved the high-water mark.
+    assert_eq!(fs::read_to_string(&state).unwrap(), "5\n");
 }

@@ -19,6 +19,9 @@ chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["
 ed25519-compact = { version = "2.6.0", default-features = false, features = ["std"] }
 getrandom = "0.4.3"
 region = "3.0.2"
+# The prelude reads the clock for manifest expiry (spec section 8, question 19);
+# application code still has no clock authority.
+rustix = { version = "1.1.5", default-features = false, features = ["std", "time"] }
 subtle = "2.6.1"
 zeroize = "1.9.1"
 
