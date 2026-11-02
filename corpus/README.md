@@ -1,6 +1,6 @@
 # Compile-fail corpus
 
-One directory per E row in `ledger/cwe-ledger.csv`, named by the row's `proof_test` column (`corpus/CWE-n`). `cargo run -p corten-corpus -- --checker target/debug/cargo-corten` runs every case; CI runs it on every push.
+One directory per E row in `ledger/cwe-ledger.csv`, named by the row's `proof_test` column (`corpus/CWE-n`). `cargo run -p corten-corpus -- --checker target/debug/cargo-corten` runs every case; CI runs it on every push to `main`, every tag and every pull request that changes more than prose (`scripts/ci-scope.sh`). `--work-dir DIR` keeps the per-worker target directories so the next run reuses compiled dependencies; CI caches that directory.
 
 ## A case
 
