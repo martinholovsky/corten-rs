@@ -18,7 +18,7 @@ A strategy that only strengthens C moves no bucket.
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
 | 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | not started | |
 | 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
-| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 (TLS, `NetCap`) not started | Strategy 7: owner decisions on the manifest grant, the address and DNS policy, and timeouts |
+| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 (TLS, `NetCap`) designed in [`../netcap.md`](../netcap.md), not built | Strategy 7: spec section 8, questions 16 to 18 |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
 | — | 1 the independent encoder review (25 rows) | blocked | The owner naming a reviewer (AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
 | — | 16 code-quality metrics; 17 assurance tooling; 18 out of scope | reported, not gated | Spec section 7 |
@@ -189,3 +189,17 @@ The chosen set (`chacha20poly1305`, `argon2`, `getrandom`, `ed25519-compact`, `r
 - Corpus cases for the strategy 10 CWEs. These come before any E claim; the strategy only says "E candidate for prelude users".
 - Key derivation (HKDF) and key agreement (X25519).
 - Strategy 7.
+
+## Findings of 2026-11-02, outside the network design
+
+Found while reviewing the components that exist with the questions asked of `NetCap`: trust anchors, rotation, transport integrity and failure handling. Network attack vectors and their CWEs are in [`../netcap.md`](../netcap.md) section 5.
+
+Each CWE is quoted from the ledger and is C today. The ledger changes only when a mitigation is built and tested (`netcap.md` section 6). Each row is an item with a status, so it is not lost.
+
+| # | Finding | Evidence | CWEs (ledger) | Mitigation plan | Status |
+| --- | --- | --- | --- | --- | --- |
+| F1 | The signed manifest has no expiry, no serial and no key identifier, so an older validly signed manifest that granted more can be replayed, and the signing key cannot be rotated without replacing every verifier | `crates/corten-std/src/manifest.rs` checks one Ed25519 signature against one key; 0 matches for expiry, serial, rollback, replay or key-ID terms (control: 6 for `ed25519`); `spec.md` and `tcb.md` do not mention manifest replay | 294 Authentication Bypass by Capture-replay; 324 Use of a Key Past its Expiration Date | Add `not-after`, a monotonic `serial` checked against a persisted high-water mark, and a key identifier with a key set; refuse on any failure, logged | Open: spec section 8, question 19 |
+| F2 | A confined program can send UDP anywhere: Landlock ABI v4 governs files and TCP only. This is also the path DNS exfiltration would take from a sandboxed resolver | `docs/tcb.md`, "What a confined program can still reach" | 923 Improper Restriction of Communication Channel to Intended Endpoints; 668 Exposure of Resource to Wrong Sphere | A confined program without a network grant runs in an empty network namespace (`rustix::thread::unshare` with `NEWNET`, a safe API). Not measured: an unprivileged namespace may also need a user namespace, which some distributions disable. Measure, then fail closed where it is unavailable | Planned (batch 5, with strategy 7) |
+| F3 | `corten_std::crypto` has no key rotation. A sealed message names a format but not a key; `password::verify` cannot say "rehash: weaker than current"; `verify_signed` takes one key | `crates/corten-std/src/crypto.rs` (Phase 6, batch 5) | 324 Use of a Key Past its Expiration Date; 916 Use of Password Hash With Insufficient Computational Effort; 347 Improper Verification of Cryptographic Signature | Format version 2 with a key identifier and a keyring for opening; `password::verify` returns whether the hash is below the current parameters; `verify_signed` over a key set with identifiers | Planned (batch 5 follow-up) |
+| F4 | The Layer 4 action's provenance is unsigned by design ("sign it with an attestation step"). Not checked yet: whether anything verifies a signed provenance before deployment (Layer 5) | `action.yml` lines 35 and 77 | 347 Improper Verification of Cryptographic Signature; 494 Download of Code Without Integrity Check; 353 Missing Support for Integrity Check | First read what Layer 5 checks. If nothing verifies the signature, add verification to the deployment check, refusing unsigned or unverifiable provenance | To verify |
+| F5 | The hermetic build's only networked step (`cargo vendor`, outside the sandbox) was not re-checked for integrity this session | `crates/cargo-corten/README.md`, "Hermetic build" | 494 Download of Code Without Integrity Check | A tamper test: alter a vendored file and show the sandboxed build refuses it against `Cargo.lock`'s checksums | To verify |
