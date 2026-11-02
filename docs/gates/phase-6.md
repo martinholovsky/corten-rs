@@ -18,7 +18,7 @@ A strategy that only strengthens C moves no bucket.
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
 | 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | not started | |
 | 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
-| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 (TLS, `NetCap`) designed in [`../netcap.md`](../netcap.md), decided (questions 16 to 18, 2026-11-02), being built | |
+| 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7: `NetCap` core **built** (2026-11-02, below), name resolution not yet ([`../netcap.md`](../netcap.md)) | Resolution (questions 16 and 17): the next pull request |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
 | — | 1 the independent encoder review (25 rows) | blocked | The owner naming a reviewer (AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
 | — | 16 code-quality metrics; 17 assurance tooling; 18 out of scope | reported, not gated | Spec section 7 |
@@ -203,3 +203,27 @@ Each CWE is quoted from the ledger and is C today. The ledger changes only when 
 | F3 | `corten_std::crypto` has no key rotation. A sealed message names a format but not a key; `password::verify` cannot say "rehash: weaker than current"; `verify_signed` takes one key | `crates/corten-std/src/crypto.rs` (Phase 6, batch 5) | 324 Use of a Key Past its Expiration Date; 916 Use of Password Hash With Insufficient Computational Effort; 347 Improper Verification of Cryptographic Signature | Format version 2 with a key identifier and a keyring for opening; `password::verify` returns whether the hash is below the current parameters; `verify_signed` over a key set with identifiers | Planned (batch 5 follow-up) |
 | F4 | The Layer 4 action's provenance is unsigned by design ("sign it with an attestation step"). Not checked yet: whether anything verifies a signed provenance before deployment (Layer 5) | `action.yml` lines 35 and 77 | 347 Improper Verification of Cryptographic Signature; 494 Download of Code Without Integrity Check; 353 Missing Support for Integrity Check | First read what Layer 5 checks. If nothing verifies the signature, add verification to the deployment check, refusing unsigned or unverifiable provenance | To verify |
 | F5 | The hermetic build's only networked step (`cargo vendor`, outside the sandbox) was not re-checked for integrity this session | `crates/cargo-corten/README.md`, "Hermetic build" | 494 Download of Code Without Integrity Check | A tamper test: alter a vendored file and show the sandboxed build refuses it against `Cargo.lock`'s checksums | To verify |
+
+## Batch 5, strategy 7: `NetCap` core (2026-11-02)
+
+`corten_std::net` (design in [`../netcap.md`](../netcap.md)).
+- **Grant:** a manifest line `net NAME HOST:PORT [private]`, taken with `Capabilities::take_net`.
+- **Connecting:** `NetCap::connect_tls` checks every address first:
+  - IPv4-mapped addresses are canonicalized;
+  - loopback, private, shared, link-local and metadata, unique-local, multicast, NAT64 and 6to4 addresses are refused unless `private`;
+  - one refused address refuses all.
+- **Timeouts:** the connection uses rustix with a bounded connect timeout and read and write timeouts (defaults 10 s and 30 s, ceiling 300 s).
+- **TLS:** 1.3 only on `aws-lc-rs` with the platform's roots. Revocation is operator CRLs enforced including their expiry, or `Revocation::Unchecked`, which is logged as a warning (question 18).
+- **Logging:** every connection writes `net.connect` (or `net.refused`) to the caller's `LogWriter` before data flows.
+- **Sandbox:** `corten-sandbox` turns a `net` grant into a Landlock TCP connect rule for its port.
+- **Not built:** name resolution. A host grant returns `NoResolver`. No ledger row moves until the strategy is complete (`netcap.md` section 6).
+
+**Evidence.**
+- **macOS:** `corten-std` net and manifest tests, 17 of 17.
+- **Linux** (`rust:1.99.1-slim-bookworm`, `--rm` container):
+  - Clippy clean, which covers the rustix socket code;
+  - `corten-std` 22 of 22, including five handshakes against a local rustls server: TLS 1.3 round trip with the log record; a TLS 1.2-only server refused, with TLS 1.2 compiled into the test build so the configuration is what refuses it; a certificate for another address refused; a CRL listing the leaf refuses it, a CRL listing another serial accepts it with no warning, an expired CRL fails the connection; a closed port fails within the budget;
+  - `corten-sandbox` 4 and 11.
+- **Mutations on Linux:** 8 of 8 caught by failing tests: TLS 1.2 allowed, CRLs ignored, CRL expiry not enforced, address check bypassed, IPv4-mapped not canonicalized, metadata not refused, `Unchecked` not warned, refusal not logged. One mutant was first written so that it did not compile; re-run as a compiling mutant, it is caught.
+- **Profile:** `corten-std` passes its own profile under `cargo corten check`.
+- **Dependencies:** `cargo deny` passes; the lockfile grows from 79 to 134 packages.

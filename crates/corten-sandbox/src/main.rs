@@ -23,8 +23,10 @@
 //!   one stored in the `--serial-state` file, so an older manifest cannot be
 //!   replayed (spec section 8, question 19). A higher serial is written to
 //!   that file, atomically, before the program starts; a missing file counts
-//!   as serial 0. Each `dir` grant becomes a read-write rule and each `exec`
-//!   grant an execute rule. Any refusal stops the run.
+//!   as serial 0. Each `dir` grant becomes a read-write rule, each `exec`
+//!   grant an execute rule, and each `net` grant a TCP connect rule for its
+//!   port (Landlock filters by port; `corten_std::net` checks the address).
+//!   Any refusal stops the run.
 //!
 //! Every other filesystem access and, by default, all TCP bind and connect
 //! are refused by the kernel for the program and everything it starts. The
@@ -60,6 +62,8 @@ struct Plan {
     read_write: Vec<PathBuf>,
     execute: Vec<PathBuf>,
     allow_net: bool,
+    /// TCP ports the manifest's `net` grants may connect to.
+    connect_ports: Vec<u16>,
     manifest: Option<ManifestArgs>,
     program: PathBuf,
     args: Vec<OsString>,
@@ -165,6 +169,9 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
             corten_std::manifest::Grant::Exec { path, .. } => plan.execute.push(path),
             // Not a filesystem grant: nothing for Landlock.
             corten_std::manifest::Grant::Declassify { .. } => {}
+            // Landlock filters TCP by port, not address: the address check is
+            // corten_std::net's.
+            corten_std::manifest::Grant::Net { port, .. } => plan.connect_ports.push(port),
         }
     }
     Ok(())
@@ -244,8 +251,9 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
 mod enforce {
     use super::Plan;
     use landlock::{
-        ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, LandlockStatus, PathBeneath,
-        PathFd, RestrictionStatus, Ruleset, RulesetAttr, RulesetCreatedAttr, RulesetStatus, Scope,
+        ABI, Access, AccessFs, AccessNet, CompatLevel, Compatible, LandlockStatus, NetPort,
+        PathBeneath, PathFd, RestrictionStatus, Ruleset, RulesetAttr, RulesetCreatedAttr,
+        RulesetStatus, Scope,
     };
     use std::path::Path;
 
@@ -303,8 +311,15 @@ mod enforce {
                     .map_err(|e| e.to_string())?;
             }
         }
-        // No network rules are added: with AccessNet handled, every TCP bind
-        // and connect is denied.
+        // With AccessNet handled, every TCP bind and connect is denied except
+        // connects to the ports the manifest's `net` grants name.
+        if !plan.allow_net {
+            for &port in &plan.connect_ports {
+                created = created
+                    .add_rule(NetPort::new(port, AccessNet::ConnectTcp))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
         let status = created.restrict_self().map_err(|e| e.to_string())?;
         if enforced(&status) {
             Ok(())

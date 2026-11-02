@@ -37,6 +37,7 @@ pub mod label;
 pub mod ldap;
 pub mod log;
 pub mod manifest;
+pub mod net;
 pub mod path;
 pub mod process;
 pub mod random;
