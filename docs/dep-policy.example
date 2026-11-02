@@ -23,6 +23,7 @@ ban reqwest::blocking::ClientBuilder::danger_accept_invalid_hostnames disables h
 ban native_tls::TlsConnectorBuilder::danger_accept_invalid_certs disables certificate verification (CWE-295)
 ban native_tls::TlsConnectorBuilder::danger_accept_invalid_hostnames disables hostname verification (CWE-295)
 ban rustls::ClientConfig::dangerous opens custom certificate verifiers (CWE-295)
+ban hickory_resolver::TlsConfig::insecure_skip_verify disables DNS-over-TLS certificate verification (CWE-295)
 
 # SQL as a runtime string (CWE-89): use corten_std::sql! and SqlExecutor.
 ban sqlx::query takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter

@@ -171,7 +171,17 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
             corten_std::manifest::Grant::Declassify { .. } => {}
             // Landlock filters TCP by port, not address: the address check is
             // corten_std::net's.
-            corten_std::manifest::Grant::Net { port, .. } => plan.connect_ports.push(port),
+            corten_std::manifest::Grant::Net { port, host, .. } => {
+                plan.connect_ports.push(port);
+                // A host grant resolves through the system resolver, which
+                // falls back to TCP port 53 for large answers (UDP is not
+                // restricted by Landlock).
+                if matches!(host, corten_std::net::Host::Name(_)) {
+                    plan.connect_ports.push(53);
+                }
+            }
+            // DNS over TLS to the manifest's public resolver.
+            corten_std::manifest::Grant::DnsFallback { .. } => plan.connect_ports.push(853),
         }
     }
     Ok(())

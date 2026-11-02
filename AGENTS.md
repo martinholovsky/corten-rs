@@ -20,6 +20,31 @@ Corten is a hardened Rust profile that aims to make whole classes of security bu
 10. **Keep the CWE notice intact.** Any copy of CWE names or identifiers keeps MITRE's copyright line and terms (`ledger/NOTICE`).
 11. **The design panel's transcript is not public.** Do not ask for it or try to reconstruct it; the spec and the ledger (including `dispute_reasons`) are the public record.
 
+## Design principles
+
+Distilled from the owner's decisions (spec section 8). Apply them to every new item. When one would decide an open question, propose it as the recommendation and cite it. When an item seems to need breaking one, ask: that is an owner decision.
+
+1. **Eliminate CWEs, but not at a cost that makes Corten hard to use or manage** (question 21). Prefer a mechanism developers never notice: an API with no unsafe parameter, a checker rule, a default. Claim E wherever the existing API already makes a weakness inexpressible. Do not claim it where holding the claim would need extra effort from every developer.
+2. **Fail closed, never silently** (`docs/tcb.md` section 2; questions 16, 18).
+   - A missing primitive, a failed check or an unavailable service is an error, never a weaker fallback.
+   - Where a weaker mode is allowed, it is explicit (`Revocation::Unchecked`) and logged as a warning every time.
+3. **Security-relevant state is always visible** (question 16). Whatever a program trusts (the DNS source and transport, the DNSSEC status, the revocation mode) reaches the caller's log before data flows. A security property must never be invisible.
+4. **Authority and data leave only by grant** (spec 4.3; question 16; the `NetCap` design, `docs/netcap.md`).
+   - Network destinations, private addresses and public resolvers are each granted in the signed manifest.
+   - Anything that widens authority, or sends data to a third party, is opt-in.
+   - A probe that needs no grant sends nothing identifying.
+5. **Secure defaults, bounded overrides** (questions 13 and 18; the `NetCap` timeouts in `docs/netcap.md`; `corten_std::crypto`). TLS 1.3 only, an Argon2id cost floor, timeouts with a hard ceiling. A caller may make a setting stricter, never weaker than the floor.
+6. **The smallest trusted base that does the job** (question 12: `wasmi`, 15 packages, over `wasmtime`, 146; questions 13 and 17; Phase 5).
+   - Every new dependency gets a licence and supply-chain review first (`deny.toml`, advisories, maintenance, code quality).
+   - Prefer the option with less code in the trusted base, unless a measured requirement rules it out.
+   - Record the measurement that decided.
+7. **Wrap dependencies, never re-export them** (question 20; batch 5 measurements). The prelude's public API carries only its own and `std` types. A re-export would make every application admit the crate, and would let it reach that crate's macros.
+8. **An exemption needs a compensating mechanical check** (question 20). When a rule is relaxed for a trusted component (the prelude's dependencies), a test pins the property that makes the relaxation sound, and the test is shown to fail on a violation.
+9. **Claims and controls are measured, not argued** (rules 1 and 2 above; Phases 5 and 6).
+   - Every control is shown to fire (a known-bad, a mutation that its test catches) and to accept the matched good case.
+   - A control that cannot be made to fire is removed, not kept as decoration.
+10. **Keep the operator's work small** (questions 19, 21). Where a necessary step lands on operators (a manifest serial, an expiry), Corten provides the tooling for it rather than a manual procedure.
+
 ## General working rules
 
 - **Validate before you assert.** Check claims about code, versions, tools and external facts against a primary source (read the file, run the command, fetch the official docs) before stating them, and label anything unverified.

@@ -179,6 +179,16 @@ fn pin_env(name: &str, value: &str) -> [String; 4] {
 /// A cargo command with the checker's environment and `--config` pins,
 /// before the subcommand: `cargo --config ... <args>`.
 fn pinned_cargo(toolchain: &Toolchain, conf_dir: &Path) -> Result<Command, ConfDirError> {
+    pinned_cargo_with(toolchain, conf_dir, RUSTC_BOOTSTRAP_OFF)
+}
+
+/// [`pinned_cargo`] with `RUSTC_BOOTSTRAP` forced to `bootstrap`. Forced
+/// either way, so a repository's `[env]` table cannot set it.
+fn pinned_cargo_with(
+    toolchain: &Toolchain,
+    conf_dir: &Path,
+    bootstrap: &str,
+) -> Result<Command, ConfDirError> {
     let conf = conf_dir
         .to_str()
         .filter(|s| !s.contains(['\'', '\n', '\r']))
@@ -188,7 +198,7 @@ fn pinned_cargo(toolchain: &Toolchain, conf_dir: &Path) -> Result<Command, ConfD
         let value = if *name == "CLIPPY_CONF_DIR" {
             conf
         } else {
-            RUSTC_BOOTSTRAP_OFF
+            bootstrap
         };
         cmd.args(pin_env(name, value));
     }
@@ -206,7 +216,7 @@ fn pinned_cargo(toolchain: &Toolchain, conf_dir: &Path) -> Result<Command, ConfD
     // `[build] rustc-wrapper`.
     cmd.env("RUSTC_WRAPPER", &toolchain.clippy_driver);
     cmd.env("CLIPPY_CONF_DIR", conf_dir);
-    cmd.env("RUSTC_BOOTSTRAP", RUSTC_BOOTSTRAP_OFF);
+    cmd.env("RUSTC_BOOTSTRAP", bootstrap);
     // Highest-precedence flag source in cargo: it replaces RUSTFLAGS and every
     // `rustflags` key in configuration rather than adding to them.
     cmd.env(
@@ -342,8 +352,13 @@ fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
 /// nightly, with Corten's own lints registered) as the compiler and only
 /// [`profile::FORBIDDEN_CORTEN_LINTS`] as flags. It writes to
 /// `target_dir`, apart from the first pass's artifacts, which a different
-/// compiler built. `RUSTC_BOOTSTRAP=-1` stays pinned, so the nightly
-/// compiler refuses `#![feature]` in the checked code like a stable one.
+/// compiler built. The checked code is held to stable's feature gates by
+/// the driver, which passes `-Zallow-features=` (an empty allow-list) for
+/// every primary package; `RUSTC_BOOTSTRAP` is forced empty here, not `-1`,
+/// because `-1` also reached dependencies, and `proc-macro2`'s build script
+/// probes the nightly without it, then fails to compile under it (E0554), so
+/// any program using a derive failed this pass (spec section 8, question
+/// 22). The first pass, on the stable toolchain, still pins `-1`.
 /// With `sandbox`, it runs there; `sandbox.local_paths` must also grant the
 /// driver and its sysroot.
 ///
@@ -358,7 +373,7 @@ pub fn lint_command(
     target_dir: &Path,
     sandbox: Option<&BuildSandbox>,
 ) -> Result<Command, ConfDirError> {
-    let mut inner = pinned_cargo(toolchain, conf_dir)?;
+    let mut inner = pinned_cargo_with(toolchain, conf_dir, "")?;
     inner.env("RUSTC", driver);
     // Empty overrides a configured `[build] rustc-wrapper` as well.
     inner.env("RUSTC_WRAPPER", "");
@@ -494,6 +509,40 @@ mod tests {
 
     fn command(manifest: Option<&Path>) -> Command {
         check_command(&toolchain(), manifest, Path::new("/conf"), None).unwrap()
+    }
+
+    /// The lint pass forces `RUSTC_BOOTSTRAP` empty (still forced, so a
+    /// repository cannot set it), not `-1`, which broke every dependency that
+    /// probes the nightly (`proc-macro2`); the first pass keeps `-1`.
+    #[test]
+    fn the_lint_pass_forces_an_empty_rustc_bootstrap() {
+        let lint = lint_command(
+            &toolchain(),
+            None,
+            Path::new("/conf"),
+            Path::new("/drv/corten-driver"),
+            Path::new("/t"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            env_of(&lint, "RUSTC_BOOTSTRAP"),
+            EnvSetting::Set(OsStr::new(""))
+        );
+        let args: Vec<_> = lint.get_args().collect();
+        assert!(
+            args.contains(&OsStr::new("env.RUSTC_BOOTSTRAP.value=''")),
+            "{args:?}"
+        );
+        assert!(
+            args.contains(&OsStr::new("env.RUSTC_BOOTSTRAP.force=true")),
+            "{args:?}"
+        );
+        assert_eq!(
+            env_of(&command(None), "RUSTC_BOOTSTRAP"),
+            EnvSetting::Set(OsStr::new("-1")),
+            "the first pass keeps -1"
+        );
     }
 
     #[test]

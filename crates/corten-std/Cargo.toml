@@ -30,6 +30,14 @@ subtle = "2.6.1"
 zeroize = "1.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# Name resolution for NetCap (question 17): DoT and DoH to the opt-in public
+# resolvers; the system configuration otherwise. DNSSEC validation is not
+# enabled (question 17: measured before it is). Blocking wrapper on a
+# current-thread tokio runtime. Linux only, like
+# NetCap's sockets (and macOS's system-config reader would pull a second
+# core-foundation).
+hickory-resolver = { version = "0.26.3", default-features = false, features = ["system-config", "tokio", "tls-aws-lc-rs", "https-aws-lc-rs"] }
+tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 rustix = { version = "1.1.5", features = ["event", "fs", "net", "process", "rand"] }
 
 [dev-dependencies]

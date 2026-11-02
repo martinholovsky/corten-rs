@@ -23,11 +23,21 @@
 //! Every connection writes its security state to the caller's
 //! [`LogWriter`] before data flows (CWE-778, 223).
 //!
-//! Host names are resolved by the resolver that question 17 chose
-//! (`hickory-resolver`), which is not built yet: a grant naming a host
-//! returns [`NetError::NoResolver`]. A grant naming an IP address works, and
-//! its certificate must be issued for that address. Sockets are Linux-only,
-//! like `DirCap`; elsewhere [`NetError::Unsupported`].
+//! Host names are resolved with `hickory-resolver` (question 17), never
+//! silently (`docs/netcap.md` section 3). Each resolution writes a `net.dns`
+//! record whenever the DNS state changes: the source (`system`, or the
+//! manifest's `dns fallback` provider), the transport (`udp-tcp` plain, or
+//! `dot`), the DNSSEC status (`validating`, `not-validating` or `unknown`,
+//! from resolving the test name `dnssec-failed.org`, which only a
+//! non-validating resolver answers) and the fallback state. Plain or
+//! non-validating DNS adds a `net.warning`. The fallback to Cloudflare or
+//! Google over DNS over TLS is used only when the manifest says
+//! `dns fallback NAME` (question 16); without it the provider is still
+//! probed, with the test name only, so no application host name leaves for
+//! a third party. At most [`MAX_ADDRESSES`] addresses are used. A grant
+//! naming an IP address needs no resolution, and its certificate must be
+//! issued for that address. Sockets and resolution are Linux-only, like
+//! `DirCap`; elsewhere [`NetError::Unsupported`].
 
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -60,8 +70,8 @@ pub enum NetError {
     Io(String),
     /// The TLS handshake, configuration or a CRL failed.
     Tls(String),
-    /// The grant names a host, and name resolution is not built yet.
-    NoResolver,
+    /// Name resolution failed or timed out.
+    Resolve(String),
     /// Sockets are not supported on this platform.
     Unsupported,
 }
@@ -83,9 +93,7 @@ impl fmt::Display for NetError {
             Self::ConnectTimedOut => f.write_str("no address answered within the connect timeout"),
             Self::Io(e) => write!(f, "network error: {e}"),
             Self::Tls(e) => write!(f, "TLS error: {e}"),
-            Self::NoResolver => {
-                f.write_str("this grant names a host; name resolution is not built yet")
-            }
+            Self::Resolve(e) => write!(f, "name resolution failed: {e}"),
             Self::Unsupported => f.write_str("network sockets are not supported on this platform"),
         }
     }
@@ -266,6 +274,102 @@ pub fn check_addresses(addresses: &[IpAddr], private: bool) -> Result<Vec<IpAddr
     Ok(out)
 }
 
+/// The most addresses one resolution may return; the rest are dropped.
+pub const MAX_ADDRESSES: usize = 16;
+
+/// A public DNS resolver the manifest may name with `dns fallback NAME`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DnsFallback {
+    /// Cloudflare 1.1.1.1 over DNS over TLS (`cloudflare-dns.com`, port 853).
+    Cloudflare,
+    /// Google Public DNS over DNS over TLS (`dns.google`, port 853).
+    Google,
+}
+
+impl DnsFallback {
+    /// The manifest spelling.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "cloudflare" => Some(Self::Cloudflare),
+            "google" => Some(Self::Google),
+            _ => None,
+        }
+    }
+
+    /// The manifest spelling, also used in the `net.dns` record.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Cloudflare => "cloudflare",
+            Self::Google => "google",
+        }
+    }
+}
+
+/// A resolver's DNSSEC behaviour, from the test name's outcome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dnssec {
+    /// The test name failed with SERVFAIL: the resolver validates.
+    Validating,
+    /// The test name resolved: the resolver does not validate.
+    NotValidating,
+    /// The probe could not run or ended otherwise.
+    Unknown,
+}
+
+/// The DNS state one resolution ran under, as logged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsStatus {
+    /// `system`, `cloudflare` or `google`.
+    pub source: &'static str,
+    /// `udp-tcp` or `dot`.
+    pub transport: &'static str,
+    /// The DNSSEC status of that source.
+    pub dnssec: Dnssec,
+    /// `none`, `probed-available`, `probed-unavailable` or `switched`.
+    pub fallback: &'static str,
+}
+
+impl DnsStatus {
+    /// Writes `net.dns`, and a `net.warning` when the answers are not
+    /// authenticated by the resolver.
+    fn log(&self, grant: &str, log: &mut dyn LogWriter) {
+        let dnssec = match self.dnssec {
+            Dnssec::Validating => "validating",
+            Dnssec::NotValidating => "not-validating",
+            Dnssec::Unknown => "unknown",
+        };
+        log.write(&crate::log_record!(
+            "net.dns",
+            grant = grant,
+            source = self.source,
+            transport = self.transport,
+            dnssec = dnssec,
+            fallback = self.fallback
+        ));
+        if self.transport == "udp-tcp" || self.dnssec != Dnssec::Validating {
+            log.write(&crate::log_record!(
+                "net.warning",
+                grant = grant,
+                risk = "DNS answers for this grant are unauthenticated; integrity rests on TLS host-name verification alone"
+            ));
+        }
+    }
+}
+
+/// Logs `status` when it differs from the last one logged by this process.
+fn log_if_changed(status: &DnsStatus, grant: &str, log: &mut dyn LogWriter) {
+    static LAST: std::sync::Mutex<Option<DnsStatus>> = std::sync::Mutex::new(None);
+    let mut last = LAST
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if last.as_ref() != Some(status) {
+        status.log(grant, log);
+        *last = Some(status.clone());
+    }
+}
+
 /// One granted destination. See the module documentation.
 #[derive(Debug)]
 pub struct NetCap {
@@ -273,6 +377,7 @@ pub struct NetCap {
     host: Host,
     port: u16,
     private: bool,
+    fallback: Option<DnsFallback>,
 }
 
 impl NetCap {
@@ -282,7 +387,14 @@ impl NetCap {
             host,
             port,
             private,
+            fallback: None,
         }
+    }
+
+    /// The manifest's `dns fallback` provider, if any.
+    pub(crate) fn with_fallback(mut self, fallback: Option<DnsFallback>) -> Self {
+        self.fallback = fallback;
+        self
     }
 
     /// The manifest name.
@@ -314,9 +426,13 @@ impl NetCap {
         log: &mut dyn LogWriter,
         roots: fn() -> Result<rustls::RootCertStore, NetError>,
     ) -> Result<tls::TlsStream, NetError> {
-        let addresses = match &self.host {
-            Host::Ip(a) => vec![*a],
-            Host::Name(_) => return Err(NetError::NoResolver),
+        let (addresses, dns_source) = match &self.host {
+            Host::Ip(a) => (vec![*a], "none (address grant)"),
+            Host::Name(host) => {
+                let (addresses, status) = resolve::resolve(host, self.fallback, timeouts.connect)?;
+                log_if_changed(&status, &self.name, log);
+                (addresses, status.source)
+            }
         };
         let checked = match check_addresses(&addresses, self.private) {
             Ok(c) => c,
@@ -337,7 +453,7 @@ impl NetCap {
             "net.connect",
             grant = self.name,
             port = self.port,
-            dns_source = "none (address grant)",
+            dns_source = dns_source,
             tls = "1.3",
             revocation = revocation_mode
         ));
@@ -354,6 +470,162 @@ impl NetCap {
             .collect();
         let socket = sock::connect(&addrs, timeouts)?;
         tls::handshake(socket, &self.host, revocation, roots()?)
+    }
+}
+
+/// Whether to resolve through the public resolver: only when the manifest
+/// opted in (question 16) and the probe found it answering.
+#[cfg(any(target_os = "linux", test))]
+fn should_switch(opted_in: bool, available: bool) -> bool {
+    opted_in && available
+}
+
+/// Classifies the DNSSEC probe's outcome.
+#[cfg(any(target_os = "linux", test))]
+fn classify_probe(resolved: bool, servfail: bool) -> Dnssec {
+    match (resolved, servfail) {
+        (true, _) => Dnssec::NotValidating,
+        (false, true) => Dnssec::Validating,
+        (false, false) => Dnssec::Unknown,
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod resolve {
+    use std::net::IpAddr;
+    use std::time::Duration;
+
+    use hickory_resolver::config::{CLOUDFLARE, GOOGLE, ResolverConfig, ResolverOpts};
+    use hickory_resolver::net::runtime::TokioRuntimeProvider;
+    use hickory_resolver::net::{DnsError, NetError as DnsNetError};
+    use hickory_resolver::proto::op::ResponseCode;
+    use hickory_resolver::{Resolver, TokioResolver};
+
+    use super::{DnsFallback, DnsStatus, MAX_ADDRESSES, NetError, classify_probe, should_switch};
+
+    /// A name whose signatures are deliberately broken: a validating
+    /// resolver answers SERVFAIL, a non-validating one an address.
+    const PROBE_NAME: &str = "dnssec-failed.org.";
+
+    fn err(e: impl std::fmt::Display) -> NetError {
+        NetError::Resolve(e.to_string())
+    }
+
+    fn options(limit: Duration) -> ResolverOpts {
+        let mut o = ResolverOpts::default();
+        o.timeout = limit.min(Duration::from_secs(5));
+        o.attempts = 2;
+        o
+    }
+
+    async fn lookup(
+        r: &TokioResolver,
+        host: &str,
+        limit: Duration,
+    ) -> Result<Vec<IpAddr>, Option<DnsNetError>> {
+        match tokio::time::timeout(limit, r.lookup_ip(host)).await {
+            Ok(Ok(found)) => Ok(found.iter().take(MAX_ADDRESSES).collect()),
+            Ok(Err(e)) => Err(Some(e)),
+            Err(_elapsed) => Err(None),
+        }
+    }
+
+    async fn probe(r: &TokioResolver, limit: Duration) -> super::Dnssec {
+        match lookup(r, PROBE_NAME, limit).await {
+            Ok(_) => classify_probe(true, false),
+            Err(Some(DnsNetError::Dns(DnsError::ResponseCode(ResponseCode::ServFail)))) => {
+                classify_probe(false, true)
+            }
+            Err(_) => classify_probe(false, false),
+        }
+    }
+
+    fn public(fallback: DnsFallback, limit: Duration) -> Result<TokioResolver, NetError> {
+        let group = match fallback {
+            DnsFallback::Cloudflare => &CLOUDFLARE,
+            DnsFallback::Google => &GOOGLE,
+        };
+        // hickory's own DoT configuration starts from an empty root store
+        // unless webpki-roots or rustls-platform-verifier is enabled, and both
+        // are refused by the licence policy; use NetCap's: the platform's
+        // roots, TLS 1.3 only.
+        let tls = super::tls::config(super::tls::roots()?, &super::Revocation::Unchecked)?;
+        Resolver::builder_with_config(ResolverConfig::tls(group), TokioRuntimeProvider::default())
+            .with_options(options(limit))
+            .with_tls_config(tls)
+            .build()
+            .map_err(err)
+    }
+
+    /// Resolves `host`, returning its addresses (at most `MAX_ADDRESSES`)
+    /// and the DNS state they came from. See the module documentation.
+    pub fn resolve(
+        host: &str,
+        fallback: Option<DnsFallback>,
+        limit: Duration,
+    ) -> Result<(Vec<IpAddr>, DnsStatus), NetError> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(err)?;
+        rt.block_on(async {
+            let system = TokioResolver::builder_tokio()
+                .map_err(err)?
+                .with_options(options(limit))
+                .build()
+                .map_err(err)?;
+            let system_dnssec = probe(&system, limit).await;
+            let provider = fallback.unwrap_or(DnsFallback::Cloudflare);
+            let public = public(provider, limit)?;
+            let public_dnssec = probe(&public, limit).await;
+            let public_available = public_dnssec != super::Dnssec::Unknown;
+            if should_switch(fallback.is_some(), public_available) {
+                let addresses = lookup(&public, host, limit).await;
+                if let Ok(a) = addresses {
+                    return Ok((
+                        a,
+                        DnsStatus {
+                            source: provider.name(),
+                            transport: "dot",
+                            dnssec: public_dnssec,
+                            fallback: "switched",
+                        },
+                    ));
+                }
+            }
+            let status = DnsStatus {
+                source: "system",
+                transport: "udp-tcp",
+                dnssec: system_dnssec,
+                fallback: if public_available {
+                    "probed-available"
+                } else {
+                    "probed-unavailable"
+                },
+            };
+            match lookup(&system, host, limit).await {
+                Ok(a) if !a.is_empty() => Ok((a, status)),
+                Ok(_) => Err(NetError::Resolve(format!("{host}: no addresses"))),
+                Err(Some(e)) => Err(err(e)),
+                Err(None) => Err(NetError::Resolve(format!("{host}: timed out"))),
+            }
+        })
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+mod resolve {
+    use std::net::IpAddr;
+    use std::time::Duration;
+
+    use super::{DnsFallback, DnsStatus, NetError};
+
+    pub fn resolve(
+        _: &str,
+        _: Option<DnsFallback>,
+        _: Duration,
+    ) -> Result<(Vec<IpAddr>, DnsStatus), NetError> {
+        Err(NetError::Unsupported)
     }
 }
 
@@ -751,10 +1023,80 @@ mod tests {
             443,
             false,
         );
-        assert!(matches!(
-            named.connect_tls(&Timeouts::default(), &Revocation::Unchecked, &mut log),
-            Err(NetError::NoResolver)
-        ));
+        // Off Linux resolution is unsupported; on Linux it would resolve
+        // (live DNS is measured outside the unit tests, docs/gates/phase-6.md).
+        if !cfg!(target_os = "linux") {
+            assert!(matches!(
+                named.connect_tls(&Timeouts::default(), &Revocation::Unchecked, &mut log),
+                Err(NetError::Unsupported)
+            ));
+        }
+    }
+
+    #[test]
+    fn the_public_resolver_is_used_only_by_opt_in() {
+        assert!(should_switch(true, true));
+        assert!(
+            !should_switch(false, true),
+            "available but not opted in: never"
+        );
+        assert!(
+            !should_switch(true, false),
+            "opted in but unavailable: stay on the system"
+        );
+        assert!(!should_switch(false, false));
+    }
+
+    #[test]
+    fn the_dnssec_probe_is_classified() {
+        assert_eq!(classify_probe(true, false), Dnssec::NotValidating);
+        assert_eq!(classify_probe(false, true), Dnssec::Validating);
+        assert_eq!(classify_probe(false, false), Dnssec::Unknown);
+        assert_eq!(
+            DnsFallback::parse("cloudflare"),
+            Some(DnsFallback::Cloudflare)
+        );
+        assert_eq!(DnsFallback::parse("google"), Some(DnsFallback::Google));
+        assert_eq!(DnsFallback::parse("quad9"), None);
+    }
+
+    #[test]
+    fn dns_state_is_logged_with_warnings_and_only_on_change() {
+        let plain = DnsStatus {
+            source: "system",
+            transport: "udp-tcp",
+            dnssec: Dnssec::NotValidating,
+            fallback: "probed-available",
+        };
+        let mut log = Collect::default();
+        plain.log("api", &mut log);
+        assert_eq!(log.0.len(), 2);
+        assert_eq!(
+            log.0[0],
+            "net.dns grant=\"api\" source=\"system\" transport=\"udp-tcp\" dnssec=\"not-validating\" fallback=\"probed-available\""
+        );
+        assert!(
+            log.0[1].starts_with("net.warning grant=\"api\" risk=\"DNS answers"),
+            "{}",
+            log.0[1]
+        );
+        let mut log = Collect::default();
+        DnsStatus {
+            source: "cloudflare",
+            transport: "dot",
+            dnssec: Dnssec::Validating,
+            fallback: "switched",
+        }
+        .log("api", &mut log);
+        assert_eq!(log.0.len(), 1, "encrypted and validating: no warning");
+        let mut log = Collect::default();
+        log_if_changed(&plain, "api", &mut log);
+        log_if_changed(&plain, "api", &mut log);
+        assert_eq!(
+            log.0.len(),
+            2,
+            "the same state is logged once (record + warning)"
+        );
     }
 
     #[test]
@@ -999,6 +1341,28 @@ mod tests {
                 matches!(expired, Err(NetError::Tls(_))),
                 "an expired CRL fails the connection: {expired:?}"
             );
+        }
+
+        /// Live DNS, run by hand (`--ignored`): the outcome depends on the
+        /// network, so CI does not run it. Prints the log records.
+        #[test]
+        #[ignore = "needs outbound DNS; run by hand and record the result"]
+        fn live_resolution_and_its_log() {
+            for fallback in [None, Some(DnsFallback::Cloudflare)] {
+                match resolve::resolve("example.com", fallback, DEFAULT_CONNECT) {
+                    Ok((addresses, status)) => {
+                        let mut log = Log::default();
+                        status.log("live", &mut log);
+                        println!("fallback={fallback:?} addresses={addresses:?}");
+                        for line in &log.0 {
+                            println!("  {line}");
+                        }
+                        assert_ne!(addresses.len(), 0);
+                        assert!(addresses.len() <= MAX_ADDRESSES);
+                    }
+                    Err(e) => println!("fallback={fallback:?} error={e}"),
+                }
+            }
         }
 
         #[test]
