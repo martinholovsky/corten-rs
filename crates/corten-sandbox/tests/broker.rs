@@ -337,6 +337,10 @@ fn hex(bytes: &[u8]) -> String {
 /// Layer 5: the signed manifest decides what the program may touch, and an
 /// older, expired or untrusted manifest is refused before anything runs.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one launcher scenario: each refusal is checked against the same state file, in order"
+)]
 fn manifest_mode_grants_exactly_the_manifest() {
     let s = Scratch::new("manifest");
     let data = s.0.join("data");
