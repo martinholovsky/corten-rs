@@ -6,6 +6,14 @@ Newest first. Nothing is released yet.
 
 ### Changed
 
+- CI is faster without seeing less (sota-devsecops rules/16).
+  - **Measured first:** the corpus step went from 349 s to 1,416 s once `corten-std` gained aws-lc. Every corpus worker compiled it, and the `tests` job took 26 minutes.
+  - **Caching:** compiled dependencies and the corpus's per-worker target directories (new `corten-corpus --work-dir`) are cached. Only `main` writes the cache; pull requests restore it read-only; `v*` tag (release) runs build clean.
+  - **Scoping:** a pull request whose every changed file is prose skips the heavy test steps (`scripts/ci-scope.sh`, with a 13-case self-test that runs in CI). It prints why and the files it read.
+  - **Unscoped runs:** pushes to `main`, the schedule, tags and manual runs always run everything.
+  - **Cancellation:** only a pull request's superseded run is cancelled (a push to `main` could cancel an earlier one before).
+  - **Timeouts:** every job has one.
+  - **Pins:** `actions/cache` is not used directly; `Swatinem/rust-cache` is pinned at v2.9.3 (`d1527c8`).
 - The signed manifest is format 2 (spec section 8, question 19; CWE-294, 324). `key ID`, `serial N` and `not-after T` are required. The verifier takes a `TrustedKeys` set, so keys can be rotated. A manifest is refused at or after its expiry, and below the highest serial accepted before. Format 1 is refused. `corten-sandbox` replaces `--public-key` with `--trusted-key ID=HEX` (repeatable) and a required `--serial-state FILE`, which it updates atomically before the program starts. `Capabilities::load` takes `&TrustedKeys` and a `MinSerial`, and reads the clock in the prelude.
 - The `main` ruleset also requires the `lint driver (nightly)` check (owner decision, 2026-11-01): `cargo corten check` requires the driver, so a pull request cannot merge while the driver's own fmt, Clippy or UI tests fail. Merged head branches are now deleted automatically (repository setting).
 - `corten-std`: `SetCookie`'s doc comment, which was split across `CookieName` and `CookieValue`, is whole again.

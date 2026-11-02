@@ -35,9 +35,14 @@ use corten_ledger::{ERow, Ledger, parse_csv};
 const USAGE: &str = "\
 Usage: corten-corpus --checker <cargo-corten> [--root <repo>] [--phase <n>]
                      [--report <file.md>] [--mark-verified] [--jobs <n>]
+                     [--work-dir <dir>]
 
 Runs every corpus case named by an E row of ledger/cwe-ledger.csv.
   --mark-verified  set status=verified for passing rows and unverified for failing ones
+  --work-dir       keep case directories and the per-worker target directories in
+                   <dir> and leave them there, so a later run (or a CI cache) reuses
+                   the compiled dependencies; by default a temporary directory is
+                   used and removed
 ";
 
 struct Options {
@@ -47,6 +52,7 @@ struct Options {
     report: Option<PathBuf>,
     mark_verified: bool,
     jobs: usize,
+    work_dir: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Options, String> {
@@ -57,6 +63,7 @@ fn parse_args() -> Result<Options, String> {
     let mut report = None;
     let mut mark_verified = false;
     let mut jobs = thread::available_parallelism().map_or(2, std::num::NonZero::get);
+    let mut work_dir = None;
     while let Some(arg) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match arg.as_str() {
@@ -70,6 +77,7 @@ fn parse_args() -> Result<Options, String> {
                     .map_err(|e| format!("--jobs: {e}"))?;
             }
             "--mark-verified" => mark_verified = true,
+            "--work-dir" => work_dir = Some(PathBuf::from(value("--work-dir")?)),
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unexpected argument {other:?}")),
         }
@@ -86,6 +94,7 @@ fn parse_args() -> Result<Options, String> {
         report,
         mark_verified,
         jobs: jobs.max(1),
+        work_dir,
     })
 }
 
@@ -575,7 +584,14 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
         .partition(|r| opts.root.join(r.proof_test).join("good.rs").is_file());
 
     let cargo = env::var_os("CARGO").map_or_else(|| PathBuf::from("cargo"), PathBuf::from);
-    let work = env::temp_dir().join(format!("corten-corpus-{}", std::process::id()));
+    // A persistent work directory keeps the per-worker target directories
+    // (compiled dependencies) for the next run; cargo's fingerprints decide
+    // what is still fresh, so no verdict is reused.
+    let keep = opts.work_dir.is_some();
+    let work = opts
+        .work_dir
+        .clone()
+        .unwrap_or_else(|| env::temp_dir().join(format!("corten-corpus-{}", std::process::id())));
     fs::create_dir_all(&work)?;
     let runner = Runner {
         opts,
@@ -617,7 +633,7 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
         }
     });
     let results = results.into_inner().map_err(|_| "a worker panicked")?;
-    if let Err(e) = fs::remove_dir_all(&work) {
+    if !keep && let Err(e) = fs::remove_dir_all(&work) {
         eprintln!("warning: could not remove {}: {e}", work.display());
     }
 
