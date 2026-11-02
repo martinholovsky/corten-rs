@@ -42,7 +42,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::label::DeclassifyCap;
-use crate::net::{Host, NetCap};
+use crate::net::{DnsFallback, Host, NetCap};
 
 use crate::fs::{DirCap, FsError};
 use crate::path::PathSeg;
@@ -130,6 +130,7 @@ pub struct Capabilities {
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
     nets: BTreeMap<String, NetCap>,
+    dns_fallback: Option<DnsFallback>,
     serial: u64,
 }
 
@@ -170,6 +171,12 @@ pub enum Grant {
         /// Whether non-public addresses are allowed.
         private: bool,
     },
+    /// `dns fallback NAME`: resolve host grants through this public resolver
+    /// over DNS over TLS when it answers (question 16).
+    DnsFallback {
+        /// The provider.
+        provider: DnsFallback,
+    },
 }
 
 impl Grant {
@@ -179,6 +186,8 @@ impl Grant {
             | Self::Exec { name, .. }
             | Self::Declassify { name }
             | Self::Net { name, .. } => name,
+            // At most one: a second is a duplicate.
+            Self::DnsFallback { .. } => "dns fallback",
         }
     }
 }
@@ -377,6 +386,11 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
         if line.is_empty() {
             continue;
         }
+        if let Some(name) = line.strip_prefix("dns fallback ") {
+            let provider = DnsFallback::parse(name).ok_or(ManifestError::Syntax(number))?;
+            entries.push(Grant::DnsFallback { provider });
+            continue;
+        }
         if let Some(rest) = line.strip_prefix("net ") {
             entries.push(parse_net(rest).ok_or(ManifestError::Syntax(number))?);
             continue;
@@ -502,6 +516,7 @@ impl Capabilities {
                         return Err(ManifestError::Duplicate(name));
                     }
                 }
+                Grant::DnsFallback { provider } => caps.dns_fallback = Some(provider),
                 Grant::Net {
                     name,
                     host,
@@ -538,7 +553,8 @@ impl Capabilities {
 
     /// Takes the network capability named `name`, once.
     pub fn take_net(&mut self, name: &str) -> Option<NetCap> {
-        self.nets.remove(name)
+        let fallback = self.dns_fallback;
+        self.nets.remove(name).map(|n| n.with_fallback(fallback))
     }
 
     /// The serial of the manifest these capabilities came from.
@@ -747,6 +763,49 @@ mod tests {
                 "{bad:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_dns_fallback_line_parses_once() {
+        let kp = keys();
+        let t = trusted("k1", &kp);
+        assert!(
+            load(
+                &manifest(
+                    "k1",
+                    1,
+                    LATER,
+                    "dns fallback cloudflare\nnet api api.example.com:443\n"
+                ),
+                &kp,
+                &t,
+                0
+            )
+            .is_ok()
+        );
+        assert!(matches!(
+            load(
+                &manifest("k1", 1, LATER, "dns fallback quad9\n"),
+                &kp,
+                &t,
+                0
+            ),
+            Err(ManifestError::Syntax(5))
+        ));
+        assert!(matches!(
+            load(
+                &manifest(
+                    "k1",
+                    1,
+                    LATER,
+                    "dns fallback google\ndns fallback cloudflare\n"
+                ),
+                &kp,
+                &t,
+                0
+            ),
+            Err(ManifestError::Duplicate(_))
+        ));
     }
 
     #[test]

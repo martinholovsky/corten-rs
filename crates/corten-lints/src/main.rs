@@ -31,5 +31,12 @@ fn main() {
     {
         args.remove(1);
     }
+    // The checked code (cargo's primary packages) is held to stable's feature
+    // gates: an empty allow-list refuses every `#![feature]` (E0725), whatever
+    // RUSTC_BOOTSTRAP says. Dependencies are not, as on stable they could not
+    // use one either; the first pass, on stable, still checks every crate.
+    if std::env::var_os("CARGO_PRIMARY_PACKAGE").is_some() {
+        args.push("-Zallow-features=".to_owned());
+    }
     rustc_driver::compiler_entrypoint(&args, &mut Callbacks);
 }
