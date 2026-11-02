@@ -1,12 +1,12 @@
-Corpus run (all phases): 169 cases for 169 E rows; 0 E rows have no case yet.
+Corpus run (all phases): 177 cases for 177 E rows; 0 E rows have no case yet.
 
-- Detection: 169 of 169 cases had every bad program rejected for the expected reason
-- False rejection: 0 of 169 matched good programs failed to build (limit: 5%)
+- Detection: 177 of 177 cases had every bad program rejected for the expected reason
+- False rejection: 0 of 177 matched good programs failed to build (limit: 5%)
 - Controls failed (plain cargo did not build a checker case's bad program): 0
 - Broken cases: 0
-- Passed: 169 of 169; of those, 12 rest only on syntax Rust does not have (weakest evidence)
+- Passed: 177 of 177; of those, 12 rest only on syntax Rust does not have (weakest evidence)
 
-- Passed but left unverified until the encoder is independently reviewed: 26
+- Passed but left unverified until the prelude code behind them (encoders, cryptography) is independently reviewed: 31
 
 | CWE | Proof kind | Result | Detail |
 | --- | --- | --- | --- |
@@ -22,16 +22,17 @@ Corpus run (all phases): 169 cases for 169 E rows; 0 E rows have no case yet.
 | CWE-1098 | checker | pass |  |
 | CWE-111 | checker | pass |  |
 | CWE-1123 | checker | pass |  |
-| CWE-113 | language | pass (awaiting encoder review) |  |
-| CWE-117 | language | pass (awaiting encoder review) |  |
+| CWE-113 | language | pass (awaiting independent review) |  |
+| CWE-117 | language | pass (awaiting independent review) |  |
 | CWE-1235 | language | pass |  |
-| CWE-1236 | language | pass (awaiting encoder review) |  |
+| CWE-1236 | language | pass (awaiting independent review) |  |
 | CWE-1321 | language | pass |  |
 | CWE-1322 | checker | pass |  |
-| CWE-1336 | language | pass (awaiting encoder review) |  |
+| CWE-1336 | language | pass (awaiting independent review) |  |
 | CWE-134 | language | pass |  |
 | CWE-1341 | checker | pass |  |
 | CWE-1386 | checker | pass |  |
+| CWE-1428 | checker | pass |  |
 | CWE-170 | checker | pass |  |
 | CWE-188 | checker | pass |  |
 | CWE-22 | checker | pass |  |
@@ -46,9 +47,12 @@ Corpus run (all phases): 169 cases for 169 E rows; 0 E rows have no case yet.
 | CWE-29 | checker | pass |  |
 | CWE-30 | checker | pass |  |
 | CWE-31 | checker | pass |  |
+| CWE-319 | checker | pass |  |
 | CWE-32 | checker | pass |  |
+| CWE-323 | language | pass (awaiting independent review) |  |
 | CWE-33 | checker | pass |  |
 | CWE-34 | checker | pass |  |
+| CWE-347 | language | pass (awaiting independent review) |  |
 | CWE-35 | checker | pass |  |
 | CWE-36 | checker | pass |  |
 | CWE-363 | checker | pass |  |
@@ -106,7 +110,7 @@ Corpus run (all phases): 169 cases for 169 E rows; 0 E rows have no case yet.
 | CWE-56 | checker | pass |  |
 | CWE-560 | checker | pass |  |
 | CWE-562 | language | pass |  |
-| CWE-564 | language | pass (awaiting encoder review) |  |
+| CWE-564 | language | pass (awaiting independent review) |  |
 | CWE-567 | checker | pass |  |
 | CWE-568 | language | pass |  |
 | CWE-57 | checker | pass |  |
@@ -131,51 +135,55 @@ Corpus run (all phases): 169 cases for 169 E rows; 0 E rows have no case yet.
 | CWE-627 | language | pass (construct absent) |  |
 | CWE-628 | language | pass |  |
 | CWE-64 | checker | pass |  |
-| CWE-643 | language | pass (awaiting encoder review) |  |
-| CWE-644 | language | pass (awaiting encoder review) |  |
-| CWE-652 | language | pass (awaiting encoder review) |  |
+| CWE-643 | language | pass (awaiting independent review) |  |
+| CWE-644 | language | pass (awaiting independent review) |  |
+| CWE-652 | language | pass (awaiting independent review) |  |
 | CWE-66 | checker | pass |  |
 | CWE-67 | checker | pass |  |
 | CWE-685 | language | pass |  |
 | CWE-686 | language | pass |  |
 | CWE-69 | checker | pass |  |
 | CWE-690 | checker | pass |  |
-| CWE-692 | language | pass (awaiting encoder review) |  |
+| CWE-692 | language | pass (awaiting independent review) |  |
 | CWE-704 | checker | pass |  |
 | CWE-705 | language | pass |  |
 | CWE-72 | checker | pass |  |
+| CWE-759 | language | pass (awaiting independent review) |  |
+| CWE-760 | language | pass (awaiting independent review) |  |
 | CWE-761 | checker | pass |  |
 | CWE-762 | checker | pass |  |
 | CWE-763 | checker | pass |  |
 | CWE-765 | checker | pass |  |
-| CWE-77 | checker | pass (awaiting encoder review) |  |
-| CWE-78 | checker | pass (awaiting encoder review) |  |
-| CWE-79 | language | pass (awaiting encoder review) |  |
-| CWE-80 | language | pass (awaiting encoder review) |  |
-| CWE-81 | language | pass (awaiting encoder review) |  |
-| CWE-82 | language | pass (awaiting encoder review) |  |
+| CWE-77 | checker | pass (awaiting independent review) |  |
+| CWE-78 | checker | pass (awaiting independent review) |  |
+| CWE-79 | language | pass (awaiting independent review) |  |
+| CWE-80 | language | pass (awaiting independent review) |  |
+| CWE-81 | language | pass (awaiting independent review) |  |
+| CWE-82 | language | pass (awaiting independent review) |  |
 | CWE-822 | checker | pass |  |
 | CWE-823 | checker | pass |  |
 | CWE-824 | checker | pass |  |
 | CWE-825 | checker | pass |  |
-| CWE-83 | language | pass (awaiting encoder review) |  |
+| CWE-83 | language | pass (awaiting independent review) |  |
 | CWE-832 | checker | pass |  |
-| CWE-838 | language | pass (awaiting encoder review) |  |
-| CWE-84 | language | pass (awaiting encoder review) |  |
+| CWE-838 | language | pass (awaiting independent review) |  |
+| CWE-84 | language | pass (awaiting independent review) |  |
 | CWE-843 | checker | pass |  |
-| CWE-85 | language | pass (awaiting encoder review) |  |
-| CWE-86 | language | pass (awaiting encoder review) |  |
-| CWE-87 | language | pass (awaiting encoder review) |  |
-| CWE-89 | language | pass (awaiting encoder review) |  |
-| CWE-90 | language | pass (awaiting encoder review) |  |
+| CWE-85 | language | pass (awaiting independent review) |  |
+| CWE-86 | language | pass (awaiting independent review) |  |
+| CWE-87 | language | pass (awaiting independent review) |  |
+| CWE-89 | language | pass (awaiting independent review) |  |
+| CWE-90 | language | pass (awaiting independent review) |  |
 | CWE-908 | checker | pass |  |
-| CWE-91 | language | pass (awaiting encoder review) |  |
+| CWE-91 | language | pass (awaiting independent review) |  |
 | CWE-910 | checker | pass |  |
 | CWE-911 | checker | pass |  |
 | CWE-914 | language | pass (construct absent) |  |
+| CWE-916 | language | pass (awaiting independent review) |  |
 | CWE-917 | language | pass |  |
-| CWE-93 | language | pass (awaiting encoder review) |  |
-| CWE-943 | language | pass (awaiting encoder review) |  |
+| CWE-918 | checker | pass |  |
+| CWE-93 | language | pass (awaiting independent review) |  |
+| CWE-943 | language | pass (awaiting independent review) |  |
 | CWE-95 | language | pass |  |
 | CWE-97 | language | pass (construct absent) |  |
 | CWE-98 | language | pass |  |
