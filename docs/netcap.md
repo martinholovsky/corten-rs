@@ -6,7 +6,7 @@ Status: design proposal, 2026-11-02 (Phase 6, batch 5, strategy 7). Nothing here
 - default timeouts under a hard ceiling;
 - TLS 1.3 only.
 
-The questions still open are spec section 8, questions 16 to 19. Every CWE below is quoted from `ledger/cwe-ledger.csv`, with its current bucket, all C today. **The ledger is not changed by this document.** Its `mechanism` column records enforced mechanisms, so each row is updated, and gets a corpus case where an E claim is made, only when its mitigation is built and tested (section 6).
+Questions 16 to 19 (spec section 8) were decided on 2026-11-02, the recommendation on all four: probe and log, fallback only by opt-in; `hickory-resolver` with DoT/DoH; operator-supplied CRLs with their expiry enforced; manifest expiry, serial and key identifiers. Every CWE below is quoted from `ledger/cwe-ledger.csv`, with its current bucket, all C today. **The ledger is not changed by this document.** Its `mechanism` column records enforced mechanisms, so each row is updated, and gets a corpus case where an E claim is made, only when its mitigation is built and tested (section 6).
 
 ## 1. What NetCap is for
 
