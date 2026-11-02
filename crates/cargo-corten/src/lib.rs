@@ -286,10 +286,18 @@ pub struct BuildSandbox {
     /// workspace, and the `Cargo.toml` files cargo reads above them to find
     /// their own workspace.
     pub local_paths: Vec<PathBuf>,
-    /// The target directory (read-write; holds the vendored sources, the
-    /// private cargo home and the temporary directory).
+    /// The target directory (read-write; holds the private cargo home and
+    /// the temporary directory).
     pub target_dir: PathBuf,
-    /// The source-replacement configuration `cargo vendor` printed.
+    /// Outside the target directory and read-only in the sandbox: the
+    /// vendored sources and the source-replacement configuration. In the
+    /// target directory, a dependency's build script could rewrite another
+    /// dependency's vendored source after cargo had checked its checksums,
+    /// and the build used the rewritten code (measured; F5 in
+    /// docs/gates/phase-6.md).
+    pub vendor_root: PathBuf,
+    /// The source-replacement configuration `cargo vendor` printed, in
+    /// [`BuildSandbox::vendor_root`].
     pub vendor_config: PathBuf,
 }
 
@@ -304,6 +312,23 @@ impl BuildSandbox {
     #[must_use]
     pub fn tmp_dir(&self) -> PathBuf {
         self.target_dir.join("corten-tmp")
+    }
+
+    /// Empties the private `CARGO_HOME` before a sandboxed pass, so nothing
+    /// a build script wrote there in one pass (configuration, for example)
+    /// reaches the next.
+    ///
+    /// # Errors
+    ///
+    /// The I/O error, with the path.
+    pub fn fresh_cargo_home(&self) -> Result<(), String> {
+        let home = self.cargo_home();
+        match std::fs::remove_dir_all(&home) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", home.display())),
+        }
+        std::fs::create_dir_all(&home).map_err(|e| format!("{}: {e}", home.display()))
     }
 }
 
@@ -326,6 +351,7 @@ fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
     for path in &s.local_paths {
         outer.arg("--ro").arg(path);
     }
+    outer.arg("--ro").arg(&s.vendor_root);
     outer
         // cargo reads /proc/self and random bytes, and gives children
         // /dev/null; it reads nothing else of the host (strace, 2026-10-27).
