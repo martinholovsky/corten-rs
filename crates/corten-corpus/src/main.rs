@@ -426,8 +426,9 @@ fn main() -> ExitCode {
 struct CaseResult {
     kind: String,
     verdict: Verdict,
-    /// The row needs an independent encoder review before it may be
-    /// verified, so a pass leaves it unverified.
+    /// The row needs an independent review of its prelude code (an encoder,
+    /// or `corten_std::crypto`) before it may be verified, so a pass leaves
+    /// it unverified.
     awaiting_review: bool,
     /// Every bad variant is written in syntax Rust does not have.
     absent_only: bool,
@@ -515,7 +516,7 @@ fn render_report(
     )?;
     writeln!(
         r,
-        "- Passed but left unverified until the encoder is independently reviewed: {}\n",
+        "- Passed but left unverified until the prelude code behind them (encoders, cryptography) is independently reviewed: {}\n",
         s.awaiting_review
     )?;
     writeln!(
@@ -524,7 +525,7 @@ fn render_report(
     )?;
     for (id, c) in results {
         let label = if c.verdict == Verdict::Pass && c.awaiting_review {
-            "pass (awaiting encoder review)"
+            "pass (awaiting independent review)"
         } else if c.verdict == Verdict::Pass && c.absent_only {
             "pass (construct absent)"
         } else {
