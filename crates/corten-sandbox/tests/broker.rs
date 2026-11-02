@@ -183,11 +183,11 @@ fn tcp_connect_is_denied() {
     let out = run(&inv, &policy(), b"").unwrap();
     assert_ne!(out.code, Some(0));
     assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));
-    // No network grant: the program is in an empty network namespace, so
-    // the connect fails there before Landlock is asked (F2). Landlock's own
-    // TCP denial is shown with a grant, below.
+    // Landlock refuses the connect before the network stack is reached,
+    // also inside the empty network namespace a program without a grant
+    // runs in (F2; measured: "connect: Permission denied").
     assert!(
-        text(&out.stderr).contains("Network is unreachable"),
+        text(&out.stderr).contains("Permission denied"),
         "{}",
         text(&out.stderr)
     );
