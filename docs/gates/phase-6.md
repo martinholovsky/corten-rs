@@ -258,7 +258,7 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 
 | Item | Status | Trigger or next step |
 | --- | --- | --- |
-| E claims, question 21: corpus cases and ledger moves for CWE-918, 319 and 1428 (verified by corpus); CWE-323, 916, 759, 760 and 347 to E with `review = required` | Decided, not built | Next pull request after question 20's fix lands |
+| E claims, question 21 | **Done** (2026-11-02, below): CWE-918, 319, 1428 E and verified; CWE-323, 916, 759, 760, 347 E, `review = required` | The crypto rows: the independent review (next row) |
 | Independent review of the encoders (25 rows) and of `corten_std::crypto` (the five question 21 rows) | Blocked | The owner names a reviewer who is not the author (AGENTS.md rule 1) |
 | F5: a dependency's build script can rewrite another dependency's vendored source inside `cargo corten build` (measured: binary built from the rewritten source, exit 0, with or without its checksum entry rewritten); the lint and build passes share `CARGO_HOME` and the vendor config in the writable target directory | Gap measured; fix designed (vendor and config outside the writable area, read-only; a fresh `CARGO_HOME` per pass; the probe as a smoke case) | Next item after the E claims |
 | Manifest signing helper (`cargo corten manifest sign`: bumps the serial, sets a default expiry), design principle 10 | Not started | After F5 |
@@ -273,3 +273,36 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Batch 3: budgets (strategy 4), safe deserialization and `ConfigCap` (strategy 3), DirCap extensions (strategy 8) | Not started | Strategy 8 first (fully specified, no dependency); strategy 3 needs a format and dependency review; strategy 4 changes every parsing entry point and needs a migration plan |
 | Batch 4: authorization proof types (strategy 2) | Not started | Prototype on the corpus; adopt only at 0 false rejections (question 14) |
 | Batch 6: web types, credentials, strict parsers, contracts, runtime, supply chain | Not started | After batch 3 |
+
+## E claims for the network and cryptography APIs (question 21, 2026-11-02)
+
+Eight rows moved from C to E, prelude-only, each with a corpus case and a reason in the ledger.
+
+**Network: CWE-918, 319 and 1428, verified by the corpus.**
+- **Good program:** each case's `good.rs` takes a `NetCap` from the manifest and writes over TLS.
+- **Bad variants:**
+  - a caller-chosen `TcpStream` connection, a cleartext write, a plain HTTP request;
+  - DNS through `ToSocketAddrs` (CWE-918);
+  - a forged `NetCap`, refused because it has no public constructor (CWE-918);
+  - UDP (CWE-319);
+  - `curl` through `std::process`;
+  - an HTTP client crate, and raw `rustix` (CWE-918), refused by the operator's dependency policy.
+
+**Cryptography: CWE-323, 916, 759, 760 and 347, E with `review = required`,** so they stay unverified until an independent review of `corten_std::crypto`, as the encoder rows do.
+- **Bad variants:**
+  - a caller-chosen nonce (`seal` takes none, E0061);
+  - a caller-chosen cost (the API has none: `absent`, the weakest evidence);
+  - a caller-chosen salt (`hash` takes none, E0061);
+  - unchecked data where `Verified<T>` is required (mismatched types), and a hand-made `Verified` (private field);
+  - the raw crates directly: `chacha20poly1305`, `sha2`, `argon2`, `ed25519-dalek`, refused by the dependency policy.
+
+**Evidence.**
+- **Corpus on Linux** (`--mark-verified`, a `--rm` container): 177 of 177 detected, 0 of 177 falsely rejected. The run changed exactly three rows, CWE-918, 319 and 1428, to verified.
+- **A false rejection caught on the way:** a first run falsely rejected CWE-347's own `good.rs`. Its `receive(body, sig: &[u8], key: &[u8])` broke the labelled-parameters lint; it now takes `SignatureBytes` and `VerifyingKey`.
+
+**Totals** (`corten-ledger totals`):
+- **All 944 rows:** E 177 / C 724 / O 26 / N 17; 146 of the 177 E rows verified, 31 awaiting review.
+- **Written in Rust (787):** E 154 / C 607 / O 26.
+- **Remaining:** 638 CWEs (30 claimed E, 582 C, 26 O). MITRE's 2025 Top 25 still remaining: 16 (CWE-918 left).
+
+**Regeneration order matters.** `scripts/applicability-table.py` before `scripts/residual-map.py`, which reads the table. Run first, the map still said 641.

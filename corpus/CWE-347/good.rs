@@ -6,8 +6,12 @@ pub fn apply(update: &Verified<Vec<u8>>) -> usize {
     update.get().len()
 }
 
-pub fn receive(body: Vec<u8>, sig: &[u8], key: &[u8]) -> Result<usize, CryptoError> {
-    let checked = verify_signed(body, SignatureBytes(sig), VerifyingKey(key))?;
+pub fn receive(
+    body: Vec<u8>,
+    sig: SignatureBytes<'_>,
+    key: VerifyingKey<'_>,
+) -> Result<usize, CryptoError> {
+    let checked = verify_signed(body, sig, key)?;
     Ok(apply(&checked))
 }
 

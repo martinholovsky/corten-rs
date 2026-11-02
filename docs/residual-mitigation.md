@@ -4,18 +4,18 @@ Status: **accepted as the plan for Phase 6, 2026-11-01** ([`gates/phase-6.md`](g
 
 ## What remains
 
-Safe Rust can write 724 of the 944 CWEs. Corten's verified eliminations take out 83 of them, which leaves **641**:
+Safe Rust can write 724 of the 944 CWEs. Corten's verified eliminations take out 86 of them, which leaves **638** (2026-11-02; 641 when this proposal was accepted):
 
 | | CWEs |
 | --- | ---: |
-| Claimed eliminations (E, not yet verified) | 25 |
-| Checkable (C): Corten has a mechanism or a policy, but the weakness can still be written | 590 |
+| Claimed eliminations (E, not yet verified) | 30 |
+| Checkable (C): Corten has a mechanism or a policy, but the weakness can still be written | 582 |
 | Out of reach (O) | 26 |
-| **Total** | **641** |
+| **Total** | **638** |
 
-Of these, 522 are Base or Variant weaknesses. The other 119 are Pillars, Classes or Compounds that overlap their children, so counting them as separate exposures overstates the residue.
+Of these, 519 are Base or Variant weaknesses. The other 119 are Pillars, Classes or Compounds that overlap their children, so counting them as separate exposures overstates the residue.
 
-**Exploitability.** 17 of MITRE's 2025 Top 25 remain: CWE-79, 89, 352, 862, 78, 94, 434, 502, 863, 20, 284, 200, 306, 918, 77, 639, 770. So do 6 of the 2025 Top 10 KEV weaknesses (those exploited in the wild): CWE-78, 306, 502, 94, 288, 79. What Corten has removed are the memory-safety and path entries (CWE-787, 22, 416, 125, 120, 476, 121, 122 are verified or need `unsafe`). What remains is injection outside the prelude's grammars, authorization, deserialization, resource limits and request forgery.
+**Exploitability.** 16 of MITRE's 2025 Top 25 remain: CWE-79, 89, 352, 862, 78, 94, 434, 502, 863, 20, 284, 200, 306, 77, 639, 770 (CWE-918 was verified as eliminated for prelude users on 2026-11-02, question 21). So do 6 of the 2025 Top 10 KEV weaknesses (those exploited in the wild): CWE-78, 306, 502, 94, 288, 79. What Corten has removed are the memory-safety and path entries (CWE-787, 22, 416, 125, 120, 476, 121, 122 are verified or need `unsafe`). What remains is injection outside the prelude's grammars, authorization, deserialization, resource limits and request forgery.
 
 **A gap in the ledger.** 610 of the 641 rows name no mechanism: most C rows say "checkable" without saying by what. This proposal gives every residual row a strategy, now recorded in the ledger's `strategy` column and enforced by `corten-ledger check` (decision 3 below).
 
@@ -31,10 +31,10 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 | 4 | Mandatory resource budgets and timeouts | 24 | 770 | | stronger C |
 | 5 | Least privilege from the manifest, release attestation | 20 | 94 | 94 | stronger C |
 | 6 | Secure-by-default HTTP types | 30 | 352 | | stronger C |
-| 7 | Verified-by-default TLS and network capabilities | 24 | 918 | | E candidate for prelude users |
+| 7 | Verified-by-default TLS and network capabilities | 21 | | | E for prelude users: CWE-918, 319, 1428 verified (2026-11-02, question 21) |
 | 8 | DirCap extensions | 31 | 434 | | stronger C |
 | 9 | Labels on errors, logs and debug output | 21 | 200 | | stronger C |
-| 10 | Misuse-resistant cryptography and randomness | 42 | | | E candidate for prelude users |
+| 10 | Misuse-resistant cryptography and randomness | 42 | | | E for prelude users, pending the independent review: CWE-323, 916, 759, 760, 347 (question 21) |
 | 11 | Credentials | 26 | | | stronger C |
 | 12 | More typed sinks and strict parsers | 91 | 20 | | stronger C |
 | 13 | Refinement types, typestate, lock order | 41 | | | stronger C |
@@ -112,7 +112,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 
 **Proposal.** A `NetCap` granted by the manifest: allowed destinations (hosts and ports, with private ranges and the metadata address refused unless granted) and allowed bind addresses (CWE-918, 1327, 941). A TLS client that offers no way to turn certificate or hostname verification off, with a minimum protocol version (CWE-295 to 299, 297, 319, 757, 1428). The library is a dependency decision: candidates are checked for licence and supply chain first, as in Phase 5.
 
-**Claim.** E candidate for "TLS without verification" and "a request to an ungranted destination" through the prelude.
+**Claim.** E candidate for "TLS without verification" and "a request to an ungranted destination" through the prelude. **Outcome (2026-11-02, question 21):** CWE-918, 319 and 1428 are E and verified by the corpus.
 
 **Design (2026-11-02).** [`netcap.md`](netcap.md): resolution and its logging, the public-resolver fallback, connecting and failover, and the attack vectors mapped to their CWEs (spec section 8, questions 16 to 18).
 

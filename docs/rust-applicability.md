@@ -13,7 +13,7 @@ whether it exhibits the weakness is the judgement stated in its comment.
 | --- | ---: |
 | Rust, `unsafe` allowed | 787 |
 | Safe Rust | 724 |
-| Safe Rust + Corten (eliminations verified by the corpus) | 641 |
+| Safe Rust + Corten (eliminations verified by the corpus) | 638 |
 
 367 of 944 rows rest on programs; the rest are logic, design or policy weaknesses no
 compiler prevents, or constructs Rust does not have, each with its reasoning.
@@ -121,7 +121,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-842](https://cwe.mitre.org/data/definitions/842.html) | Placement of User into Incorrect Group | yes | yes | checkable | Pure logic: no compiler of any language can tell whether a user is placed in the correct group; group membership is data. |
 | [CWE-862](https://cwe.mitre.org/data/definitions/862.html) | Missing Authorization | yes | yes | checkable | A handler that removes any account without checking the caller compiles; an unused parameter is at most a lint. (`CWE-862.rs`) |
 | [CWE-863](https://cwe.mitre.org/data/definitions/863.html) | Incorrect Authorization | yes | yes | checkable | Pure logic: no compiler of any language can tell whether an authorization predicate is correct; it is application logic. |
-| [CWE-918](https://cwe.mitre.org/data/definitions/918.html) | Server-Side Request Forgery (SSRF) | yes | yes | checkable | TcpStream::connect on a request-supplied host:port is safe std; no type distinguishes internal from external destinations. (`CWE-918.rs`) |
+| [CWE-918](https://cwe.mitre.org/data/definitions/918.html) | Server-Side Request Forgery (SSRF) | yes | yes | eliminated, verified | TcpStream::connect on a request-supplied host:port is safe std; no type distinguishes internal from external destinations. (`CWE-918.rs`) |
 | [CWE-921](https://cwe.mitre.org/data/definitions/921.html) | Storage of Sensitive Data in a Mechanism without Access Control | yes | yes | checkable | Pure logic: no compiler of any language can tell whether storage (e.g. removable media, FAT) lacks access control; it is a deployment choice. |
 | [CWE-923](https://cwe.mitre.org/data/definitions/923.html) | Improper Restriction of Communication Channel to Intended Endpoints | yes | yes | checkable | Pure logic: no compiler of any language can tell whether the endpoint is authenticated; it is protocol design. |
 | [CWE-925](https://cwe.mitre.org/data/definitions/925.html) | Improper Verification of Intent by Broadcast Receiver | yes | yes | checkable | A broadcast handler that acts without checking the sender is logic; an Android receiver can delegate to Rust via JNI (stubbed), and the missing check is not a language matter. |
@@ -873,27 +873,27 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-316](https://cwe.mitre.org/data/definitions/316.html) | Cleartext Storage of Sensitive Information in Memory | yes | yes | checkable | String's Drop frees without zeroing and reallocation leaves stale copies; safe Rust has no zero-on-drop guarantee (needs zeroize). (`CWE-316.rs`) |
 | [CWE-317](https://cwe.mitre.org/data/definitions/317.html) | Cleartext Storage of Sensitive Information in GUI | yes | yes | checkable | Showing a secret in a GUI field is a UI design choice; GUI toolkit stubbed, no compiler prevents displaying data. |
 | [CWE-318](https://cwe.mitre.org/data/definitions/318.html) | Cleartext Storage of Sensitive Information in Executable | yes | yes | checkable | A const API key string literal is embedded in the binary's .rodata by safe Rust; the compiler does not flag secrets. |
-| [CWE-319](https://cwe.mitre.org/data/definitions/319.html) | Cleartext Transmission of Sensitive Information | yes | yes | checkable | Sending secrets over a plain std::net::TcpStream is safe Rust; transport security is a protocol choice outside the language. |
+| [CWE-319](https://cwe.mitre.org/data/definitions/319.html) | Cleartext Transmission of Sensitive Information | yes | yes | eliminated, verified | Sending secrets over a plain std::net::TcpStream is safe Rust; transport security is a protocol choice outside the language. |
 | [CWE-324](https://cwe.mitre.org/data/definitions/324.html) | Use of a Key Past its Expiration Date | yes | yes | checkable | Not checking a key's expiry is missing application logic; no compiler knows a key's validity period. |
 | [CWE-325](https://cwe.mitre.org/data/definitions/325.html) | Missing Cryptographic Step | yes | yes | checkable | Omitting a cryptographic step (e.g. MAC verify) is protocol logic; safe Rust compiles any sequence of calls. |
 | [CWE-326](https://cwe.mitre.org/data/definitions/326.html) | Inadequate Encryption Strength | yes | yes | checkable | Choosing a short key length is a parameter choice; no compiler of any language judges cryptographic strength. |
 | [CWE-327](https://cwe.mitre.org/data/definitions/327.html) | Use of a Broken or Risky Cryptographic Algorithm | yes | yes | checkable | Selecting DES/RC4 (or hand-coding them) is an algorithm choice; safe Rust can implement or call any algorithm. |
 | [CWE-328](https://cwe.mitre.org/data/definitions/328.html) | Use of Weak Hash | yes | yes | checkable | Using MD5/SHA-1 for security is an algorithm choice; Rust's std::hash SipHash is not cryptographic either and is safe to misuse. |
-| [CWE-347](https://cwe.mitre.org/data/definitions/347.html) | Improper Verification of Cryptographic Signature | yes | yes | checkable | Ignoring or mis-handling a signature-verify result (e.g. treating Err as ok) is safe Rust logic; the verifier is stubbed. |
+| [CWE-347](https://cwe.mitre.org/data/definitions/347.html) | Improper Verification of Cryptographic Signature | yes | yes | eliminated, claimed | Ignoring or mis-handling a signature-verify result (e.g. treating Err as ok) is safe Rust logic; the verifier is stubbed. |
 | [CWE-614](https://cwe.mitre.org/data/definitions/614.html) | Sensitive Cookie in HTTPS Session Without 'Secure' Attribute | yes | yes | checkable | Omitting the Secure attribute on a cookie is header-string content; web framework stubbed, nothing checks it. |
-| [CWE-759](https://cwe.mitre.org/data/definitions/759.html) | Use of a One-Way Hash without a Salt | yes | yes | checkable | Hashing passwords without a salt is an algorithm-usage choice; hash function stubbed, the compiler cannot require a salt. |
-| [CWE-760](https://cwe.mitre.org/data/definitions/760.html) | Use of a One-Way Hash with a Predictable Salt | yes | yes | checkable | Using a username or constant as salt is a value choice; nothing in Rust's types marks a salt as unpredictable. |
+| [CWE-759](https://cwe.mitre.org/data/definitions/759.html) | Use of a One-Way Hash without a Salt | yes | yes | eliminated, claimed | Hashing passwords without a salt is an algorithm-usage choice; hash function stubbed, the compiler cannot require a salt. |
+| [CWE-760](https://cwe.mitre.org/data/definitions/760.html) | Use of a One-Way Hash with a Predictable Salt | yes | yes | eliminated, claimed | Using a username or constant as salt is a value choice; nothing in Rust's types marks a salt as unpredictable. |
 | [CWE-780](https://cwe.mitre.org/data/definitions/780.html) | Use of RSA Algorithm without OAEP | yes | yes | checkable | Calling RSA with PKCS#1 v1.5 or no padding instead of OAEP is a parameter choice; library stubbed, the compiler does not judge it. |
-| [CWE-916](https://cwe.mitre.org/data/definitions/916.html) | Use of Password Hash With Insufficient Computational Effort | yes | yes | checkable | Using a fast hash or low iteration count for passwords is a parameter choice; the compiler does not reason about work factor. |
+| [CWE-916](https://cwe.mitre.org/data/definitions/916.html) | Use of Password Hash With Insufficient Computational Effort | yes | yes | eliminated, claimed | Using a fast hash or low iteration count for passwords is a parameter choice; the compiler does not reason about work factor. |
 | [CWE-1240](https://cwe.mitre.org/data/definitions/1240.html) | Use of a Cryptographic Primitive with a Risky Implementation | yes | yes | checkable | Implementing a crypto primitive with a weak component (e.g. LFSR instead of DRNG) is safe Rust arithmetic; correctness of crypto is not type-checked. |
-| [CWE-1428](https://cwe.mitre.org/data/definitions/1428.html) | Reliance on HTTP instead of HTTPS | yes | yes | checkable | Using http:// URLs instead of https:// is a string/configuration choice; client stubbed, the compiler does not inspect URLs. |
+| [CWE-1428](https://cwe.mitre.org/data/definitions/1428.html) | Reliance on HTTP instead of HTTPS | yes | yes | eliminated, verified | Using http:// URLs instead of https:// is a string/configuration choice; client stubbed, the compiler does not inspect URLs. |
 
 ## Randomness (20: 19 with `unsafe`, 19 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
 | [CWE-6](https://cwe.mitre.org/data/definitions/6.html) | J2EE Misconfiguration: Insufficient Session-ID Length | no | no | n/a | J2EE container session-ID-length configuration; Rust has no J2EE container or descriptor. Weak session IDs in Rust code are CWE-330/334. |
-| [CWE-323](https://cwe.mitre.org/data/definitions/323.html) | Reusing a Nonce, Key Pair in Encryption | yes | yes | checkable | Reusing a nonce is a value-management error in calling a cipher (stubbed); the type system does not enforce nonce uniqueness. |
+| [CWE-323](https://cwe.mitre.org/data/definitions/323.html) | Reusing a Nonce, Key Pair in Encryption | yes | yes | eliminated, claimed | Reusing a nonce is a value-management error in calling a cipher (stubbed); the type system does not enforce nonce uniqueness. |
 | [CWE-329](https://cwe.mitre.org/data/definitions/329.html) | Generation of Predictable IV with CBC Mode | yes | yes | checkable | Using a constant or counter IV for CBC is a value choice; Rust's types do not mark IV unpredictability. |
 | [CWE-330](https://cwe.mitre.org/data/definitions/330.html) | Use of Insufficiently Random Values | yes | yes | checkable | std has no public CSPRNG, and hand-rolled or time-derived 'random' values are ordinary safe arithmetic; nothing types randomness quality. |
 | [CWE-331](https://cwe.mitre.org/data/definitions/331.html) | Insufficient Entropy | yes | yes | checkable | Deriving secrets from few entropy bits (time, PID) is safe Rust arithmetic; entropy is not a property the compiler tracks. |
