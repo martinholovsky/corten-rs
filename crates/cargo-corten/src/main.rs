@@ -363,36 +363,111 @@ fn local_paths(metadata: &Json, workspace_root: &Path) -> Vec<PathBuf> {
     out.into_iter().collect()
 }
 
+/// The vendor root, held for one check or build: an exclusive lock on
+/// `.lock` inside it, released when dropped, so two runs against the same
+/// target directory never vendor into it at once.
+struct VendorRoot {
+    dir: PathBuf,
+    _lock: fs::File,
+}
+
+/// The base of the per-user cache: `$XDG_CACHE_HOME` when it is absolute,
+/// else `$HOME/.cache`, with the directory whose owner the vendor root must
+/// share (`$HOME`).
+fn cache_base() -> Result<(PathBuf, PathBuf), String> {
+    let home = env::var_os("HOME")
+        .map(PathBuf::from)
+        .filter(|h| h.is_absolute())
+        .ok_or("HOME is not set to an absolute path: no private place to vendor into")?;
+    let base = env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| home.join(".cache"));
+    Ok((base, home))
+}
+
+/// Refuses a directory another user could have planted or can write: it
+/// must be a real directory (not a symlink), owned by `owner`'s owner, with
+/// no write permission for group or others.
+fn private_dir(dir: &Path, owner: &Path) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = fs::symlink_metadata(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let uid = fs::metadata(owner)
+        .map_err(|e| format!("{}: {e}", owner.display()))?
+        .uid();
+    if !meta.file_type().is_dir() {
+        return Err(format!("{} is not a directory", dir.display()));
+    }
+    if meta.uid() != uid {
+        return Err(format!(
+            "{} is owned by uid {}, not by {}'s owner (uid {uid})",
+            dir.display(),
+            meta.uid(),
+            owner.display()
+        ));
+    }
+    if meta.mode() & 0o022 != 0 {
+        return Err(format!(
+            "{} is writable by group or others (mode {:o})",
+            dir.display(),
+            meta.mode() & 0o7777
+        ));
+    }
+    Ok(())
+}
+
+/// The private directory for the vendored sources, outside the target
+/// directory so the sandboxed build cannot write it (F5).
+///
+/// Its path is stable per target directory (`<cache>/corten/vendor/<hash of
+/// the target directory>`): build scripts record absolute paths into the
+/// vendored sources (`rerun-if-changed`), so a new path on every run made
+/// cargo rebuild every dependency on every check. Measured 2026-11-02 on
+/// one corpus case: 68 s and 78 crates compiled on a repeat check with a
+/// fresh path, 2 s and none with a stable one. Every component is created
+/// with mode 0700 and refused on reuse unless it is a real directory owned
+/// by `$HOME`'s owner with no group or other write, so another user cannot
+/// plant or swap it. The cache base itself must pass the same check.
+fn vendor_root(target_dir: &Path) -> Result<VendorRoot, String> {
+    let (base, home) = cache_base()?;
+    vendor_root_in(&base, &home, target_dir)
+}
+
+/// [`vendor_root`] under `base`, with `home` as the owner reference.
+fn vendor_root_in(base: &Path, home: &Path, target_dir: &Path) -> Result<VendorRoot, String> {
+    use std::os::unix::fs::DirBuilderExt;
+    fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(base)
+        .map_err(|e| format!("{}: {e}", base.display()))?;
+    private_dir(base, home)?;
+    let name = sha256::hex_digest(target_dir.as_os_str().as_encoded_bytes());
+    let mut dir = base.to_path_buf();
+    for part in ["corten", "vendor", name.get(..32).unwrap_or(&name)] {
+        dir.push(part);
+        match fs::DirBuilder::new().mode(0o700).create(&dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("{}: {e}", dir.display())),
+        }
+        private_dir(&dir, home)?;
+    }
+    let lock_path = dir.join(".lock");
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&lock_path)
+        .map_err(|e| format!("{}: {e}", lock_path.display()))?;
+    lock.lock()
+        .map_err(|e| format!("{}: {e}", lock_path.display()))?;
+    Ok(VendorRoot { dir, _lock: lock })
+}
+
 /// Vendors the dependencies (outside the sandbox: the only step with
 /// network access) and returns where a sandboxed check or build runs.
 /// `locked` is passed to `cargo vendor`.
-/// The vendor root's lifetime: removed when dropped, on every return path.
-struct VendorRoot(PathBuf);
-
-impl Drop for VendorRoot {
-    fn drop(&mut self) {
-        if let Err(e) = fs::remove_dir_all(&self.0) {
-            eprintln!("warning: could not remove {}: {e}", self.0.display());
-        }
-    }
-}
-
-/// A new private directory for the vendored sources, outside the target
-/// directory: mode 0700, created (never reused) under the system
-/// temporary directory, so another user cannot plant or swap it.
-fn new_vendor_root() -> Result<VendorRoot, String> {
-    use std::os::unix::fs::DirBuilderExt;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = env::temp_dir().join(format!("corten-vendor-{}-{nanos}", std::process::id()));
-    fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&dir)
-        .map_err(|e| format!("{}: {e}", dir.display()))?;
-    Ok(VendorRoot(dir))
-}
-
 fn prepare_sandbox(
     toolchain: &Toolchain,
     manifest_path: Option<&Path>,
@@ -409,8 +484,8 @@ fn prepare_sandbox(
         .and_then(Path::parent)
         .ok_or("cannot find the toolchain root")?
         .to_path_buf();
-    let root = new_vendor_root()?;
-    let vendor_dir = root.0.join("vendor");
+    let root = vendor_root(&target_dir)?;
+    let vendor_dir = root.dir.join("vendor");
     let mut vendor = vendor_command(toolchain, manifest_path, conf, &vendor_dir, locked)
         .map_err(|e| e.to_string())?;
     let vendored = vendor
@@ -420,7 +495,7 @@ fn prepare_sandbox(
     if !vendored.status.success() {
         return Err(format!("cargo vendor failed ({})", vendored.status));
     }
-    let vendor_config = root.0.join("config.toml");
+    let vendor_config = root.dir.join("config.toml");
     fs::write(&vendor_config, &vendored.stdout)
         .map_err(|e| format!("{}: {e}", vendor_config.display()))?;
     let local_paths = local_paths(metadata, &workspace_root);
@@ -430,7 +505,7 @@ fn prepare_sandbox(
         workspace_root,
         local_paths,
         target_dir,
-        vendor_root: root.0.clone(),
+        vendor_root: root.dir.clone(),
         vendor_config,
     };
     for dir in [plan.cargo_home(), plan.tmp_dir()] {
@@ -849,5 +924,91 @@ mod tests {
         assert!(run(&["check", "--manifest-path"]).is_err());
         assert!(run(&["check", "--allow-dep"]).is_err());
         assert!(run(&["check", "check"]).is_err());
+    }
+
+    /// A fresh private directory for one vendor-root test.
+    fn vendor_test_dir(name: &str) -> PathBuf {
+        use std::os::unix::fs::DirBuilderExt;
+        let dir = env::temp_dir().join(format!(
+            "cargo-corten-vendor-test-{name}-{}",
+            std::process::id()
+        ));
+        if let Err(e) = fs::remove_dir_all(&dir) {
+            assert_eq!(e.kind(), io::ErrorKind::NotFound, "{e}");
+        }
+        fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn vendor_root_is_stable_per_target_and_private() {
+        use std::os::unix::fs::MetadataExt;
+        let t = vendor_test_dir("stable");
+        let base = t.join("cache");
+        let first = vendor_root_in(&base, &t, Path::new("/w/a/target"))
+            .unwrap()
+            .dir;
+        let again = vendor_root_in(&base, &t, Path::new("/w/a/target"))
+            .unwrap()
+            .dir;
+        let other = vendor_root_in(&base, &t, Path::new("/w/b/target"))
+            .unwrap()
+            .dir;
+        assert_eq!(first, again, "a new path per run rebuilds every dependency");
+        assert_ne!(first, other);
+        assert!(first.starts_with(base.join("corten/vendor")));
+        for d in [&base, &base.join("corten"), &first] {
+            assert_eq!(fs::metadata(d).unwrap().mode() & 0o777, 0o700, "{d:?}");
+        }
+        fs::remove_dir_all(&t).unwrap();
+    }
+
+    #[test]
+    fn vendor_root_refuses_a_shared_or_planted_directory() {
+        use std::os::unix::fs::PermissionsExt;
+        let t = vendor_test_dir("refuse");
+        let base = t.join("cache");
+        vendor_root_in(&base, &t, Path::new("/w/target")).unwrap();
+        // Group-writable component: another user could swap what is below.
+        fs::set_permissions(base.join("corten"), fs::Permissions::from_mode(0o770)).unwrap();
+        let e = vendor_root_in(&base, &t, Path::new("/w/target"))
+            .err()
+            .unwrap();
+        assert!(e.contains("writable by group or others"), "{e}");
+        // A symlink in place of a component is refused, not followed.
+        fs::remove_dir_all(base.join("corten")).unwrap();
+        fs::create_dir(t.join("elsewhere")).unwrap();
+        std::os::unix::fs::symlink(t.join("elsewhere"), base.join("corten")).unwrap();
+        let e = vendor_root_in(&base, &t, Path::new("/w/target"))
+            .err()
+            .unwrap();
+        assert!(e.contains("is not a directory"), "{e}");
+        // A world-writable cache base (XDG_CACHE_HOME=/tmp, say) is refused.
+        let open = t.join("open");
+        fs::create_dir(&open).unwrap();
+        fs::set_permissions(&open, fs::Permissions::from_mode(0o777)).unwrap();
+        let e = vendor_root_in(&open, &t, Path::new("/w/target"))
+            .err()
+            .unwrap();
+        assert!(e.contains("writable by group or others"), "{e}");
+        fs::remove_dir_all(&t).unwrap();
+    }
+
+    #[test]
+    fn vendor_root_is_locked_while_held() {
+        let t = vendor_test_dir("lock");
+        let base = t.join("cache");
+        let held = vendor_root_in(&base, &t, Path::new("/w/target")).unwrap();
+        let other = fs::OpenOptions::new()
+            .write(true)
+            .open(held.dir.join(".lock"))
+            .unwrap();
+        assert!(
+            other.try_lock().is_err(),
+            "a second run could vendor at once"
+        );
+        drop(held);
+        assert!(other.try_lock().is_ok(), "the lock outlived its run");
+        fs::remove_dir_all(&t).unwrap();
     }
 }
