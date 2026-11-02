@@ -1,22 +1,41 @@
 //! The signed capability manifest (spec 4.3): the only source of a root
 //! [`DirCap`], an [`ExecCap`] or a [`DeclassifyCap`].
 //!
-//! Format, UTF-8, one entry per line:
+//! Format 2, UTF-8, one entry per line:
 //!
 //! ```text
-//! corten-manifest 1
+//! corten-manifest 2
+//! key deploy-2026-11
+//! serial 42
+//! not-after 1767225600
 //! dir uploads /srv/app/uploads
 //! exec tar /usr/bin/tar
 //! declassify report
 //! ```
 //!
-//! Names follow the `PathSeg` grammar; paths are absolute. `declassify NAME`
-//! (Phase 4) grants the right to release a labelled value as public
-//! (`crate::label`); it names no path. The deployer signs
-//! the exact bytes with Ed25519. [`Capabilities::load`] checks the signature
-//! before it parses anything, refuses a manifest over [`MAX_MANIFEST`] bytes,
-//! and opens every directory up front, so a missing directory or a platform
-//! without `openat2` fails at start-up rather than later.
+//! The first four lines are required, in this order (spec section 8,
+//! question 19; CWE-294, 324):
+//!
+//! - `key ID` names the deployer key that signed the manifest, in the
+//!   verifier's [`TrustedKeys`]. A key set lets a key be rotated: sign with
+//!   the new key, trust both, then drop the old one.
+//! - `serial N` is a monotonic counter. [`verify`] refuses a serial below the
+//!   caller's [`MinSerial`], so an older manifest that granted more cannot be
+//!   replayed. The high-water mark is persisted by the launcher
+//!   (`corten-sandbox --serial-state`), the component that holds the
+//!   authority to write it.
+//! - `not-after T` is a Unix time in seconds; the manifest is refused at or
+//!   after it.
+//!
+//! Format 1, which had none of these, is refused. Names follow the `PathSeg`
+//! grammar; paths are absolute. `declassify NAME` (Phase 4) grants the right
+//! to release a labelled value as public (`crate::label`); it names no path.
+//! The deployer signs the exact bytes with Ed25519. The key ID is read before
+//! the signature is checked, only to choose the key; nothing else is parsed
+//! before then. [`Capabilities::load`] refuses a manifest over
+//! [`MAX_MANIFEST`] bytes and opens every directory up front, so a missing
+//! directory or a platform without `openat2` fails at start-up rather than
+//! later.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -31,7 +50,7 @@ use crate::process::ExecCap;
 /// Largest manifest accepted, in bytes.
 pub const MAX_MANIFEST: usize = 65_536;
 
-const HEADER: &str = "corten-manifest 1";
+const HEADER: &str = "corten-manifest 2";
 
 /// Why a manifest was refused.
 #[derive(Debug)]
@@ -45,6 +64,23 @@ pub enum ManifestError {
     Syntax(usize),
     /// A name appears twice.
     Duplicate(String),
+    /// The manifest names a key the verifier does not trust.
+    UnknownKey(String),
+    /// The current time is at or after the manifest's `not-after`.
+    Expired {
+        /// The manifest's `not-after`, Unix seconds.
+        not_after: u64,
+    },
+    /// The manifest's serial is below the highest one accepted before: an
+    /// older manifest is being replayed.
+    Rollback {
+        /// The manifest's serial.
+        serial: u64,
+        /// The lowest serial the verifier accepts.
+        min: u64,
+    },
+    /// The system clock could not be read or is before 1970.
+    Clock,
     /// A granted directory could not be opened.
     Dir {
         /// The entry's name.
@@ -61,6 +97,17 @@ impl fmt::Display for ManifestError {
             Self::Signature => f.write_str("manifest signature is invalid"),
             Self::Syntax(line) => write!(f, "manifest line {line} is malformed"),
             Self::Duplicate(name) => write!(f, "manifest grants {name:?} twice"),
+            Self::UnknownKey(id) => write!(f, "manifest is signed with untrusted key {id:?}"),
+            Self::Expired { not_after } => {
+                write!(f, "manifest expired (not-after {not_after})")
+            }
+            Self::Rollback { serial, min } => {
+                write!(
+                    f,
+                    "manifest serial {serial} is below {min}: an older manifest was replayed"
+                )
+            }
+            Self::Clock => f.write_str("the system clock could not be read"),
             Self::Dir { name, error } => write!(f, "cannot open directory {name:?}: {error}"),
         }
     }
@@ -81,6 +128,7 @@ pub struct Capabilities {
     dirs: BTreeMap<String, DirCap>,
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
+    serial: u64,
 }
 
 /// One verified manifest entry. A grant is data: holding one confers no
@@ -127,43 +175,186 @@ pub struct Signature<'a>(pub &'a [u8]);
 #[derive(Debug, Clone, Copy)]
 pub struct PublicKey<'a>(pub &'a [u8]);
 
-/// Verifies the signature, then parses the manifest and checks names are
-/// unique. Nothing is opened.
+/// A deployer key's identifier, as the manifest's `key` line names it.
+#[derive(Debug, Clone, Copy)]
+pub struct KeyId<'a>(pub &'a str);
+
+/// The current time, Unix seconds: a label, so it cannot be swapped with a
+/// serial.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnixTime(pub u64);
+
+/// The lowest manifest serial the verifier accepts: the highest one accepted
+/// before (0 when none was).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MinSerial(pub u64);
+
+/// The deployer keys a verifier trusts, by identifier.
+#[derive(Debug, Default, Clone)]
+pub struct TrustedKeys {
+    keys: BTreeMap<String, ed25519_compact::PublicKey>,
+}
+
+impl TrustedKeys {
+    /// An empty key set; every manifest is refused until a key is added.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Trusts `key` under `id`.
+    ///
+    /// # Errors
+    ///
+    /// [`ManifestError::Syntax`] (line 0) if `id` is not a valid name,
+    /// [`ManifestError::Signature`] if `key` is not an Ed25519 public key,
+    /// [`ManifestError::Duplicate`] if `id` is already trusted.
+    pub fn add(
+        &mut self,
+        KeyId(id): KeyId<'_>,
+        PublicKey(key): PublicKey<'_>,
+    ) -> Result<(), ManifestError> {
+        if PathSeg::parse(id).is_err() {
+            return Err(ManifestError::Syntax(0));
+        }
+        let key =
+            ed25519_compact::PublicKey::from_slice(key).map_err(|_| ManifestError::Signature)?;
+        if self.keys.insert(id.to_owned(), key).is_some() {
+            return Err(ManifestError::Duplicate(id.to_owned()));
+        }
+        Ok(())
+    }
+}
+
+/// A verified manifest: its grants and the header fields they were signed
+/// with. The caller persists `serial` as the next [`MinSerial`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedManifest {
+    /// The grants, in manifest order.
+    pub grants: Vec<Grant>,
+    /// The identifier of the key that signed it.
+    pub key: String,
+    /// Its serial.
+    pub serial: u64,
+    /// Its `not-after`, Unix seconds.
+    pub not_after: u64,
+}
+
+/// The key ID on line 2, read before the signature is checked, only to
+/// choose the key. `None` if the first two lines are not the header and a
+/// `key` line.
+fn key_id(manifest: &[u8]) -> Option<&str> {
+    let rest = manifest
+        .strip_prefix(HEADER.as_bytes())?
+        .strip_prefix(b"\n")?;
+    let rest = rest.strip_prefix(b"key ")?;
+    let end = rest.iter().position(|&b| b == b'\n')?;
+    std::str::from_utf8(rest.get(..end)?).ok()
+}
+
+/// Verifies the signature with the key the manifest names, then parses it
+/// and checks the header and that names are unique. Nothing is opened.
 ///
 /// # Errors
 ///
-/// [`ManifestError`]; nothing is parsed unless the signature is valid.
+/// [`ManifestError`]; nothing past the key ID is parsed unless the signature
+/// is valid.
 pub fn verify(
     manifest: &[u8],
     Signature(signature): Signature<'_>,
-    PublicKey(public_key): PublicKey<'_>,
-) -> Result<Vec<Grant>, ManifestError> {
+    keys: &TrustedKeys,
+    UnixTime(now): UnixTime,
+    MinSerial(min): MinSerial,
+) -> Result<VerifiedManifest, ManifestError> {
     if manifest.len() > MAX_MANIFEST {
         return Err(ManifestError::TooLarge);
     }
-    let key =
-        ed25519_compact::PublicKey::from_slice(public_key).map_err(|_| ManifestError::Signature)?;
+    let id = key_id(manifest).ok_or(ManifestError::Syntax(1))?;
+    let key = keys
+        .keys
+        .get(id)
+        .ok_or_else(|| ManifestError::UnknownKey(id.to_owned()))?;
     let sig =
         ed25519_compact::Signature::from_slice(signature).map_err(|_| ManifestError::Signature)?;
     key.verify(manifest, &sig)
         .map_err(|_| ManifestError::Signature)?;
     let text = std::str::from_utf8(manifest).map_err(|_| ManifestError::Syntax(1))?;
-    let grants = parse(text)?;
+    // `parse` reads the same line 2 that chose the key, so the key that
+    // verified the bytes is the key the manifest names.
+    let (header, grants) = parse(text)?;
+    if now >= header.not_after {
+        return Err(ManifestError::Expired {
+            not_after: header.not_after,
+        });
+    }
+    if header.serial < min {
+        return Err(ManifestError::Rollback {
+            serial: header.serial,
+            min,
+        });
+    }
     let mut seen = std::collections::BTreeSet::new();
     for g in &grants {
         if !seen.insert(g.name()) {
             return Err(ManifestError::Duplicate(g.name().to_owned()));
         }
     }
-    Ok(grants)
+    Ok(VerifiedManifest {
+        grants,
+        key: header.key,
+        serial: header.serial,
+        not_after: header.not_after,
+    })
 }
 
-fn parse(text: &str) -> Result<Vec<Grant>, ManifestError> {
+struct Header {
+    key: String,
+    serial: u64,
+    not_after: u64,
+}
+
+/// `PREFIX VALUE` on line `number`, or a syntax error there.
+fn header_field<'a>(
+    line: Option<(usize, &'a str)>,
+    prefix: &str,
+    number: usize,
+) -> Result<&'a str, ManifestError> {
+    match line {
+        Some((_, text)) => text
+            .strip_prefix(prefix)
+            .filter(|v| !v.is_empty() && !v.contains(' '))
+            .ok_or(ManifestError::Syntax(number)),
+        None => Err(ManifestError::Syntax(number)),
+    }
+}
+
+/// A decimal `u64` with no sign, no leading zero and no other characters.
+fn decimal(text: &str, number: usize) -> Result<u64, ManifestError> {
+    let canonical =
+        text.bytes().all(|b| b.is_ascii_digit()) && (text == "0" || !text.starts_with('0'));
+    if !canonical {
+        return Err(ManifestError::Syntax(number));
+    }
+    text.parse().map_err(|_| ManifestError::Syntax(number))
+}
+
+fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
     let mut lines = (1usize..).zip(text.lines());
     match lines.next() {
         Some((_, HEADER)) => {}
         _ => return Err(ManifestError::Syntax(1)),
     }
+    let key = header_field(lines.next(), "key ", 2)?;
+    if PathSeg::parse(key).is_err() {
+        return Err(ManifestError::Syntax(2));
+    }
+    let serial = decimal(header_field(lines.next(), "serial ", 3)?, 3)?;
+    let not_after = decimal(header_field(lines.next(), "not-after ", 4)?, 4)?;
+    let header = Header {
+        key: key.to_owned(),
+        serial,
+        not_after,
+    };
     let mut entries = Vec::new();
     for (number, line) in lines {
         if line.is_empty() {
@@ -205,23 +396,38 @@ fn parse(text: &str) -> Result<Vec<Grant>, ManifestError> {
             _ => return Err(ManifestError::Syntax(number)),
         });
     }
-    Ok(entries)
+    Ok((header, entries))
+}
+
+/// The current time from the system clock, Unix seconds. The prelude reads
+/// the clock here; application code still has no clock authority.
+fn now() -> Result<UnixTime, ManifestError> {
+    let t = rustix::time::clock_gettime(rustix::time::ClockId::Realtime);
+    u64::try_from(t.tv_sec)
+        .map(UnixTime)
+        .map_err(|_| ManifestError::Clock)
 }
 
 impl Capabilities {
-    /// Verifies `signature` over `manifest` with `public_key`, then parses
-    /// it and opens every granted directory.
+    /// Verifies `signature` over `manifest` with the key it names in `keys`,
+    /// checks its expiry against the system clock and its serial against
+    /// `min_serial`, then opens every granted directory.
     ///
     /// # Errors
     ///
-    /// [`ManifestError`]; nothing is opened unless the signature is valid.
+    /// [`ManifestError`]; nothing is opened unless every check passes.
     pub fn load(
         manifest: &[u8],
         signature: Signature<'_>,
-        public_key: PublicKey<'_>,
+        keys: &TrustedKeys,
+        min_serial: MinSerial,
     ) -> Result<Self, ManifestError> {
-        let mut caps = Self::default();
-        for grant in verify(manifest, signature, public_key)? {
+        let verified = verify(manifest, signature, keys, now()?, min_serial)?;
+        let mut caps = Self {
+            serial: verified.serial,
+            ..Self::default()
+        };
+        for grant in verified.grants {
             match grant {
                 Grant::Dir { name, path } => {
                     let dir = DirCap::open_root(&path).map_err(|error| ManifestError::Dir {
@@ -271,6 +477,12 @@ impl Capabilities {
     pub fn take_declassify(&mut self, name: &str) -> Option<DeclassifyCap> {
         self.declassify.remove(name)
     }
+
+    /// The serial of the manifest these capabilities came from.
+    #[must_use]
+    pub fn serial(&self) -> u64 {
+        self.serial
+    }
 }
 
 #[cfg(test)]
@@ -278,20 +490,47 @@ mod tests {
     use super::*;
     use ed25519_compact::{KeyPair, Seed};
 
+    /// Far in the future, so tests do not depend on the date.
+    const LATER: u64 = 4_102_444_800;
+
     fn keys() -> KeyPair {
         KeyPair::from_seed(Seed::new([7u8; 32]))
+    }
+
+    fn trusted(id: &str, kp: &KeyPair) -> TrustedKeys {
+        let mut t = TrustedKeys::new();
+        t.add(KeyId(id), PublicKey(kp.pk.as_ref())).unwrap();
+        t
     }
 
     fn sign(kp: &KeyPair, m: &[u8]) -> Vec<u8> {
         kp.sk.sign(m, None).to_vec()
     }
 
+    fn manifest(key: &str, serial: u64, not_after: u64, body: &str) -> String {
+        format!("corten-manifest 2\nkey {key}\nserial {serial}\nnot-after {not_after}\n{body}")
+    }
+
+    fn load(
+        m: &str,
+        kp: &KeyPair,
+        t: &TrustedKeys,
+        min: u64,
+    ) -> Result<Capabilities, ManifestError> {
+        Capabilities::load(
+            m.as_bytes(),
+            Signature(&sign(kp, m.as_bytes())),
+            t,
+            MinSerial(min),
+        )
+    }
+
     #[test]
     fn signed_exec_manifest_loads_once() {
         let kp = keys();
-        let m = b"corten-manifest 1\nexec tar /usr/bin/tar\n";
-        let mut caps =
-            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())).unwrap();
+        let m = manifest("k1", 3, LATER, "exec tar /usr/bin/tar\n");
+        let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
+        assert_eq!(caps.serial(), 3);
         assert_eq!(
             caps.take_exec("tar")
                 .map(|e| e.name().to_owned())
@@ -304,9 +543,8 @@ mod tests {
     #[test]
     fn declassify_grant_is_taken_once() {
         let kp = keys();
-        let m = b"corten-manifest 1\ndeclassify report\n";
-        let mut caps =
-            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())).unwrap();
+        let m = manifest("k1", 1, LATER, "declassify report\n");
+        let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
         assert_eq!(
             caps.take_declassify("report")
                 .map(|c| c.name().to_owned())
@@ -320,55 +558,189 @@ mod tests {
     #[test]
     fn tampered_manifest_is_refused_before_parsing() {
         let kp = keys();
-        let m = b"corten-manifest 1\nexec tar /usr/bin/tar\n";
-        let sig = sign(&kp, m);
-        let tampered = b"corten-manifest 1\nexec tar /usr/bin/sh!\n";
+        let t = trusted("k1", &kp);
+        let m = manifest("k1", 1, LATER, "exec tar /usr/bin/tar\n");
+        let sig = sign(&kp, m.as_bytes());
+        let tampered = manifest("k1", 1, LATER, "exec tar /usr/bin/sh!\n");
         assert!(matches!(
-            Capabilities::load(tampered, Signature(&sig), PublicKey(kp.pk.as_ref())),
+            Capabilities::load(tampered.as_bytes(), Signature(&sig), &t, MinSerial(0)),
             Err(ManifestError::Signature)
         ));
+        // Signed by another key that claims the trusted key's ID.
         let other = KeyPair::from_seed(Seed::new([8u8; 32]));
         assert!(matches!(
-            Capabilities::load(m, Signature(&sig), PublicKey(other.pk.as_ref())),
+            load(&m, &other, &t, 0),
             Err(ManifestError::Signature)
         ));
         assert!(matches!(
-            Capabilities::load(m, Signature(&[0u8; 3]), PublicKey(kp.pk.as_ref())),
+            Capabilities::load(m.as_bytes(), Signature(&[0u8; 3]), &t, MinSerial(0)),
             Err(ManifestError::Signature)
         ));
     }
 
     #[test]
-    fn malformed_and_duplicate_entries_are_refused() {
+    fn the_key_set_selects_by_id_and_supports_rotation() {
+        let old = keys();
+        let new = KeyPair::from_seed(Seed::new([9u8; 32]));
+        let mut both = trusted("old", &old);
+        both.add(KeyId("new"), PublicKey(new.pk.as_ref())).unwrap();
+        // During rotation both keys verify their own manifests.
+        load(&manifest("old", 1, LATER, ""), &old, &both, 0).unwrap();
+        load(&manifest("new", 2, LATER, ""), &new, &both, 0).unwrap();
+        // After the old key is dropped, its manifests are refused by name.
+        let only_new = trusted("new", &new);
+        assert!(matches!(
+            load(&manifest("old", 3, LATER, ""), &old, &only_new, 0),
+            Err(ManifestError::UnknownKey(id)) if id == "old"
+        ));
+        // A manifest naming the new key but signed with the old one.
+        assert!(matches!(
+            load(&manifest("new", 3, LATER, ""), &old, &both, 0),
+            Err(ManifestError::Signature)
+        ));
+        // An empty key set trusts nothing.
+        assert!(matches!(
+            load(&manifest("new", 3, LATER, ""), &new, &TrustedKeys::new(), 0),
+            Err(ManifestError::UnknownKey(_))
+        ));
+    }
+
+    #[test]
+    fn trusted_keys_refuse_bad_ids_keys_and_duplicates() {
         let kp = keys();
+        let mut t = TrustedKeys::new();
+        assert!(matches!(
+            t.add(KeyId("../k"), PublicKey(kp.pk.as_ref())),
+            Err(ManifestError::Syntax(0))
+        ));
+        assert!(matches!(
+            t.add(KeyId("k"), PublicKey(&[0u8; 5])),
+            Err(ManifestError::Signature)
+        ));
+        t.add(KeyId("k"), PublicKey(kp.pk.as_ref())).unwrap();
+        assert!(matches!(
+            t.add(KeyId("k"), PublicKey(kp.pk.as_ref())),
+            Err(ManifestError::Duplicate(_))
+        ));
+    }
+
+    #[test]
+    fn expiry_is_checked_at_the_boundary() {
+        let kp = keys();
+        let t = trusted("k1", &kp);
+        let m = manifest("k1", 1, 1_000, "");
+        let sig = sign(&kp, m.as_bytes());
+        let at = |now| {
+            verify(
+                m.as_bytes(),
+                Signature(&sig),
+                &t,
+                UnixTime(now),
+                MinSerial(0),
+            )
+        };
+        assert!(at(999).is_ok());
+        assert!(matches!(
+            at(1_000),
+            Err(ManifestError::Expired { not_after: 1_000 })
+        ));
+        assert!(matches!(at(5_000), Err(ManifestError::Expired { .. })));
+        // load() reads the real clock: a manifest that expired in 1970 is refused.
+        assert!(matches!(
+            load(&manifest("k1", 1, 1, ""), &kp, &t, 0),
+            Err(ManifestError::Expired { .. })
+        ));
+    }
+
+    #[test]
+    fn an_older_serial_is_refused_as_a_replay() {
+        let kp = keys();
+        let t = trusted("k1", &kp);
+        let m = manifest("k1", 5, LATER, "");
+        assert!(load(&m, &kp, &t, 5).is_ok());
+        assert!(load(&m, &kp, &t, 4).is_ok());
+        assert!(matches!(
+            load(&m, &kp, &t, 6),
+            Err(ManifestError::Rollback { serial: 5, min: 6 })
+        ));
+    }
+
+    #[test]
+    fn verified_manifest_reports_its_header() {
+        let kp = keys();
+        let t = trusted("k1", &kp);
+        let m = manifest("k1", 7, LATER, "declassify r\n");
+        let v = verify(
+            m.as_bytes(),
+            Signature(&sign(&kp, m.as_bytes())),
+            &t,
+            UnixTime(0),
+            MinSerial(0),
+        )
+        .unwrap();
+        assert_eq!((v.key.as_str(), v.serial, v.not_after), ("k1", 7, LATER));
+        assert_eq!(
+            v.grants,
+            [Grant::Declassify {
+                name: "r".to_owned()
+            }]
+        );
+    }
+
+    #[test]
+    fn malformed_headers_and_entries_are_refused() {
+        let kp = keys();
+        let t = trusted("k1", &kp);
+        let h = |rest: &str| format!("corten-manifest 2\nkey k1\n{rest}");
         for (m, want_line) in [
-            (&b"corten-manifest 2\n"[..], Some(1)),
-            (b"corten-manifest 1\nexec ../x /bin/x\n", Some(2)),
-            (b"corten-manifest 1\nexec tar relative/tar\n", Some(2)),
-            (b"corten-manifest 1\nnet x /y\n", Some(2)),
-            (b"corten-manifest 1\nexec tar /a /b\n", Some(2)),
-            (b"corten-manifest 1\nexec tar /a\nexec tar /b\n", None),
-            // `declassify` takes a name and nothing else; `dir` still needs a path.
-            (b"corten-manifest 1\ndeclassify report /etc\n", Some(2)),
-            (b"corten-manifest 1\ndir data\n", Some(2)),
-            (b"corten-manifest 1\ndeclassify ../up\n", Some(2)),
+            // Format 1 is refused, even with a format-2 header below it.
             (
-                b"corten-manifest 1\ndeclassify tar\nexec tar /bin/tar\n",
+                "corten-manifest 1\nexec tar /usr/bin/tar\n".to_owned(),
+                Some(1),
+            ),
+            (
+                format!("corten-manifest 1\nkey k1\nserial 1\nnot-after {LATER}\n"),
+                Some(1),
+            ),
+            ("corten-manifest 2\nserial 1\n".to_owned(), Some(1)),
+            (h("not-after 9\nserial 1\n"), Some(3)),
+            (h("serial 1\n"), Some(4)),
+            (h("serial -1\nnot-after 9\n"), Some(3)),
+            (h("serial 01\nnot-after 9\n"), Some(3)),
+            (h("serial 1 2\nnot-after 9\n"), Some(3)),
+            (h("serial 18446744073709551616\nnot-after 9\n"), Some(3)),
+            (h(&format!("serial 1\nnot-after {LATER}x\n")), Some(4)),
+            (manifest("k1", 1, LATER, "exec ../x /bin/x\n"), Some(5)),
+            (manifest("k1", 1, LATER, "exec tar relative/tar\n"), Some(5)),
+            (manifest("k1", 1, LATER, "net x /y\n"), Some(5)),
+            (manifest("k1", 1, LATER, "exec tar /a /b\n"), Some(5)),
+            (manifest("k1", 1, LATER, "exec tar /a\nexec tar /b\n"), None),
+            (
+                manifest("k1", 1, LATER, "declassify report /etc\n"),
+                Some(5),
+            ),
+            (manifest("k1", 1, LATER, "dir data\n"), Some(5)),
+            (manifest("k1", 1, LATER, "declassify ../up\n"), Some(5)),
+            (
+                manifest("k1", 1, LATER, "declassify tar\nexec tar /bin/tar\n"),
                 None,
             ),
         ] {
-            let r = Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref()));
+            let r = load(&m, &kp, &t, 0);
             match want_line {
                 Some(line) => assert!(
                     matches!(r, Err(ManifestError::Syntax(l)) if l == line),
-                    "{m:?}"
+                    "{m:?}: {r:?}"
                 ),
-                None => assert!(matches!(r, Err(ManifestError::Duplicate(_))), "{m:?}"),
+                None => assert!(
+                    matches!(r, Err(ManifestError::Duplicate(_))),
+                    "{m:?}: {r:?}"
+                ),
             }
         }
         let big = vec![b'a'; MAX_MANIFEST.saturating_add(1)];
         assert!(matches!(
-            Capabilities::load(&big, Signature(&[0u8; 64]), PublicKey(kp.pk.as_ref())),
+            Capabilities::load(&big, Signature(&[0u8; 64]), &t, MinSerial(0)),
             Err(ManifestError::TooLarge)
         ));
     }
@@ -379,21 +751,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("corten-manifest-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let kp = keys();
-        let m = format!("corten-manifest 1\ndir data {}\n", dir.display());
-        let mut caps = Capabilities::load(
-            m.as_bytes(),
-            Signature(&sign(&kp, m.as_bytes())),
-            PublicKey(kp.pk.as_ref()),
-        )
-        .unwrap();
+        let t = trusted("k1", &kp);
+        let m = manifest("k1", 1, LATER, &format!("dir data {}\n", dir.display()));
+        let mut caps = load(&m, &kp, &t, 0).unwrap();
         assert!(caps.take_dir("data").is_some());
-        let missing = "corten-manifest 1\ndir data /nonexistent/corten\n";
+        let missing = manifest("k1", 1, LATER, "dir data /nonexistent/corten\n");
         assert!(matches!(
-            Capabilities::load(
-                missing.as_bytes(),
-                Signature(&sign(&kp, missing.as_bytes())),
-                PublicKey(kp.pk.as_ref())
-            ),
+            load(&missing, &kp, &t, 0),
             Err(ManifestError::Dir { .. })
         ));
         std::fs::remove_dir_all(dir).unwrap();
@@ -403,9 +767,9 @@ mod tests {
     #[test]
     fn dir_entries_fail_closed_off_linux() {
         let kp = keys();
-        let m = b"corten-manifest 1\ndir data /tmp\n";
+        let m = manifest("k1", 1, LATER, "dir data /tmp\n");
         assert!(matches!(
-            Capabilities::load(m, Signature(&sign(&kp, m)), PublicKey(kp.pk.as_ref())),
+            load(&m, &kp, &trusted("k1", &kp), 0),
             Err(ManifestError::Dir {
                 error: FsError::Unsupported,
                 ..

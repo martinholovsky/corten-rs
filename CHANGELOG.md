@@ -6,6 +6,7 @@ Newest first. Nothing is released yet.
 
 ### Changed
 
+- The signed manifest is format 2 (spec section 8, question 19; CWE-294, 324). `key ID`, `serial N` and `not-after T` are required. The verifier takes a `TrustedKeys` set, so keys can be rotated. A manifest is refused at or after its expiry, and below the highest serial accepted before. Format 1 is refused. `corten-sandbox` replaces `--public-key` with `--trusted-key ID=HEX` (repeatable) and a required `--serial-state FILE`, which it updates atomically before the program starts. `Capabilities::load` takes `&TrustedKeys` and a `MinSerial`, and reads the clock in the prelude.
 - The `main` ruleset also requires the `lint driver (nightly)` check (owner decision, 2026-11-01): `cargo corten check` requires the driver, so a pull request cannot merge while the driver's own fmt, Clippy or UI tests fail. Merged head branches are now deleted automatically (repository setting).
 - `corten-std`: `SetCookie`'s doc comment, which was split across `CookieName` and `CookieValue`, is whole again.
 - `corten-sandbox` requests Landlock ABI v6 scoping where the kernel has it (owner decision, 2026-10-29): a confined program cannot signal a process outside the sandbox or connect to an abstract UNIX socket created outside it. ABI v4 stays the hard requirement, so older kernels run as before, without the scopes. UDP is still unrestricted (`docs/tcb.md`).
