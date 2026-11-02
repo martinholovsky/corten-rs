@@ -521,7 +521,7 @@ pub fn verify_signed(
 /// stored hash below every one of OWASP's minimum configurations, so a weak
 /// hash planted in storage or kept from an older system cannot be accepted,
 /// and it says when an accepted hash should be replaced with one at the
-/// current cost ([`Check::Rehash`]).
+/// current cost ([`Check::Rehash`](password::Check::Rehash)).
 pub mod password {
     use std::fmt;
 
