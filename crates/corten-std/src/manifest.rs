@@ -42,6 +42,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::label::DeclassifyCap;
+use crate::net::{Host, NetCap};
 
 use crate::fs::{DirCap, FsError};
 use crate::path::PathSeg;
@@ -128,6 +129,7 @@ pub struct Capabilities {
     dirs: BTreeMap<String, DirCap>,
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
+    nets: BTreeMap<String, NetCap>,
     serial: u64,
 }
 
@@ -156,12 +158,27 @@ pub enum Grant {
         /// Manifest name.
         name: String,
     },
+    /// `net NAME HOST:PORT [private]`: TLS connections to one destination
+    /// (`crate::net`). `private` allows non-public addresses.
+    Net {
+        /// Manifest name.
+        name: String,
+        /// The destination host.
+        host: Host,
+        /// The destination port.
+        port: u16,
+        /// Whether non-public addresses are allowed.
+        private: bool,
+    },
 }
 
 impl Grant {
     fn name(&self) -> &str {
         match self {
-            Self::Dir { name, .. } | Self::Exec { name, .. } | Self::Declassify { name } => name,
+            Self::Dir { name, .. }
+            | Self::Exec { name, .. }
+            | Self::Declassify { name }
+            | Self::Net { name, .. } => name,
         }
     }
 }
@@ -360,6 +377,10 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
         if line.is_empty() {
             continue;
         }
+        if let Some(rest) = line.strip_prefix("net ") {
+            entries.push(parse_net(rest).ok_or(ManifestError::Syntax(number))?);
+            continue;
+        }
         let mut parts = line.split(' ');
         let (Some(kind), Some(name), path, None) =
             (parts.next(), parts.next(), parts.next(), parts.next())
@@ -397,6 +418,29 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
         });
     }
     Ok((header, entries))
+}
+
+/// `NAME HOST:PORT [private]` after `net `.
+fn parse_net(rest: &str) -> Option<Grant> {
+    let mut parts = rest.split(' ');
+    let (Some(name), Some(target), flag, None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return None;
+    };
+    PathSeg::parse(name).ok()?;
+    let private = match flag {
+        None => false,
+        Some("private") => true,
+        Some(_) => return None,
+    };
+    let (host, port) = crate::net::parse_target(target)?;
+    Some(Grant::Net {
+        name: name.to_owned(),
+        host,
+        port,
+        private,
+    })
 }
 
 /// The current time from the system clock, Unix seconds. The prelude reads
@@ -458,6 +502,20 @@ impl Capabilities {
                         return Err(ManifestError::Duplicate(name));
                     }
                 }
+                Grant::Net {
+                    name,
+                    host,
+                    port,
+                    private,
+                } => {
+                    if caps
+                        .nets
+                        .insert(name.clone(), NetCap::new(name.clone(), host, port, private))
+                        .is_some()
+                    {
+                        return Err(ManifestError::Duplicate(name));
+                    }
+                }
             }
         }
         Ok(caps)
@@ -476,6 +534,11 @@ impl Capabilities {
     /// Takes the declassification capability named `name`, once.
     pub fn take_declassify(&mut self, name: &str) -> Option<DeclassifyCap> {
         self.declassify.remove(name)
+    }
+
+    /// Takes the network capability named `name`, once.
+    pub fn take_net(&mut self, name: &str) -> Option<NetCap> {
+        self.nets.remove(name)
     }
 
     /// The serial of the manifest these capabilities came from.
@@ -650,6 +713,40 @@ mod tests {
             load(&manifest("k1", 1, 1, ""), &kp, &t, 0),
             Err(ManifestError::Expired { .. })
         ));
+    }
+
+    #[test]
+    fn net_grants_parse_and_are_taken_once() {
+        let kp = keys();
+        let m = manifest(
+            "k1",
+            1,
+            LATER,
+            "net api api.example.com:443\nnet db 10.0.0.5:5432 private\nnet v6 [2001:db8::1]:443\n",
+        );
+        let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
+        assert_eq!(
+            caps.take_net("api").map(|n| n.name().to_owned()).as_deref(),
+            Some("api")
+        );
+        assert!(caps.take_net("api").is_none());
+        assert!(caps.take_net("db").is_some());
+        assert!(caps.take_net("v6").is_some());
+        for bad in [
+            "net api api.example.com\n",
+            "net api api.example.com:443 public\n",
+            "net api api.example.com:443 private extra\n",
+            "net ../x api.example.com:443\n",
+            "net api\n",
+        ] {
+            assert!(
+                matches!(
+                    load(&manifest("k1", 1, LATER, bad), &kp, &trusted("k1", &kp), 0),
+                    Err(ManifestError::Syntax(5))
+                ),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]
