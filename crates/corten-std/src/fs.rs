@@ -638,6 +638,78 @@ mod tests {
         }
     }
 
+    /// Set in the child that [`umask_077_child`] runs in.
+    const UMASK_CHILD: &str = "CORTEN_STD_UMASK_CHILD";
+    /// The child prints this after its last assertion, so a child that ran
+    /// no test (a wrong name, a filter) cannot pass as one that did.
+    const UMASK_CHILD_DONE: &str = "umask-077-child: 3 of 3 modes exact";
+
+    /// `fchmod` sets the requested mode even where the process `umask`
+    /// clears bits (strategy 8). The umask belongs to the whole process, so
+    /// the check runs in a child copy of this test binary: setting it here
+    /// would change the modes of files the sibling tests create.
+    #[test]
+    fn creation_modes_are_exact_under_umask_077() {
+        let out = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "fs::tests::umask_077_child",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(UMASK_CHILD, "1")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "child failed:\n{stdout}\n{stderr}");
+        assert!(
+            stdout.contains(UMASK_CHILD_DONE),
+            "child did not run its checks:\n{stdout}\n{stderr}"
+        );
+    }
+
+    #[test]
+    #[ignore = "run by creation_modes_are_exact_under_umask_077 in a child process"]
+    fn umask_077_child() {
+        use std::os::unix::fs::OpenOptionsExt;
+        // Outside that child (`cargo test -- --ignored`), do nothing: the
+        // umask would leak into every other test in this process.
+        if std::env::var_os(UMASK_CHILD).is_none() {
+            return;
+        }
+        let _previous = rustix::process::umask(rustix::fs::Mode::from_bits_truncate(0o077));
+        let s = Scratch::new("umask").unwrap();
+        let mode_of = |name: &str| {
+            std::fs::metadata(s.0.join("jail").join(name))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        // Control: a plain create asking for 0644 gets 0600, so the umask is
+        // in effect and the checks below can fail.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o644)
+            .open(s.0.join("jail/control"))
+            .unwrap();
+        assert_eq!(mode_of("control"), 0o600, "umask 077 not in effect");
+        let jail = s.jail().unwrap();
+        for (name, mode, want) in [
+            ("a", FileMode::OwnerOnly, 0o600),
+            ("b", FileMode::OwnerWriteGroupRead, 0o640),
+            ("c", FileMode::ReadableByAll, 0o644),
+        ] {
+            jail.open_file(&rel(name).unwrap(), OpenMode::CreateExclusive(mode))
+                .unwrap();
+            assert_eq!(mode_of(name), want, "{name}");
+        }
+        println!("{UMASK_CHILD_DONE}");
+    }
+
     #[test]
     fn single_link_opens_refuse_a_hard_linked_file() {
         let s = Scratch::new("hardlink").unwrap();
