@@ -275,6 +275,35 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Batch 4: authorization proof types (strategy 2) | Not started | Prototype on the corpus; adopt only at 0 false rejections (question 14) |
 | Batch 6: web types, credentials, strict parsers, contracts, runtime, supply chain | Not started | After batch 3 |
 
+### Developer friction (proposal reviewed 2026-11-03)
+
+From an external proposal, "Corten: Reducing Developer Friction". Its goal: keep the guarantees while making Corten something developers choose. The owner accepted it as backlog on 2026-11-03; nothing is decided yet. Rows marked "decision" need an owner choice first, proposed against the design principles in `AGENTS.md`.
+
+**Already true when reviewed:**
+- **Signed manifests** (its friction point 5): mostly addressed by `corten-manifest` (#27): `keygen`; and `sign`, which takes the serial from the clock, defaults to 90-day expiry and copies the program digest from the provenance.
+- **Cross-platform** (its point 6): harder since F2 (#28, Linux network namespace) and F4 (#27, executing the checked file through `/proc/self/fd`). A macOS or Windows backend must match both, or the ledger must record the gap per platform.
+
+**Corrections to the proposal, checked 2026-11-03:**
+- **Corpus:** 177 cases, not 174 (`corpus-report.md`).
+- **birdcage:** latest release 0.8.1 (2024-04-19) has no Landlock dependency. On Linux it uses namespaces and seccomp; "landlock" appears in 1 of its 48 files, as syscall numbers in its seccomp list. Its repository is archived, and its licence is GPL-3.0-or-later (crates.io and GitHub).
+- **Codex CLI:** the `openai/codex` repository is Apache-2.0 (GitHub API). Check each file's header before reuse.
+
+| Item | Status | Trigger or next step |
+| --- | --- | --- |
+| Prebuilt `corten-driver` (signed binary or dev container), so developers never handle the nightly pin | Not started; **decision** (supply chain: who builds it, and how the checker verifies the binary it runs; the provenance and signing pieces could be reused) | First, in the proposal's order; before any external user trial |
+| Starter tier: warn-only, stable-only entry point, stricter tiers enabled one at a time | Not started; **decision**. It must say plainly that it verifies nothing. The driver is what holds code to stable's feature gates (question 22) and runs the lints, so a silent warn-only mode would be a bypass | With the prebuilt driver |
+| Errors that teach: every rejection names the CWE, one line of why, the exact fix; `cargo corten fix` for machine-applicable fixes | Not started | Second in the proposal's order; no decision needed for the messages |
+| Metric: time to first passing check, per supported OS, tracked beside the 5% false-rejection limit | Not started | Measure by hand on Linux first; record it in this file |
+| Pre-approved crate list for the dependency policy | Not started | Each crate goes through the Phase 5 licence and supply-chain review; start with the crates the corpus and examples need |
+| Migration tool: report how far a crate is from Corten, rewrite mechanical parts (direct `std::fs` into `DirCap`) | Not started | After errors that teach (it reuses their fixes) |
+| Familiar APIs in `corten-std`: wrappers shaped like popular crates | Not started | With batch 6 (web types), crate by crate |
+| Gradual adoption: one crate or module at a time in a workspace | Not started; needs a design (how the checker scopes the profile and the dependency policy per crate) | After the starter tier |
+| IDE and coding-agent support: lints live through rust-analyzer; agent instructions or a skill for Corten-compliant code | Not started | Third in the proposal's order |
+| Learning mode: record what a program accesses, draft a policy | Not started; **decision** (design note first). Guardrails from the proposal: output is a reviewed diff, never auto-applied; flag wide grants (wildcard hosts, home directory, credential stores); never in release builds or with signed manifests (consistent with question 9 and F4) | Fourth in the proposal's order; needs a per-OS way to observe denied accesses |
+| Cross-platform sandbox layer: one Corten interface, per-OS backends (Landlock with namespaces on Linux, Seatbelt on macOS, AppContainer with restricted tokens and job objects on Windows) | Not started; **decision** (design note). The ledger records what is verified on each platform. Risks: Seatbelt's `sandbox-exec` is deprecated and its profile language undocumented; Windows is the largest effort | Fifth in the proposal's order: design note, then macOS, then Windows |
+| Logic-bug methods: typestate and property tests as the default style; formal verification (Kani, Verus, Prusti) for critical code; TLA+, Loom or Shuttle for concurrency | Not started. Typestate and property tests need no decision | When the next strategy is designed, write it in typestate where protocol order matters |
+| Authorization as an analysable policy language (Cedar) | **Decision**: it adds a dependency (principle 6), and batch 4 already plans authorization proof types (question 14) | Weigh against batch 4 before either starts |
+
 ## E claims for the network and cryptography APIs (question 21, 2026-11-02)
 
 Eight rows moved from C to E, prelude-only, each with a corpus case and a reason in the ledger.
