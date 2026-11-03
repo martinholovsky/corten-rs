@@ -54,7 +54,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 
 **Proposal.** Name an independent reviewer (not the encoders' author). Give them `docs/gates/encoder-prereview.md`, the property tests (`crates/corten-std/tests/encoder_properties.rs`, 10 properties over 1,128,449 inputs each) and the corpus variants. Record the review link in the ledger's `review` column, then run `corten-corpus --mark-verified`.
 
-**Why first.** It turns four Top 25 entries and two KEV entries from claimed to verified with no new code. It is blocked only on the owner naming a reviewer.
+**Why first.** It turns four Top 25 entries and two KEV entries from claimed to verified with no new code. It is blocked only on the review itself: the owner decided on 2026-11-03 to commission one external audit of the encoders and `corten_std::crypto` together (`gates/phase-6.md`, remaining-work table).
 
 ### 2. Authorization and authentication as proof types (16)
 
