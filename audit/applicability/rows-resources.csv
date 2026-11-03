@@ -71,7 +71,7 @@ CWE-830,yes,yes,none,"Emitting a script tag pointing at an untrusted origin is o
 CWE-843,yes,no,CWE-843.rs CWE-843.unsafe.rs,Enums are tag-checked and transmute or union reads are unsafe (E0133); type confusion needs unsafe.
 CWE-908,yes,no,CWE-908.rs CWE-908.unsafe.rs,rustc rejects use of uninitialised buffers (E0381); only unsafe set_len or MaybeUninit exposes uninitialised memory.
 CWE-909,yes,yes,CWE-909.rs,"Values are always initialised, but a critical resource can be left at its empty default (an unloaded rule table), which safe code then trusts."
-CWE-910,yes,no,CWE-910.rs CWE-910.unsafe.rs,"I/O safety: File/OwnedFd own their descriptor and FromRawFd is unsafe, so reusing a closed fd number needs unsafe (E0133)."
+CWE-910,yes,yes,none,"Safe through a crate: nix 0.31.3's unistd::close accepts a bare fd number, so safe code can close a File's descriptor; the next open reused it and the stale File read the other file (crates/cwe910_reuse.rs, measured 2026-11-04). With std alone FromRawFd is unsafe."
 CWE-911,yes,yes,CWE-911.rs,"Rc/Arc manage counts automatically, yet mem::forget of a clone leaves the count high (leak); over-decrement needs unsafe decrement_strong_count."
 CWE-913,yes,yes,CWE-913.rs,"No eval or reflection, but objects modelled as attribute maps are common; letting input write arbitrary keys is safe code."
 CWE-915,yes,yes,CWE-915.rs,"No reflective binding in std, but a generic form-to-struct binder that includes privileged fields is ordinary safe code."

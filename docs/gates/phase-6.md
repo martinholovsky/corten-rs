@@ -236,7 +236,7 @@ Each CWE is quoted from the ledger and is C today. The ledger changes only when 
 - **Fallback:** Cloudflare or Google is probed with the test name only. The program switches to it over DNS over TLS only with `dns fallback NAME` in the manifest (question 16).
 - **Sandbox:** `corten-sandbox` grants TCP 53 for host grants (the system resolver's TCP fallback) and 853 with `dns fallback`.
 - **Dependency policy:** `deny.toml` skips `core-foundation` 0.9.4 (hickory's macOS system-config reader; `corten-std` uses hickory on Linux only).
-- **Example policy:** `docs/dep-policy.example` bans `hickory_resolver::TlsConfig::insecure_skip_verify`. The path was checked against hickory's source; unlike the 24 bans of batch 5, it was not shown to fire.
+- **Example policy:** `docs/dep-policy.example` bans `hickory_resolver::TlsConfig::insecure_skip_verify`. The path was checked against hickory's source; unlike the 24 bans of batch 5, it was not shown to fire until 2026-11-04 (it fires: "Safe Rust through a crate" below).
 
 **Found while building.** hickory's DNS-over-TLS client starts from an empty root store unless `webpki-roots` or `rustls-platform-verifier` is enabled, and both are refused by the licence policy (CDLA-Permissive-2.0). The first live run showed `fallback="probed-unavailable"` even with the opt-in. The resolver now uses `NetCap`'s TLS configuration (the platform's roots, TLS 1.3).
 
@@ -267,7 +267,7 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | F4: nothing verified the Layer 4 provenance before deployment | **Fixed** (2026-11-02; owner decision: the digest in the signed manifest): manifest format 3 requires `program sha256 HEX`; `corten-sandbox` opens the program, hashes that open file and executes the same file through `/proc/self/fd`, refusing a mismatch before the serial is advanced; `corten-manifest sign --provenance` copies the digest from the build's statement | — |
 | Resolver out of process (question 20, option C): hickory and tokio leave every program's address space | Deferred: an isolation improvement, not a fix | When strategy 7 is revisited, or if a hickory advisory affects the resolver path |
 | DNSSEC validation inside the prelude; DNS over HTTPS; Happy Eyeballs | Not built (`netcap.md` status) | DNSSEC: measured before enabling (question 17). The others when a deployment needs them |
-| `hickory_resolver::TlsConfig::insecure_skip_verify` ban in `docs/dep-policy.example` | Path checked, not shown to fire | With the next dependency-policy change: add it to the firing test |
+| `hickory_resolver::TlsConfig::insecure_skip_verify` ban in `docs/dep-policy.example` | **Done** (2026-11-04): the trigger fired with the next policy change, and the ban fires under `cargo corten check` on Linux ("Safe Rust through a crate" below) | — |
 | CI: the cache does not measurably shorten the corpus step. Measured 2026-11-02 on `main`, with the cache restored: 24.8, 34.5, 27.7 and 18.9 minutes (pushes of `4b91041`, `359a2d5`, `242b1cb`, then the schedule), against 23.6 minutes (1,416 s) uncached; #24 (177 cases) took 27.4. The light path works: docs-only #23's `tests` job took 1.7 minutes with 9 steps skipped. **Why, measured locally (Linux container, 8 CPUs) on one corpus case:** a cold `cargo corten check` took 112 s and compiled 78 crates; a repeat took 2 s and compiled none, and still none after every source file was touched (as a fresh checkout does). So the cache can save only each worker's one cold build (about 2 minutes), while the step runs 308 checker invocations and 384 plain `cargo check` runs (177 cases, counted from the ledger's proof kinds and each variant's `//@ kind`) | Explained; nothing to fix in the cache | If the corpus must get faster: per-invocation cost (vendoring and the sandboxed passes per check), or sharding the step (sota-devsecops rules/16 §16.4) |
 | Batch 2b: labels on errors, logs and debug output (strategy 9) | Not started | Needs an API design first; propose it against the design principles |
 | Batch 3: budgets (strategy 4), safe deserialization and `ConfigCap` (strategy 3) | Not started | Strategy 3 needs a format and dependency review; strategy 4 changes every parsing entry point and needs a migration plan |
@@ -339,3 +339,28 @@ Eight rows moved from C to E, prelude-only, each with a corpus case and a reason
 - **Remaining:** 638 CWEs (30 claimed E, 582 C, 26 O). MITRE's 2025 Top 25 still remaining: 16 (CWE-918 left).
 
 **Regeneration order matters.** `scripts/applicability-table.py` before `scripts/residual-map.py`, which reads the table. Run first, the map still said 641.
+
+## Safe Rust through a crate (2026-11-04)
+
+The applicability audit had asked whether safe Rust can write a weakness with `std` alone. Re-checking the 63 rows marked `unsafe-rust-only` against crates with safe APIs found five that safe Rust can write through a common crate, each probe compiled under `#![forbid(unsafe_code)]` and run (`audit/applicability/crates/README.md`):
+- **CWE-560:** `rustix::process::umask` (rustix 1.1.6);
+- **CWE-403:** `rustix::io::fcntl_setfd` and `nix::fcntl::fcntl(F_SETFD)` (nix 0.31.3); a child read the descriptor;
+- **CWE-910 and 1341:** `nix::unistd::close` on a bare descriptor number; a stale `File` read the file that reused its number, and a double close returned `EBADF`;
+- **CWE-134:** `strfmt` 0.2.6 with an external format string (disclosure, no memory corruption).
+
+Still `unsafe` only: CWE-1063 (`ctor` 1.0.13 needs `#[ctor(unsafe)]`, which `forbid(unsafe_code)` refuses), the five signal-handler rows (`signal-hook` 0.4.6's `low_level::register` is `unsafe`), CWE-558 (nix has no `getlogin`), and the memory-safety rows, which rest on the soundness contract.
+
+**Owner decisions (2026-11-04):**
+1. A crate-dependent verdict is recorded as reasoning that cites the crate, its version and the measurement, with no program: `scripts/applicability-check.sh` checks programs against stock rustc, which cannot use a crate. The ten programs that showed only the `std` forms were removed (git history keeps them). The probes are kept in `audit/applicability/crates/`, not built by CI.
+2. The five rows stay E, by the CWE-918 precedent: the dependency policy refuses these crates unless the operator admits them, so each corpus case gains a `bad-<crate>.rs` variant (`//@ fake-dep`), and `docs/dep-policy.example` bans the APIs for an operator who admits them (design principle 8). Each row's mechanism names both.
+3. CWE-134 counts: MITRE's definition is a format string from an external source, which `strfmt` accepts.
+
+**Evidence.**
+- **Counts** (`scripts/applicability-table.py`): safe Rust 729 (was 724); safe Rust under Corten 638, unchanged, because all five rows are E and verified; rows resting on programs 362 (was 367). The ledger's buckets do not change.
+- **Bans, on Linux** (`cargo corten check` with the example policy, rustix, nix, strfmt and hickory-resolver admitted, plus the four packages they re-export):
+  - 9 of 9 fire, each with its own `use of a disallowed method` diagnostic, `hickory_resolver::TlsConfig::insecure_skip_verify` included;
+  - the same calls pass with the same admissions and no bans, without the two deprecated `strfmt` entry points (`strfmt_display`, `Format::format_display`), which the profile refuses on its own because deprecated calls are forbidden;
+  - a benign program using the same crates passes with the bans.
+- **A false start:** the first run admitted only the four direct crates, so the policy refused their re-exports before any lint ran and reported 0 of 9; that measured the harness, not the bans.
+- **Corpus:** the six new variants run in CI's corpus step (not run locally).
+

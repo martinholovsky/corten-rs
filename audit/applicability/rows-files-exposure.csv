@@ -74,7 +74,7 @@ CWE-377,yes,yes,CWE-377.rs,"std has no secure temp-file API; File::create on a p
 CWE-378,yes,yes,CWE-378.rs,OpenOptionsExt::mode(0o666) or default umask permissions on a temp file are safe std calls; choosing restrictive modes is the developer's job.
 CWE-379,yes,yes,none,Creating temp files in a world-writable directory (temp_dir()) without checks is a safe std operation; directory trust is environment logic.
 CWE-402,yes,yes,none,"Handing private resources (handles, data, sessions) to another sphere is a design decision; ownership transfer in Rust is explicit but not policy-checked."
-CWE-403,yes,no,CWE-403.rejected.rs CWE-403.unsafe.rs,"std opens files, sockets and pipes close-on-exec: a child saw no new descriptor (measured on macOS and Linux, 2026-10-27). Leaking one needs unsafe FFI (fcntl, dup) or pre_exec."
+CWE-403,yes,yes,none,"Safe through a crate: rustix 1.1.6's io::fcntl_setfd and nix 0.31.3's fcntl(F_SETFD) clear close-on-exec with no unsafe, and a child read the descriptor (crates/cwe403_fd_leak.rs, cwe403_nix.rs, measured 2026-11-04). std alone opens close-on-exec and leaking needs unsafe FFI or pre_exec."
 CWE-426,yes,yes,CWE-426.rs,"Command::new(""name"") resolves through the inherited PATH; trusting the search path is environment policy no compiler checks."
 CWE-427,yes,yes,CWE-427.rs,"Command::env(""PATH"", ...) or current-dir lookup can add attacker-writable entries in safe Rust; search-path hygiene is application logic."
 CWE-428,yes,yes,none,"std's Windows Command quotes argv[0] and passes the resolved application name, but a program can still register an unquoted path (service/registry stub) in safe code."

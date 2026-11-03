@@ -13,7 +13,7 @@ CWE-127,yes,no,CWE-127.rs CWE-127.safe.rs,Reading before a buffer needs a raw po
 CWE-128,yes,yes,CWE-128.rs,With overflow-checks off (the release default) integer addition wraps silently; wrapping_add is also safe. Ledger says unsafe-only.
 CWE-129,yes,yes,CWE-129.rs,"Indexing with an unvalidated request index compiles; the bounds check turns it into a panic (DoS) rather than memory corruption, but the missing validation remains."
 CWE-131,yes,yes,CWE-131.rs,"A miscomputed buffer size compiles in safe Rust; the later write panics on the bounds check instead of overflowing, but the size calculation is still wrong. Ledger says unsafe-only."
-CWE-134,yes,no,CWE-134.printf.rs CWE-134.rs,format! and println! accept only a string-literal format checked at compile time; an external format string reaches C printf only through an unsafe FFI call. Ledger says applies.
+CWE-134,yes,yes,none,"Safe through a crate: strfmt 0.2.6 formats with a runtime format string, so an external format chooses which values are printed (disclosure, no memory corruption; crates/cwe134_strfmt.rs, measured 2026-11-04). std's format! takes only a literal, and C printf needs unsafe."
 CWE-135,yes,yes,CWE-135.rs,str::len counts UTF-8 bytes while chars().count() counts scalars; mixing them compiles and the mismatched copy panics or truncates. Ledger says unsafe-only.
 CWE-179,yes,yes,CWE-179.rs,Validating before a later transformation is an ordering decision in program logic; no compiler of any language knows which transforms must precede the check.
 CWE-180,yes,yes,CWE-180.rs,Checking a path before canonicalising it is a logic order error; no type system distinguishes raw from canonical paths unless the programmer builds one.

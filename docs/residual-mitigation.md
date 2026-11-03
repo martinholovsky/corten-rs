@@ -4,7 +4,7 @@ Status: **accepted as the plan for Phase 6, 2026-11-01** ([`gates/phase-6.md`](g
 
 ## What remains
 
-Safe Rust can write 724 of the 944 CWEs. Corten's verified eliminations take out 86 of them, which leaves **638** (2026-11-02; 641 when this proposal was accepted):
+Safe Rust can write 729 of the 944 CWEs (724 before 2026-11-04, when five were found writable through a crate's safe API: `audit/applicability/crates/README.md`). Corten's verified eliminations take out 91 of them, which leaves **638** (2026-11-04; 641 when this proposal was accepted):
 
 | | CWEs |
 | --- | ---: |

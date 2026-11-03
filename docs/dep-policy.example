@@ -25,6 +25,19 @@ ban native_tls::TlsConnectorBuilder::danger_accept_invalid_hostnames disables ho
 ban rustls::ClientConfig::dangerous opens custom certificate verifiers (CWE-295)
 ban hickory_resolver::TlsConfig::insecure_skip_verify disables DNS-over-TLS certificate verification (CWE-295)
 
+# Weaknesses std keeps out but a crate's safe API lets back in
+# (audit/applicability/crates/README.md). Each keeps an E row E for an operator
+# who admits the crate. Paths checked against rustix 1.1.6, nix 0.31.3 and
+# strfmt 0.2.6 on 2026-11-04.
+ban rustix::process::umask sets the process umask from a chmod-style value (CWE-560); use DirCap's FileMode
+ban rustix::io::fcntl_setfd can clear close-on-exec, so a child inherits the descriptor (CWE-403)
+ban nix::fcntl::fcntl can clear close-on-exec, so a child inherits the descriptor (CWE-403)
+ban nix::unistd::close closes a bare descriptor number another owner still holds (CWE-910, 1341)
+ban strfmt::strfmt formats with a runtime format string (CWE-134)
+ban strfmt::strfmt_display formats with a runtime format string (CWE-134)
+ban strfmt::Format::format formats with a runtime format string (CWE-134)
+ban strfmt::Format::format_display formats with a runtime format string (CWE-134)
+
 # SQL as a runtime string (CWE-89): use corten_std::sql! and SqlExecutor.
 ban sqlx::query takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter
 ban sqlx::query_as takes SQL text as a string; use the prelude's sql! through a SqlExecutor adapter
