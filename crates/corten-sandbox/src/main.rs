@@ -18,7 +18,8 @@
 //!   are denied.
 //! - Without `--allow-net` and without a manifest `net` grant, the program
 //!   runs in a new, empty network namespace (inside a new user namespace,
-//!   with its user and group IDs mapped to themselves): no UDP, which
+//!   with its user and group IDs mapped to themselves where the kernel
+//!   allows it, else shown as 65534 inside): no UDP, which
 //!   Landlock does not filter, and no TCP, not even loopback (finding F2).
 //!   If the kernel refuses the namespaces, the sandbox stops, unless
 //!   `--allow-udp-without-netns` is given: then the program runs with UDP
@@ -494,13 +495,22 @@ mod netns {
         let gid = rustix::process::getgid().as_raw();
         unshare_user_and_net()
             .map_err(|e| format!("unshare(CLONE_NEWUSER | CLONE_NEWNET): {e}"))?;
+        // The network namespace is in place: that is the isolation. Mapping
+        // the IDs to themselves only keeps them looking the same inside, so
+        // it is best effort. Where the kernel grants no privilege in a new
+        // user namespace (measured on GitHub's Ubuntu 24.04 runner: writing
+        // /proc/self/setgroups fails with EACCES), the IDs show as 65534
+        // inside; files are still created with the real owner and a cargo
+        // build runs (measured in a container without the maps).
         // `setgroups` must be denied before an unprivileged gid_map write.
         for (file, text) in [
             ("/proc/self/setgroups", "deny".to_owned()),
             ("/proc/self/uid_map", format!("{uid} {uid} 1")),
             ("/proc/self/gid_map", format!("{gid} {gid} 1")),
         ] {
-            std::fs::write(file, text).map_err(|e| format!("{file}: {e}"))?;
+            if std::fs::write(file, text).is_err() {
+                break;
+            }
         }
         Ok(())
     }
