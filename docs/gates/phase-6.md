@@ -16,11 +16,11 @@ A strategy that only strengthens C moves no bucket.
 | --- | --- | --- | --- |
 | 1 | Decision 3: the ledger's `strategy` column, checked by `corten-ledger check` | **done** (2026-11-01, below) | |
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
-| 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | not started | |
+| 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | strategy 8 **built** (2026-11-02, remaining-work table); 4 and 3 not started | |
 | 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
 | 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 **built** (2026-11-02, below): `NetCap` core, then resolution, DNS logging and the opt-in fallback ([`../netcap.md`](../netcap.md)) | |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
-| — | 1 the independent encoder review (25 rows) | blocked | The owner naming a reviewer (AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
+| — | 1 the independent encoder review (26 ledger rows; 25 of them writable in Rust, CWE-564 is not) | blocked | An external audit being engaged (owner decision 2026-11-03, remaining-work table; AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
 | — | 16 code-quality metrics; 17 assurance tooling; 18 out of scope | reported, not gated | Spec section 7 |
 
 ## Batch 1 result (2026-11-01)
@@ -259,7 +259,7 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Item | Status | Trigger or next step |
 | --- | --- | --- |
 | E claims, question 21 | **Done** (2026-11-02, below): CWE-918, 319, 1428 E and verified; CWE-323, 916, 759, 760, 347 E, `review = required` | The crypto rows: the independent review (next row) |
-| Independent review of the encoders (25 rows) and of `corten_std::crypto` (the five question 21 rows) | Blocked | The owner names a reviewer who is not the author (AGENTS.md rule 1) |
+| Independent review of the encoders (26 ledger rows with `review = required`; 25 of them writable in Rust, CWE-564 is not) and of `corten_std::crypto` (the five question 21 rows) | Blocked. **Owner decision 2026-11-03:** commission one external audit of the encoders and `corten_std::crypto` together, rather than naming an individual reviewer, so one engagement covers all 31 rows. Hand-over: `docs/gates/encoder-prereview.md`, `crates/corten-std/tests/encoder_properties.rs`, the corpus variants | The audit engaged; the auditor records a review link per row in the ledger's `review` column, then `corten-corpus --mark-verified` (AGENTS.md rule 1) |
 | F5: a dependency's build script could rewrite another dependency's vendored source inside `cargo corten build` | **Fixed** (2026-11-02): vendored sources read-only outside `target/`; `CARGO_HOME` emptied per pass; smoke case 4, with a plain-cargo control | — |
 | Manifest signing helper, design principle 10 | **Done** (2026-11-02; owner decisions: a 0600 key file, serial = Unix time, 90-day default expiry capped at 366): `corten-manifest keygen` and `corten-manifest sign`, a separate tool so the checker gains no signing code (principle 6; the tracker had named it `cargo corten manifest sign`). `sign` verifies its output with `corten_std::manifest::verify` before writing; 6 tests, and deleting the key-file mode check failed one | — |
 | F3: key rotation in `corten_std::crypto` | **Done** (2026-11-02): see finding F3 above; 15 crypto unit tests pass, including a header-relabelling test shown to fail when the header is not authenticated | — |
@@ -274,6 +274,9 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Strategy 8, DirCap extensions | **Built** (2026-11-02; owner decisions: an explicit `FileMode` enum, opt-in single-link opens, an upload sink with a generated name and a declared type): `OpenMode::CreateExclusive(FileMode)` (0600, 0640 or 0644, set exactly with `fchmod`), `ReadSingleLink` and `AppendSingleLink` (`FsError::HardLink`), `DirCap::store_upload` with `DeclaredType`. The 31 rows stay C: a program can still choose a wider mode or a plain open. Moving any to E (question 21) needs its own corpus case. Tested under `umask 077` (2026-11-03, Linux container): `fs::tests::creation_modes_are_exact_under_umask_077` runs a child test process with that umask, whose plain create of 0644 gets 0600 (the control), and finds 0600, 0640 and 0644 exact; with the `fchmod` call removed it fails (0600 for 0640) while the default-umask test still passes | Corpus cases for the rows the new API makes inexpressible, then an E proposal per row |
 | Batch 4: authorization proof types (strategy 2) | Not started | Prototype on the corpus; adopt only at 0 false rejections (question 14) |
 | Batch 6: web types, credentials, strict parsers, contracts, runtime, supply chain | Not started | After batch 3 |
+| Spec section 5: every explicit wipe observable (CWE-14, 244, 733; ledger strategy `secrets`) | Not started; part of strategy 11 (`../residual-mitigation.md`) | With batch 6 (credentials) |
+| Spec section 5: secret spill control (CWE-316; ledger strategy `secrets`) | Partly done (Phase 2): `Secret<T>` is `mlock`ed and the process non-dumpable on Linux. **Blocked** for the rest: a per-page `MADV_DONTDUMP` needs `unsafe` (spec 4.14, question 9), and no LLVM attribute forbids spilling | A safe `madvise` in a dependency that passes `deny.toml`, or an LLVM attribute that forbids spills |
+| Spec section 5: arithmetic ergonomics, a `strict_math!` block instead of `checked_add` chains (CWE-190, 191; ledger strategy `contracts`) | Not started; needs an API design (a macro that propagates `?` through `+`, `-`, `*`) | With batch 6 (contracts, strategy 13); propose against design principle 1 |
 
 ### Developer friction (proposal reviewed 2026-11-03)
 
