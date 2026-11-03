@@ -118,7 +118,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 
 ### 8. DirCap extensions (31)
 
-**Today.** `DirCap` opens beneath a root with `openat2` and `RESOLVE_BENEATH`, so the path family is verified.
+**Today.** `DirCap` opens beneath a root with `openat2` and `RESOLVE_BENEATH`, so the path family is verified. Since 2026-11-02 (built, `docs/gates/phase-6.md`): creation modes are an explicit `FileMode` (0600, 0640, 0644; no default, set exactly), `ReadSingleLink` and `AppendSingleLink` refuse a hard-linked file, and `DirCap::store_upload` stores under a generated name with a server-declared type. `create_temp` was already 0600 and `O_EXCL`.
 
 **Proposal.** Temporary files created only through `DirCap`, with mode 0600 and `O_EXCL` (CWE-377, 379). Creation modes are explicit in the type, never defaulted (CWE-276, 732). An upload sink that stores under a generated name and records the declared type, never the client's file name (CWE-434, 646). An opt-in refusal of hard links (CWE-62, 65).
 

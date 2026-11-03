@@ -140,7 +140,7 @@ Applications cannot open a string pathname. They open a validated segment relati
 
 ```rust
 let segment = PathSeg::parse(upload_name)?;
-let file = uploads.open(segment, OpenMode::CreateExclusive)?;
+let file = uploads.open(segment, OpenMode::CreateExclusive(FileMode::OwnerOnly))?;
 ```
 
 The reference monitor uses `openat2` with mandatory `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS`, or refuses the operation on platforms without race-resistant resolution. Temporary files are created atomically with exclusive ownership. Executable search through `PATH` does not exist.
