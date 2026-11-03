@@ -21,9 +21,13 @@
 //!   `--trusted-key ID=HEX` keys (repeat the flag to rotate keys), refused
 //!   at or after its `not-after`, and refused when its serial is below the
 //!   one stored in the `--serial-state` file, so an older manifest cannot be
-//!   replayed (spec section 8, question 19). A higher serial is written to
-//!   that file, atomically, before the program starts; a missing file counts
-//!   as serial 0. Each `dir` grant becomes a read-write rule, each `exec`
+//!   replayed (spec section 8, question 19). The program's SHA-256 must
+//!   equal the manifest's `program sha256` line: the launcher opens the
+//!   program once, hashes that open file and executes the same file through
+//!   `/proc/self/fd`, so the grants reach only the build they were signed for
+//!   (finding F4). Only then is a higher serial written to the state file,
+//!   atomically, before the program starts; a missing file counts as
+//!   serial 0. Each `dir` grant becomes a read-write rule, each `exec`
 //!   grant an execute rule, and each `net` grant a TCP connect rule for its
 //!   port (Landlock filters by port; `corten_std::net` checks the address).
 //!   Any refusal stops the run.
@@ -65,6 +69,8 @@ struct Plan {
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
     manifest: Option<ManifestArgs>,
+    /// The program digest the verified manifest pins (manifest mode only).
+    program_sha256: Option<[u8; 32]>,
     program: PathBuf,
     args: Vec<OsString>,
 }
@@ -129,10 +135,50 @@ fn write_serial(path: &std::path::Path, serial: u64) -> Result<(), String> {
     std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Verifies the manifest and adds its grants to the plan.
-fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
+/// Largest program file hashed against a manifest, in bytes: the whole file
+/// is read, so the bound keeps a hostile path from exhausting memory.
+const MAX_PROGRAM: u64 = 1 << 30;
+
+/// Opens `program` and checks its SHA-256 against the manifest's
+/// `program sha256` line (finding F4). The open file is returned and is
+/// what [`exec`] runs, through `/proc/self/fd`, so the binary cannot be
+/// swapped between this check and the exec. Off Linux nothing is executed
+/// (the sandbox refuses), so the check is the same everywhere.
+fn open_pinned(program: &std::path::Path, want: &[u8; 32]) -> Result<std::fs::File, String> {
+    use std::io::Read;
+    let file = std::fs::File::open(program).map_err(|e| format!("{}: {e}", program.display()))?;
+    let len = file
+        .metadata()
+        .map_err(|e| format!("{}: {e}", program.display()))?
+        .len();
+    if len > MAX_PROGRAM {
+        return Err(format!(
+            "{} is {len} bytes, over the {MAX_PROGRAM}-byte limit for hashing",
+            program.display()
+        ));
+    }
+    let mut bytes = Vec::new();
+    (&file)
+        .take(MAX_PROGRAM.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{}: {e}", program.display()))?;
+    let got = corten_sha256::digest(&bytes);
+    if &got != want {
+        return Err(format!(
+            "{} has SHA-256 {}, but the manifest is for {}: refusing to grant it the manifest's capabilities",
+            program.display(),
+            corten_sha256::hex(&got),
+            corten_sha256::hex(want)
+        ));
+    }
+    Ok(file)
+}
+
+/// Verifies the manifest, checks the program against its digest, and adds
+/// its grants to the plan. Returns the opened program in manifest mode.
+fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
     let Some(m) = &plan.manifest else {
-        return Ok(());
+        return Ok(None);
     };
     let manifest =
         std::fs::read(&m.manifest).map_err(|e| format!("{}: {e}", m.manifest.display()))?;
@@ -160,6 +206,9 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
         corten_std::manifest::MinSerial(stored),
     )
     .map_err(|e| e.to_string())?;
+    // Before the serial is advanced: a refused binary leaves no trace.
+    let program = open_pinned(&plan.program, &verified.program_sha256)?;
+    plan.program_sha256 = Some(verified.program_sha256);
     if verified.serial > stored {
         write_serial(&m.serial_state, verified.serial)?;
     }
@@ -184,7 +233,7 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
             corten_std::manifest::Grant::DnsFallback { .. } => plan.connect_ports.push(853),
         }
     }
-    Ok(())
+    Ok(Some(program))
 }
 
 fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
@@ -371,10 +420,13 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    if let Err(e) = apply_manifest(&mut plan) {
-        eprintln!("corten-sandbox: manifest refused: {e}");
-        return ExitCode::from(EXIT_UNENFORCEABLE);
-    }
+    let pinned = match apply_manifest(&mut plan) {
+        Ok(pinned) => pinned,
+        Err(e) => {
+            eprintln!("corten-sandbox: manifest refused: {e}");
+            return ExitCode::from(EXIT_UNENFORCEABLE);
+        }
+    };
     // Before Landlock: afterwards /proc may be out of reach. (Off Linux,
     // enforce::apply refuses below.)
     #[cfg(target_os = "linux")]
@@ -386,7 +438,7 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: cannot enforce the sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
-    exec(&plan)
+    exec(&plan, pinned.as_ref())
 }
 
 /// Refuses to run while a descriptor above 2 lacks close-on-exec: the program
@@ -430,12 +482,22 @@ fn check_descriptors() -> Result<(), String> {
     }
 }
 
+/// Executes the program: in manifest mode the file [`open_pinned`] checked,
+/// through `/proc/self/fd/N` (the kernel resolves that link to the open
+/// file, not to whatever the path names now), with `argv[0]` still the
+/// program's path.
 #[cfg(unix)]
-fn exec(plan: &Plan) -> ExitCode {
+fn exec(plan: &Plan, pinned: Option<&std::fs::File>) -> ExitCode {
+    use std::os::fd::AsRawFd;
     use std::os::unix::process::CommandExt;
+    let path = match pinned {
+        Some(file) => PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd())),
+        None => plan.program.clone(),
+    };
     // exec replaces this process, so the Landlock domain carries over; it
     // only returns on failure.
-    let err = std::process::Command::new(&plan.program)
+    let err = std::process::Command::new(&path)
+        .arg0(&plan.program)
         .args(&plan.args)
         .exec();
     eprintln!(
@@ -446,13 +508,35 @@ fn exec(plan: &Plan) -> ExitCode {
 }
 
 #[cfg(not(unix))]
-fn exec(_plan: &Plan) -> ExitCode {
+fn exec(_plan: &Plan, _pinned: Option<&std::fs::File>) -> ExitCode {
     ExitCode::from(EXIT_UNENFORCEABLE)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_program_must_match_the_manifest_digest() {
+        let dir = std::env::temp_dir().join(format!("corten-sandbox-pin-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let prog = dir.join("prog");
+        std::fs::write(&prog, b"abc").unwrap();
+        // SHA-256 of "abc" (FIPS 180-4, appendix B.1).
+        let abc = corten_sha256::digest(b"abc");
+        assert_eq!(
+            corten_sha256::hex(&abc),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert!(open_pinned(&prog, &abc).is_ok());
+        let mut other = abc;
+        other[0] ^= 1;
+        let e = open_pinned(&prog, &other).err().unwrap();
+        assert!(e.contains("refusing") && e.contains("ba7816bf"), "{e}");
+        let e = open_pinned(&dir.join("absent"), &abc).err().unwrap();
+        assert!(e.contains("absent"), "{e}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn run(args: &[&str]) -> Result<Plan, String> {
         parse(args.iter().map(OsString::from))

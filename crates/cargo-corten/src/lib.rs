@@ -11,7 +11,7 @@ pub mod deps;
 pub mod json;
 pub mod profile;
 pub mod provenance;
-pub mod sha256;
+pub use corten_sha256 as sha256;
 
 use std::ffi::OsString;
 use std::fmt;

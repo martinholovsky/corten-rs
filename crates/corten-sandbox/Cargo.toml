@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 corten-std = { path = "../corten-std" }
+corten-sha256 = { path = "../corten-sha256" }
 
 # Owner decision 11 (spec section 8): the landlock crate; Unicode-3.0 allowed.
 [target.'cfg(target_os = "linux")'.dependencies]

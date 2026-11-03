@@ -23,8 +23,11 @@ use ed25519_compact::{KeyPair, Seed};
 
 fn exec_cap(program: &str) -> ExecCap {
     let kp = KeyPair::from_seed(Seed::new([9u8; 32]));
-    let manifest =
-        format!("corten-manifest 2\nkey k\nserial 1\nnot-after 4102444800\nexec prog {program}\n");
+    // Capabilities::load does not check the program line; the launcher does.
+    let manifest = format!(
+        "corten-manifest 3\nkey k\nserial 1\nnot-after 4102444800\nprogram sha256 {}\nexec prog {program}\n",
+        "0".repeat(64)
+    );
     let sig = kp.sk.sign(manifest.as_bytes(), None);
     let mut keys = TrustedKeys::new();
     keys.add(KeyId("k"), PublicKey(kp.pk.as_ref())).unwrap();
@@ -334,6 +337,10 @@ fn hex(bytes: &[u8]) -> String {
 /// Layer 5: the signed manifest decides what the program may touch, and an
 /// older, expired or untrusted manifest is refused before anything runs.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one launcher scenario: each refusal is checked against the same state file, in order"
+)]
 fn manifest_mode_grants_exactly_the_manifest() {
     let s = Scratch::new("manifest");
     let data = s.0.join("data");
@@ -344,10 +351,18 @@ fn manifest_mode_grants_exactly_the_manifest() {
     let kp = KeyPair::from_seed(Seed::new([11u8; 32]));
     let state = s.0.join("serial");
     let sandbox = env!("CARGO_BIN_EXE_corten-sandbox");
-    // Writes a manifest and its signature; returns their paths.
-    let write = |tag: &str, key: &str, serial: u64, not_after: u64, signer: &KeyPair| {
+    // The digest of the program the manifest is for (finding F4).
+    let cat = corten_sha256::hex_digest(&fs::read("/bin/cat").unwrap());
+    // Writes a manifest for `program` (a hex digest) and its signature;
+    // returns their paths.
+    let write_for = |tag: &str,
+                     key: &str,
+                     serial: u64,
+                     not_after: u64,
+                     signer: &KeyPair,
+                     program: &str| {
         let manifest = format!(
-            "corten-manifest 2\nkey {key}\nserial {serial}\nnot-after {not_after}\ndir data {}\nexec cat /bin/cat\n",
+            "corten-manifest 3\nkey {key}\nserial {serial}\nnot-after {not_after}\nprogram sha256 {program}\ndir data {}\nexec cat /bin/cat\n",
             data.display()
         );
         let m = s.0.join(format!("{tag}.manifest"));
@@ -355,6 +370,9 @@ fn manifest_mode_grants_exactly_the_manifest() {
         fs::write(&m, &manifest).unwrap();
         fs::write(&g, signer.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
         (m, g)
+    };
+    let write = |tag: &str, key: &str, serial: u64, not_after: u64, signer: &KeyPair| {
+        write_for(tag, key, serial, not_after, signer, &cat)
     };
     let run_cat = |(m, g): &(PathBuf, PathBuf), file: &Path| {
         Command::new(sandbox)
@@ -396,10 +414,25 @@ fn manifest_mode_grants_exactly_the_manifest() {
     // A signature over different bytes: refused before anything runs.
     let (m, _) = &current;
     let bad_sig = s.0.join("bad.sig");
-    fs::write(&bad_sig, kp.sk.sign(b"corten-manifest 2\n", None).as_ref()).unwrap();
+    fs::write(&bad_sig, kp.sk.sign(b"corten-manifest 3\n", None).as_ref()).unwrap();
     refused(
         &run_cat(&(m.clone(), bad_sig), &data.join("in.txt")),
         "manifest refused",
+    );
+    // A valid, newer manifest for another binary: refused before anything
+    // runs, and the serial is not advanced (finding F4).
+    let not_cat = "0".repeat(64);
+    refused(
+        &run_cat(
+            &write_for("other-program", "deploy", 9, later, &kp, &not_cat),
+            &data.join("in.txt"),
+        ),
+        "refusing to grant it the manifest's capabilities",
+    );
+    assert_eq!(
+        fs::read_to_string(&state).unwrap(),
+        "5\n",
+        "a refused binary advanced the serial"
     );
     // An older manifest, validly signed: refused as a replay.
     refused(

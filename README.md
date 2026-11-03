@@ -74,7 +74,9 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`crates/corten-std`](crates/corten-std) | The capability prelude: `DirCap`, typed sinks, `Secret`, the signed manifest |
 | [`crates/corten-runtime`](crates/corten-runtime) | Supervision tree: a panicked component is restarted, not the service |
 | [`crates/corten-broker`](crates/corten-broker) | Process and Wasm brokers with quotas and deadlines; size-checked IPC frames |
-| [`crates/corten-sandbox`](crates/corten-sandbox) | Landlock launcher (Linux): grants by flag or by signed capability manifest |
+| [`crates/corten-sandbox`](crates/corten-sandbox) | Landlock launcher (Linux): grants by flag or by signed capability manifest, run only for the program whose SHA-256 the manifest pins |
+| [`crates/corten-manifest`](crates/corten-manifest) | The deployer's tool: `keygen` creates a signing key (mode 0600) and prints the `--trusted-key` argument; `sign` writes and signs a format 3 manifest (serial from the clock, 90-day default expiry, program digest from the build's provenance) |
+| [`crates/corten-sha256`](crates/corten-sha256) | SHA-256 without dependencies, shared by the checker's provenance and the launcher's program check |
 | [`action.yml`](action.yml), [`scripts/hermetic-smoke.sh`](scripts/hermetic-smoke.sh) | The layer 4 GitHub Action, and the end-to-end test of the sandboxed build |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed, newest first |
 | [`docs/assets/logo/`](docs/assets/logo) | The logo, favicon and GitHub social preview, with the script that renders them |
