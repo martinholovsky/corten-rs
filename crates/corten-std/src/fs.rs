@@ -28,10 +28,7 @@ pub enum FsError {
     /// A single-link open met a file with more than one hard link: another
     /// name, possibly outside the intended set, refers to the same file
     /// (CWE-62, 65).
-    HardLink {
-        /// The file's link count.
-        links: u64,
-    },
+    HardLink,
 }
 
 impl fmt::Display for FsError {
@@ -42,11 +39,8 @@ impl fmt::Display for FsError {
             ),
             Self::BudgetExceeded { limit } => write!(f, "read exceeds the budget of {limit} bytes"),
             Self::Os(e) => write!(f, "{e}"),
-            Self::HardLink { links } => {
-                write!(
-                    f,
-                    "the file has {links} hard links; a single-link open refuses it"
-                )
+            Self::HardLink => {
+                f.write_str("the file has more than one hard link; a single-link open refuses it")
             }
         }
     }
@@ -106,7 +100,8 @@ pub enum OpenMode {
 }
 
 /// A media type the server declares for stored content
-/// (`type/subtype`, lowercase ASCII letters, digits and `+ - .`), never the
+/// (`type/subtype`: lowercase ASCII letters, digits and `+ - .`, each part
+/// starting with a letter or digit), never the
 /// client's claim (CWE-434). A label (spec 4.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclaredType(String);
@@ -119,8 +114,11 @@ impl DeclaredType {
     /// The text, if it is not `type/subtype` in the grammar above or longer
     /// than 127 bytes.
     pub fn parse(text: &str) -> Result<Self, String> {
+        // RFC 6838 section 4.2: a name starts with a letter or digit.
         let part = |p: &str| {
-            !p.is_empty()
+            p.bytes()
+                .next()
+                .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
                 && p.bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"+-.".contains(&b))
         };
@@ -243,9 +241,10 @@ mod imp {
             }
             OpenMode::ReadSingleLink | OpenMode::AppendSingleLink => {
                 // Checked on the open descriptor, so a rename cannot swap it.
-                let links = u64::from(rustix::fs::fstat(&fd).map_err(map)?.st_nlink);
-                if links > 1 {
-                    return Err(FsError::HardLink { links });
+                // nlink_t is 64-bit on some targets and 32-bit on others,
+                // so the count is compared, not carried in the error.
+                if rustix::fs::fstat(&fd).map_err(map)?.st_nlink > 1 {
+                    return Err(FsError::HardLink);
                 }
             }
             OpenMode::Read | OpenMode::Append => {}
@@ -659,7 +658,7 @@ mod tests {
             assert!(
                 matches!(
                     jail.open_file(&rel("alias").unwrap(), mode),
-                    Err(FsError::HardLink { links: 2 })
+                    Err(FsError::HardLink)
                 ),
                 "{mode:?}"
             );
