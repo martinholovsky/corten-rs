@@ -176,6 +176,9 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 [[package]]
 name = "cargo-corten"
 version = "0.0.0"
+dependencies = [
+ "corten-sha256",
+]
 
 [[package]]
 name = "cc"
@@ -303,6 +306,16 @@ name = "corten-ledger"
 version = "0.0.0"
 
 [[package]]
+name = "corten-manifest"
+version = "0.0.0"
+dependencies = [
+ "cargo-corten",
+ "corten-sha256",
+ "corten-std",
+ "ed25519-compact",
+]
+
+[[package]]
 name = "corten-runtime"
 version = "0.0.0"
 
@@ -311,10 +324,16 @@ name = "corten-sandbox"
 version = "0.0.0"
 dependencies = [
  "corten-broker",
+ "corten-sha256",
  "corten-std",
  "ed25519-compact",
  "landlock",
+ "rustix",
 ]
+
+[[package]]
+name = "corten-sha256"
+version = "0.0.0"
 
 [[package]]
 name = "corten-std"

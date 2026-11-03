@@ -2,6 +2,7 @@
 //!
 //! ```text
 //! corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net]
+//!                [--allow-udp-without-netns]
 //!                [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE]
 //!                -- PROGRAM [ARGS]...
 //! ```
@@ -15,15 +16,28 @@
 //!   programs need.
 //! - `--allow-net`: leave TCP bind and connect unrestricted. Without it, both
 //!   are denied.
+//! - Without `--allow-net` and without a manifest `net` grant, the program
+//!   runs in a new, empty network namespace (inside a new user namespace,
+//!   with its user and group IDs mapped to themselves where the kernel
+//!   allows it, else shown as 65534 inside): no UDP, which
+//!   Landlock does not filter, and no TCP, not even loopback (finding F2).
+//!   If the kernel refuses the namespaces, the sandbox stops, unless
+//!   `--allow-udp-without-netns` is given: then the program runs with UDP
+//!   open and a warning is printed on every start (owner decision,
+//!   2026-11-02).
 //! - `--manifest`, `--signature`, `--trusted-key`, `--serial-state`: the
 //!   layer 5 mode. The signed capability manifest is verified as in
 //!   `corten_std::manifest`: with the key its `key` line names among the
 //!   `--trusted-key ID=HEX` keys (repeat the flag to rotate keys), refused
 //!   at or after its `not-after`, and refused when its serial is below the
 //!   one stored in the `--serial-state` file, so an older manifest cannot be
-//!   replayed (spec section 8, question 19). A higher serial is written to
-//!   that file, atomically, before the program starts; a missing file counts
-//!   as serial 0. Each `dir` grant becomes a read-write rule, each `exec`
+//!   replayed (spec section 8, question 19). The program's SHA-256 must
+//!   equal the manifest's `program sha256` line: the launcher opens the
+//!   program once, hashes that open file and executes the same file through
+//!   `/proc/self/fd`, so the grants reach only the build they were signed for
+//!   (finding F4). Only then is a higher serial written to the state file,
+//!   atomically, before the program starts; a missing file counts as
+//!   serial 0. Each `dir` grant becomes a read-write rule, each `exec`
 //!   grant an execute rule, and each `net` grant a TCP connect rule for its
 //!   port (Landlock filters by port; `corten_std::net` checks the address).
 //!   Any refusal stops the run.
@@ -46,7 +60,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
+const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--allow-udp-without-netns] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
 
 /// Exit status when the arguments are wrong.
 const EXIT_USAGE: u8 = 2;
@@ -62,9 +76,13 @@ struct Plan {
     read_write: Vec<PathBuf>,
     execute: Vec<PathBuf>,
     allow_net: bool,
+    /// Run with UDP open where the network namespace cannot be created.
+    allow_udp_without_netns: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
     manifest: Option<ManifestArgs>,
+    /// The program digest the verified manifest pins (manifest mode only).
+    program_sha256: Option<[u8; 32]>,
     program: PathBuf,
     args: Vec<OsString>,
 }
@@ -129,10 +147,50 @@ fn write_serial(path: &std::path::Path, serial: u64) -> Result<(), String> {
     std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Verifies the manifest and adds its grants to the plan.
-fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
+/// Largest program file hashed against a manifest, in bytes: the whole file
+/// is read, so the bound keeps a hostile path from exhausting memory.
+const MAX_PROGRAM: u64 = 1 << 30;
+
+/// Opens `program` and checks its SHA-256 against the manifest's
+/// `program sha256` line (finding F4). The open file is returned and is
+/// what [`exec`] runs, through `/proc/self/fd`, so the binary cannot be
+/// swapped between this check and the exec. Off Linux nothing is executed
+/// (the sandbox refuses), so the check is the same everywhere.
+fn open_pinned(program: &std::path::Path, want: &[u8; 32]) -> Result<std::fs::File, String> {
+    use std::io::Read;
+    let file = std::fs::File::open(program).map_err(|e| format!("{}: {e}", program.display()))?;
+    let len = file
+        .metadata()
+        .map_err(|e| format!("{}: {e}", program.display()))?
+        .len();
+    if len > MAX_PROGRAM {
+        return Err(format!(
+            "{} is {len} bytes, over the {MAX_PROGRAM}-byte limit for hashing",
+            program.display()
+        ));
+    }
+    let mut bytes = Vec::new();
+    (&file)
+        .take(MAX_PROGRAM.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{}: {e}", program.display()))?;
+    let got = corten_sha256::digest(&bytes);
+    if &got != want {
+        return Err(format!(
+            "{} has SHA-256 {}, but the manifest is for {}: refusing to grant it the manifest's capabilities",
+            program.display(),
+            corten_sha256::hex(&got),
+            corten_sha256::hex(want)
+        ));
+    }
+    Ok(file)
+}
+
+/// Verifies the manifest, checks the program against its digest, and adds
+/// its grants to the plan. Returns the opened program in manifest mode.
+fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
     let Some(m) = &plan.manifest else {
-        return Ok(());
+        return Ok(None);
     };
     let manifest =
         std::fs::read(&m.manifest).map_err(|e| format!("{}: {e}", m.manifest.display()))?;
@@ -160,6 +218,9 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
         corten_std::manifest::MinSerial(stored),
     )
     .map_err(|e| e.to_string())?;
+    // Before the serial is advanced: a refused binary leaves no trace.
+    let program = open_pinned(&plan.program, &verified.program_sha256)?;
+    plan.program_sha256 = Some(verified.program_sha256);
     if verified.serial > stored {
         write_serial(&m.serial_state, verified.serial)?;
     }
@@ -184,7 +245,7 @@ fn apply_manifest(plan: &mut Plan) -> Result<(), String> {
             corten_std::manifest::Grant::DnsFallback { .. } => plan.connect_ports.push(853),
         }
     }
-    Ok(())
+    Ok(Some(program))
 }
 
 fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
@@ -204,6 +265,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
                 .push(args.next().ok_or("--exec needs a path")?.into()),
             Some("--system") => plan.execute.extend(SYSTEM_PATHS.iter().map(PathBuf::from)),
             Some("--allow-net") => plan.allow_net = true,
+            Some("--allow-udp-without-netns") => plan.allow_udp_without_netns = true,
             Some("--manifest") => {
                 plan.manifest
                     .get_or_insert_with(ManifestArgs::default)
@@ -371,10 +433,13 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    if let Err(e) = apply_manifest(&mut plan) {
-        eprintln!("corten-sandbox: manifest refused: {e}");
-        return ExitCode::from(EXIT_UNENFORCEABLE);
-    }
+    let pinned = match apply_manifest(&mut plan) {
+        Ok(pinned) => pinned,
+        Err(e) => {
+            eprintln!("corten-sandbox: manifest refused: {e}");
+            return ExitCode::from(EXIT_UNENFORCEABLE);
+        }
+    };
     // Before Landlock: afterwards /proc may be out of reach. (Off Linux,
     // enforce::apply refuses below.)
     #[cfg(target_os = "linux")]
@@ -382,11 +447,81 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
+    // Before Landlock: the ID maps are written through /proc.
+    #[cfg(target_os = "linux")]
+    if needs_netns(&plan) {
+        match netns::isolate() {
+            Ok(()) => {}
+            Err(e) if plan.allow_udp_without_netns => {
+                eprintln!(
+                    "corten-sandbox: warning: no network namespace ({e}); the program can send UDP anywhere (--allow-udp-without-netns)"
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "corten-sandbox: cannot create an empty network namespace for a program without a network grant: {e}. Without it the program could send UDP anywhere; pass --allow-udp-without-netns to run it anyway"
+                );
+                return ExitCode::from(EXIT_UNENFORCEABLE);
+            }
+        }
+    }
     if let Err(e) = enforce::apply(&plan) {
         eprintln!("corten-sandbox: cannot enforce the sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
-    exec(&plan)
+    exec(&plan, pinned.as_ref())
+}
+
+/// A program with no network grant gets an empty network namespace: no
+/// `--allow-net` and no TCP port from a manifest `net` grant (F2).
+#[cfg(target_os = "linux")]
+fn needs_netns(plan: &Plan) -> bool {
+    !plan.allow_net && plan.connect_ports.is_empty()
+}
+
+/// User and network namespaces (F2). Landlock ABI v4 filters TCP only; an
+/// empty network namespace stops UDP and everything else the program could
+/// send.
+#[cfg(target_os = "linux")]
+mod netns {
+    use rustix::thread::UnshareFlags;
+
+    /// Moves this process into a new user namespace, with its user and
+    /// group IDs mapped to themselves, and a new network namespace that has
+    /// only a loopback device, down. Must run while the process has one
+    /// thread (the kernel refuses a new user namespace otherwise).
+    pub(super) fn isolate() -> Result<(), String> {
+        let uid = rustix::process::getuid().as_raw();
+        let gid = rustix::process::getgid().as_raw();
+        unshare_user_and_net()
+            .map_err(|e| format!("unshare(CLONE_NEWUSER | CLONE_NEWNET): {e}"))?;
+        // The network namespace is in place: that is the isolation. Mapping
+        // the IDs to themselves only keeps them looking the same inside, so
+        // it is best effort. Where the kernel grants no privilege in a new
+        // user namespace (measured on GitHub's Ubuntu 24.04 runner: writing
+        // /proc/self/setgroups fails with EACCES), the IDs show as 65534
+        // inside; files are still created with the real owner and a cargo
+        // build runs (measured in a container without the maps).
+        // `setgroups` must be denied before an unprivileged gid_map write.
+        for (file, text) in [
+            ("/proc/self/setgroups", "deny".to_owned()),
+            ("/proc/self/uid_map", format!("{uid} {uid} 1")),
+            ("/proc/self/gid_map", format!("{gid} {gid} 1")),
+        ] {
+            if std::fs::write(file, text).is_err() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    #[expect(
+        deprecated,
+        reason = "rustix 1.1 deprecated the safe unshare because UnshareFlags::FILES can break other threads' descriptors; only NEWUSER and NEWNET are passed, the process is single-threaded here, and Corten's own code stays free of unsafe"
+    )]
+    fn unshare_user_and_net() -> std::io::Result<()> {
+        rustix::thread::unshare(UnshareFlags::NEWUSER | UnshareFlags::NEWNET).map_err(Into::into)
+    }
 }
 
 /// Refuses to run while a descriptor above 2 lacks close-on-exec: the program
@@ -430,12 +565,22 @@ fn check_descriptors() -> Result<(), String> {
     }
 }
 
+/// Executes the program: in manifest mode the file [`open_pinned`] checked,
+/// through `/proc/self/fd/N` (the kernel resolves that link to the open
+/// file, not to whatever the path names now), with `argv[0]` still the
+/// program's path.
 #[cfg(unix)]
-fn exec(plan: &Plan) -> ExitCode {
+fn exec(plan: &Plan, pinned: Option<&std::fs::File>) -> ExitCode {
+    use std::os::fd::AsRawFd;
     use std::os::unix::process::CommandExt;
+    let path = match pinned {
+        Some(file) => PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd())),
+        None => plan.program.clone(),
+    };
     // exec replaces this process, so the Landlock domain carries over; it
     // only returns on failure.
-    let err = std::process::Command::new(&plan.program)
+    let err = std::process::Command::new(&path)
+        .arg0(&plan.program)
         .args(&plan.args)
         .exec();
     eprintln!(
@@ -446,13 +591,49 @@ fn exec(plan: &Plan) -> ExitCode {
 }
 
 #[cfg(not(unix))]
-fn exec(_plan: &Plan) -> ExitCode {
+fn exec(_plan: &Plan, _pinned: Option<&std::fs::File>) -> ExitCode {
     ExitCode::from(EXIT_UNENFORCEABLE)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn only_a_program_without_a_network_grant_gets_an_empty_namespace() {
+        let mut plan = run(&["--system", "--", "/bin/true"]).unwrap();
+        assert!(needs_netns(&plan));
+        assert!(!plan.allow_udp_without_netns);
+        plan.connect_ports.push(443);
+        assert!(!needs_netns(&plan), "a net grant needs the host's network");
+        let open = run(&["--allow-net", "--", "/bin/true"]).unwrap();
+        assert!(!needs_netns(&open));
+        let opted = run(&["--allow-udp-without-netns", "--", "/bin/true"]).unwrap();
+        assert!(opted.allow_udp_without_netns && needs_netns(&opted));
+    }
+
+    #[test]
+    fn a_program_must_match_the_manifest_digest() {
+        let dir = std::env::temp_dir().join(format!("corten-sandbox-pin-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let prog = dir.join("prog");
+        std::fs::write(&prog, b"abc").unwrap();
+        // SHA-256 of "abc" (FIPS 180-4, appendix B.1).
+        let abc = corten_sha256::digest(b"abc");
+        assert_eq!(
+            corten_sha256::hex(&abc),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert!(open_pinned(&prog, &abc).is_ok());
+        let mut other = abc;
+        other[0] ^= 1;
+        let e = open_pinned(&prog, &other).err().unwrap();
+        assert!(e.contains("refusing") && e.contains("ba7816bf"), "{e}");
+        let e = open_pinned(&dir.join("absent"), &abc).err().unwrap();
+        assert!(e.contains("absent"), "{e}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn run(args: &[&str]) -> Result<Plan, String> {
         parse(args.iter().map(OsString::from))
