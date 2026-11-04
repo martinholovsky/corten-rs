@@ -298,7 +298,7 @@ Done items (Phase 0, 2026-10-26) point to where the work lives: the ledger and `
 - [ ] **No ambient configuration** (D). Configuration enters only through a `ConfigCap` with a schema and provenance label; no string-keyed lookup (CWE-15, CWE-73).
 - [ ] **Flow-sensitive labels** (D). Information-flow labels are checked on `write`, `log`, `respond` and `serialize`, and propagate through parse and transcode paths. Partly done (Phase 4): `corten_std::label` checks them at the sinks and propagates them through `map` and `join`; tracking across control flow is not done.
 - [ ] **Every wipe intrinsic is observable** (C). Tracked: [`gates/phase-6.md`](gates/phase-6.md), remaining work. Any explicit wipe, not only `Secret<T>`'s, is a side effect the optimizer must keep. CWE-14, 244, 733 and 1037 stay C.
-- [ ] **Secret spill control** (B). Tracked: [`gates/phase-6.md`](gates/phase-6.md), remaining work. `Secret<T>` allocations use `mlock` and `madvise(MADV_DONTDUMP)` equivalents and LLVM attributes that forbid spilling, to address CWE-316. Partly done (Phase 2): `Secret<T>` is locked with `mlock` and the process is made non-dumpable on Linux; a per-page `MADV_DONTDUMP` needs `unsafe`, and no LLVM attribute forbids spilling.
+- [ ] **Secret spill control** (B). Tracked: [`gates/phase-6.md`](gates/phase-6.md), remaining work. `Secret<T>` allocations use `mlock` and `madvise(MADV_DONTDUMP)` equivalents and LLVM attributes that forbid spilling, to address CWE-316. Partly done (Phase 2): `Secret<T>` is locked with `mlock` and the process is made non-dumpable on Linux; a per-page `MADV_DONTDUMP` on its allocation needs `unsafe` (memmap2 offers it safely only on an anonymous mapping, not adopted; `gates/phase-6.md`), and no LLVM attribute forbids spilling.
 
 **P2 — availability and ergonomics**
 
@@ -446,7 +446,7 @@ Start without forking the compiler (tools and their versions are in section 10):
 - [x] `DirCap` and `PathSeg` on `openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`, `RESOLVE_NO_MAGICLINKS` (and `RESOLVE_NO_XDEV`, docs/pathseg.md); refuse elsewhere.
 - [x] `sql!`, `html!`, `process!`, `log_record!` and header, CSV and template types, with no raw constructors; also `ldap_filter!`, `ldap_dn!`, `xpath!`, `xquery!`. Not done: a URL type.
 - [x] Signed capability manifest handed to `main` (`Capabilities::load`, Ed25519).
-- [x] `Secret<T>` with the observable wipe, `mlock` and no-dump (process-wide non-dumpable on Linux; a per-page `MADV_DONTDUMP` needs `unsafe`).
+- [x] `Secret<T>` with the observable wipe, `mlock` and no-dump (process-wide non-dumpable on Linux; a per-page `MADV_DONTDUMP` on the allocation needs `unsafe`).
 
 **Gate:** the injection and path compile-fail corpus passes; the encoders get an independent review before any E claim on them.
 

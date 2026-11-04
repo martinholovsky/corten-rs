@@ -11,7 +11,9 @@
 //!   swapped out; creation fails if the lock fails (fail closed);
 //! - excluded from core dumps on Linux by marking the whole process
 //!   non-dumpable (`PR_SET_DUMPABLE`), because a per-page `MADV_DONTDUMP`
-//!   needs `unsafe`, which Corten's own crates do not use.
+//!   on this allocation needs `unsafe` (`rustix::mm::madvise` is an
+//!   `unsafe fn`), which Corten's own crates do not use. memmap2 offers it
+//!   safely only on an anonymous mapping it owns, which this type does not use.
 //!
 //! Comparison is constant-time in the contents (the length is not secret).
 
