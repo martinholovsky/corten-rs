@@ -34,7 +34,7 @@ CWE-511,yes,yes,none,A time or logic bomb is a conditional on clock or state; sa
 CWE-512,yes,yes,none,Collecting user data without consent is policy; safe std has the file and network access it needs.
 CWE-546,yes,yes,none,Comments such as FIXME or TODO hack are free text; rustc does not inspect comment content.
 CWE-547,yes,yes,none,Hard-coding security values as literals instead of named consts is a design choice; rustc accepts both.
-CWE-560,yes,no,CWE-560.rs CWE-560.safe.rs,"std has no umask; calling libc umask needs an unsafe extern declaration and unsafe call, where the chmod-style value can be passed."
+CWE-560,yes,yes,none,"Safe through a crate: rustix 1.1.6's process::umask takes a chmod-style value with no unsafe (crates/cwe560_umask.rs, measured 2026-11-04). std alone has no umask, and libc's needs an unsafe extern."
 CWE-561,yes,yes,CWE-561.rs,"Unreachable or never-called code compiles; rustc only warns (dead_code, unreachable_code)."
 CWE-563,yes,yes,CWE-563.rs,Dead stores compile; rustc only warns (unused_assignments).
 CWE-570,yes,yes,CWE-570.rs,Always-false comparisons such as u32 < 0 compile; rustc only warns (unused_comparisons).
@@ -138,6 +138,6 @@ CWE-1164,yes,yes,CWE-1164.rs,Statements with no effect (computed and discarded v
 CWE-1177,yes,yes,none,Using a prohibited function or crate is project policy; rustc does not know the prohibition.
 CWE-1209,n/a,n/a,none,"Reserved bits in a hardware design are a silicon/HDL issue, not software code."
 CWE-1245,n/a,n/a,none,"Faulty finite state machines in hardware logic are an HDL/silicon issue, not software code."
-CWE-1341,yes,no,CWE-1341.rs CWE-1341.safe.rs,Ownership drops a handle exactly once and a second drop is a use of a moved value; closing one fd twice needs File::from_raw_fd in unsafe.
+CWE-1341,yes,yes,none,"Safe through a crate: nix 0.31.3's unistd::close accepts a bare fd number, so one descriptor is closed twice (Ok, then EBADF) with no unsafe (crates/cwe1341_double_close.rs, measured 2026-11-04). With std alone a second drop is a use of a moved value."
 CWE-1357,yes,yes,none,Depending on an insufficiently trusted crate or component is a supply-chain choice; no language prevents it.
 CWE-1434,yes,yes,none,Configuring a model's inference parameters badly is application configuration; no compiler checks it.

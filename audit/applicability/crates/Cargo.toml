@@ -1,0 +1,15 @@
+# Probes for the applicability rows whose weakness safe Rust can write through a
+# crate (audit/applicability/crates/README.md). Not part of the workspace, not
+# built by CI: the crates here are what the dependency policy keeps out.
+[package]
+name = "applicability-crate-probes"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+rustix = { version = "=1.1.6", features = ["process", "fs", "stdio"] }
+nix = { version = "=0.31.3", features = ["fs", "process"] }
+strfmt = "=0.2.6"

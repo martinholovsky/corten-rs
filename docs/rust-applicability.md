@@ -12,10 +12,10 @@ whether it exhibits the weakness is the judgement stated in its comment.
 | | CWEs |
 | --- | ---: |
 | Rust, `unsafe` allowed | 787 |
-| Safe Rust | 724 |
+| Safe Rust | 729 |
 | Safe Rust + Corten (eliminations verified by the corpus) | 638 |
 
-367 of 944 rows rest on programs; the rest are logic, design or policy weaknesses no
+362 of 944 rows rest on programs; the rest are logic, design or policy weaknesses no
 compiler prevents, or constructs Rust does not have, each with its reasoning.
 
 Corten column: *eliminated (no `unsafe`)* means only `unsafe` can write it and Corten forbids `unsafe`;
@@ -183,7 +183,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1393](https://cwe.mitre.org/data/definitions/1393.html) | Use of Default Password | yes | yes | checkable | Pure logic: no compiler of any language can tell whether a default password ships; it is a constant like any other. |
 | [CWE-1394](https://cwe.mitre.org/data/definitions/1394.html) | Use of Default Cryptographic Key | yes | yes | checkable | Pure logic: no compiler of any language can tell whether a default cryptographic key ships; key bytes are data. |
 
-## Poor Coding Practices (142: 113 with `unsafe`, 101 in safe Rust)
+## Poor Coding Practices (142: 113 with `unsafe`, 103 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -222,7 +222,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-512](https://cwe.mitre.org/data/definitions/512.html) | Spyware | yes | yes | out of reach | Collecting user data without consent is policy; safe std has the file and network access it needs. |
 | [CWE-546](https://cwe.mitre.org/data/definitions/546.html) | Suspicious Comment | yes | yes | checkable | Comments such as FIXME or TODO hack are free text; rustc does not inspect comment content. |
 | [CWE-547](https://cwe.mitre.org/data/definitions/547.html) | Use of Hard-coded, Security-relevant Constants | yes | yes | checkable | Hard-coding security values as literals instead of named consts is a design choice; rustc accepts both. |
-| [CWE-560](https://cwe.mitre.org/data/definitions/560.html) | Use of umask() with chmod-style Argument | yes | no | eliminated (no `unsafe`) | std has no umask; calling libc umask needs an unsafe extern declaration and unsafe call, where the chmod-style value can be passed. (`CWE-560.rs`, `CWE-560.safe.rs`) |
+| [CWE-560](https://cwe.mitre.org/data/definitions/560.html) | Use of umask() with chmod-style Argument | yes | yes | eliminated, verified | Safe through a crate: rustix 1.1.6's process::umask takes a chmod-style value with no unsafe (crates/cwe560_umask.rs, measured 2026-11-04). std alone has no umask, and libc's needs an unsafe extern. |
 | [CWE-561](https://cwe.mitre.org/data/definitions/561.html) | Dead Code | yes | yes | checkable | Unreachable or never-called code compiles; rustc only warns (dead_code, unreachable_code). (`CWE-561.rs`) |
 | [CWE-563](https://cwe.mitre.org/data/definitions/563.html) | Assignment to Variable without Use | yes | yes | checkable | Dead stores compile; rustc only warns (unused_assignments). (`CWE-563.rs`) |
 | [CWE-570](https://cwe.mitre.org/data/definitions/570.html) | Expression is Always False | yes | yes | checkable | Always-false comparisons such as u32 < 0 compile; rustc only warns (unused_comparisons). (`CWE-570.rs`) |
@@ -326,7 +326,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1177](https://cwe.mitre.org/data/definitions/1177.html) | Use of Prohibited Code | yes | yes | checkable | Using a prohibited function or crate is project policy; rustc does not know the prohibition. |
 | [CWE-1209](https://cwe.mitre.org/data/definitions/1209.html) | Failure to Disable Reserved Bits | n/a | n/a | n/a | Reserved bits in a hardware design are a silicon/HDL issue, not software code. |
 | [CWE-1245](https://cwe.mitre.org/data/definitions/1245.html) | Improper Finite State Machines (FSMs) in Hardware Logic | n/a | n/a | n/a | Faulty finite state machines in hardware logic are an HDL/silicon issue, not software code. |
-| [CWE-1341](https://cwe.mitre.org/data/definitions/1341.html) | Multiple Releases of Same Resource or Handle | yes | no | eliminated (no `unsafe`) | Ownership drops a handle exactly once and a second drop is a use of a moved value; closing one fd twice needs File::from_raw_fd in unsafe. (`CWE-1341.rs`, `CWE-1341.safe.rs`) |
+| [CWE-1341](https://cwe.mitre.org/data/definitions/1341.html) | Multiple Releases of Same Resource or Handle | yes | yes | eliminated, verified | Safe through a crate: nix 0.31.3's unistd::close accepts a bare fd number, so one descriptor is closed twice (Ok, then EBADF) with no unsafe (crates/cwe1341_double_close.rs, measured 2026-11-04). With std alone a second drop is a use of a moved value. |
 | [CWE-1357](https://cwe.mitre.org/data/definitions/1357.html) | Reliance on Insufficiently Trustworthy Component | yes | yes | checkable | Depending on an insufficiently trusted crate or component is a supply-chain choice; no language prevents it. |
 | [CWE-1434](https://cwe.mitre.org/data/definitions/1434.html) | Insecure Setting of Generative AI/ML Model Inference Parameters | yes | yes | checkable | Configuring a model's inference parameters badly is application configuration; no compiler checks it. |
 
@@ -566,7 +566,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-69](https://cwe.mitre.org/data/definitions/69.html) | Improper Handling of Windows ::DATA Alternate Data Stream | yes | yes | eliminated, verified | 'file.txt::$DATA' is a valid name to std::fs on Windows/NTFS; extension checks that miss the stream suffix are logic errors. |
 | [CWE-72](https://cwe.mitre.org/data/definitions/72.html) | Improper Handling of Apple HFS+ Alternate Data Stream Path | yes | yes | eliminated, verified | 'file/..namedfork/rsrc' is a valid path on macOS; extension/access checks that ignore it are logic errors any safe program can make. |
 
-## Exposed Resource (45: 38 with `unsafe`, 36 in safe Rust)
+## Exposed Resource (45: 38 with `unsafe`, 37 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -582,7 +582,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-378](https://cwe.mitre.org/data/definitions/378.html) | Creation of Temporary File With Insecure Permissions | yes | yes | eliminated, verified | OpenOptionsExt::mode(0o666) or default umask permissions on a temp file are safe std calls; choosing restrictive modes is the developer's job. (`CWE-378.rs`) |
 | [CWE-379](https://cwe.mitre.org/data/definitions/379.html) | Creation of Temporary File in Directory with Insecure Permissions | yes | yes | checkable | Creating temp files in a world-writable directory (temp_dir()) without checks is a safe std operation; directory trust is environment logic. |
 | [CWE-402](https://cwe.mitre.org/data/definitions/402.html) | Transmission of Private Resources into a New Sphere ('Resource Leak') | yes | yes | checkable | Handing private resources (handles, data, sessions) to another sphere is a design decision; ownership transfer in Rust is explicit but not policy-checked. |
-| [CWE-403](https://cwe.mitre.org/data/definitions/403.html) | Exposure of File Descriptor to Unintended Control Sphere ('File Descriptor Leak') | yes | no | eliminated (no `unsafe`) | std opens files, sockets and pipes close-on-exec: a child saw no new descriptor (measured on macOS and Linux, 2026-10-27). Leaking one needs unsafe FFI (fcntl, dup) or pre_exec. (`CWE-403.rejected.rs`, `CWE-403.unsafe.rs`) |
+| [CWE-403](https://cwe.mitre.org/data/definitions/403.html) | Exposure of File Descriptor to Unintended Control Sphere ('File Descriptor Leak') | yes | yes | eliminated, verified | Safe through a crate: rustix 1.1.6's io::fcntl_setfd and nix 0.31.3's fcntl(F_SETFD) clear close-on-exec with no unsafe, and a child read the descriptor (crates/cwe403_fd_leak.rs, cwe403_nix.rs, measured 2026-11-04). std alone opens close-on-exec and leaking needs unsafe FFI or pre_exec. |
 | [CWE-426](https://cwe.mitre.org/data/definitions/426.html) | Untrusted Search Path | yes | yes | eliminated, verified | Command::new("name") resolves through the inherited PATH; trusting the search path is environment policy no compiler checks. (`CWE-426.rs`) |
 | [CWE-427](https://cwe.mitre.org/data/definitions/427.html) | Uncontrolled Search Path Element | yes | yes | eliminated, verified | Command::env("PATH", ...) or current-dir lookup can add attacker-writable entries in safe Rust; search-path hygiene is application logic. (`CWE-427.rs`) |
 | [CWE-428](https://cwe.mitre.org/data/definitions/428.html) | Unquoted Search Path or Element | yes | yes | eliminated, verified | std's Windows Command quotes argv[0] and passes the resolved application name, but a program can still register an unquoted path (service/registry stub) in safe code. |
@@ -748,7 +748,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1264](https://cwe.mitre.org/data/definitions/1264.html) | Hardware Logic with Insecure De-Synchronization between Control and Data Channels | n/a | n/a | n/a | Hardware logic forwarding data before the security check completes is an RTL design weakness. |
 | [CWE-1298](https://cwe.mitre.org/data/definitions/1298.html) | Hardware Logic Contains Race Conditions | n/a | n/a | n/a | Race conditions in hardware logic are a circuit/RTL design weakness, not program code. |
 
-## Memory Safety (37: 37 with `unsafe`, 7 in safe Rust)
+## Memory Safety (37: 37 with `unsafe`, 8 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -763,7 +763,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-127](https://cwe.mitre.org/data/definitions/127.html) | Buffer Under-read | yes | no | eliminated (no `unsafe`) | Reading before a buffer needs a raw pointer offset dereferenced in unsafe; safe usize indices cannot go below zero. (`CWE-127.rs`, `CWE-127.safe.rs`) |
 | [CWE-129](https://cwe.mitre.org/data/definitions/129.html) | Improper Validation of Array Index | yes | yes | checkable | Indexing with an unvalidated request index compiles; the bounds check turns it into a panic (DoS) rather than memory corruption, but the missing validation remains. (`CWE-129.rs`) |
 | [CWE-131](https://cwe.mitre.org/data/definitions/131.html) | Incorrect Calculation of Buffer Size | yes | yes | checkable | A miscomputed buffer size compiles in safe Rust; the later write panics on the bounds check instead of overflowing, but the size calculation is still wrong. Ledger says unsafe-only. (`CWE-131.rs`) |
-| [CWE-134](https://cwe.mitre.org/data/definitions/134.html) | Use of Externally-Controlled Format String | yes | no | eliminated (no `unsafe`) | format! and println! accept only a string-literal format checked at compile time; an external format string reaches C printf only through an unsafe FFI call. Ledger says applies. (`CWE-134.printf.rs`, `CWE-134.rs`) |
+| [CWE-134](https://cwe.mitre.org/data/definitions/134.html) | Use of Externally-Controlled Format String | yes | yes | eliminated, verified | Safe through a crate: strfmt 0.2.6 formats with a runtime format string, so an external format chooses which values are printed (disclosure, no memory corruption; crates/cwe134_strfmt.rs, measured 2026-11-04). std's format! takes only a literal, and C printf needs unsafe. |
 | [CWE-188](https://cwe.mitre.org/data/definitions/188.html) | Reliance on Data/Memory Layout | yes | yes | eliminated, verified | Assuming fixed protocol offsets (a 20-byte IPv4 header) is a parsing decision; slicing is safe and bounds-checked but no type system knows the wire layout. (`CWE-188.rs`) |
 | [CWE-198](https://cwe.mitre.org/data/definitions/198.html) | Use of Incorrect Byte Ordering | yes | yes | checkable | u32::from_ne_bytes on network data compiles; Rust provides from_be_bytes but does not force the choice of byte order. (`CWE-198.rs`) |
 | [CWE-244](https://cwe.mitre.org/data/definitions/244.html) | Improper Clearing of Heap Memory Before Release ('Heap Inspection') | yes | yes | checkable | Vec growth reallocates and frees the old block without zeroing, and std never zeroes on drop, so a secret in a growing Vec lingers in freed heap. Ledger says unsafe-only. (`CWE-244.rs`) |
@@ -936,7 +936,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-1288](https://cwe.mitre.org/data/definitions/1288.html) | Improper Validation of Consistency within Input | yes | yes | checkable | Not checking consistency between input fields (e.g. totals versus items) is business logic; types cannot express cross-field invariants on wire data. |
 | [CWE-1289](https://cwe.mitre.org/data/definitions/1289.html) | Improper Validation of Unsafe Equivalence in Input | yes | yes | checkable | Validating before case-folding or normalization (eq versus eq_ignore_ascii_case, Unicode forms) is logic; std lacks normalization. |
 
-## Resource Control (17: 12 with `unsafe`, 10 in safe Rust)
+## Resource Control (17: 12 with `unsafe`, 11 in safe Rust)
 
 | CWE | Name | `unsafe` | Safe | Corten | Reasoning |
 | --- | --- | :---: | :---: | --- | --- |
@@ -948,7 +948,7 @@ means Corten provides the mechanism and a stated policy decides it (bucket C).
 | [CWE-515](https://cwe.mitre.org/data/definitions/515.html) | Covert Storage Channel | yes | yes | checkable | Signalling through shared storage attributes is an information-flow property no compiler checks. |
 | [CWE-672](https://cwe.mitre.org/data/definitions/672.html) | Operation on a Resource after Expiration or Release | yes | yes | checkable | The borrow checker blocks use after drop of owned values, but index or ID handles to released slots are plain integers that outlive release. (`CWE-672.rs`) |
 | [CWE-826](https://cwe.mitre.org/data/definitions/826.html) | Premature Release of Resource During Expected Lifetime | yes | yes | checkable | Memory cannot be freed early, but logical resources (lock guards, leases, slots) can be dropped before the work they protect finishes. (`CWE-826.rs`) |
-| [CWE-910](https://cwe.mitre.org/data/definitions/910.html) | Use of Expired File Descriptor | yes | no | eliminated (no `unsafe`) | I/O safety: File/OwnedFd own their descriptor and FromRawFd is unsafe, so reusing a closed fd number needs unsafe (E0133). (`CWE-910.rs`, `CWE-910.unsafe.rs`) |
+| [CWE-910](https://cwe.mitre.org/data/definitions/910.html) | Use of Expired File Descriptor | yes | yes | eliminated, verified | Safe through a crate: nix 0.31.3's unistd::close accepts a bare fd number, so safe code can close a File's descriptor; the next open reused it and the stale File read the other file (crates/cwe910_reuse.rs, measured 2026-11-04). With std alone FromRawFd is unsafe. |
 | [CWE-915](https://cwe.mitre.org/data/definitions/915.html) | Improperly Controlled Modification of Dynamically-Determined Object Attributes | yes | yes | checkable | No reflective binding in std, but a generic form-to-struct binder that includes privileged fields is ordinary safe code. (`CWE-915.rs`) |
 | [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html) | Use of Unmaintained Third Party Components | n/a | n/a | n/a | Not about code: depending on unmaintained components is a supply-chain process issue, independent of what the language allows. |
 | [CWE-1249](https://cwe.mitre.org/data/definitions/1249.html) | Application-Level Admin Tool with Inconsistent View of Underlying Operating System | yes | yes | checkable | An admin tool's model diverging from OS state is a design-completeness issue, with the OS a stub. |
