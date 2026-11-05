@@ -1,4 +1,4 @@
-# NetCap, name resolution and the TLS client (design, not built)
+# NetCap, name resolution and the TLS client
 
 Status: design, 2026-11-02 (Phase 6, batch 5, strategy 7). **Built so far (`corten_std::net`):** the `net` grant, the address check (section 4, step 1), the connect pass with timeouts (step 2), the TLS 1.3 client with operator CRLs or a logged `Unchecked` (step 3), the security-state log record at every connection, and the sandbox's port rule. **Also built:** name resolution with `hickory-resolver` (Linux) and section 3: the `net.dns` record and warning on every change of DNS state, the DNSSEC probe, the public-resolver probe (test name only), and the switch to Cloudflare or Google over DNS over TLS only with `dns fallback NAME`. **Not built:** DNSSEC validation inside the prelude (question 17: measured before it is enabled), DNS over HTTPS (the fallback uses DNS over TLS), and Happy Eyeballs (addresses are tried in the resolver's order). Owner decisions already taken for this design:
 - grants name exact destinations;
