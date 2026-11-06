@@ -1,10 +1,10 @@
-Corpus run (all phases): 177 cases for 177 E rows; 0 E rows have no case yet.
+Corpus run (all phases): 180 cases for 180 E rows; 0 E rows have no case yet.
 
-- Detection: 177 of 177 cases had every bad program rejected for the expected reason
-- False rejection: 0 of 177 matched good programs failed to build (limit: 5%)
+- Detection: 180 of 180 cases had every bad program rejected for the expected reason
+- False rejection: 0 of 180 matched good programs failed to build (limit: 5%)
 - Controls failed (plain cargo did not build a checker case's bad program): 0
 - Broken cases: 0
-- Passed: 177 of 177; of those, 12 rest only on syntax Rust does not have (weakest evidence)
+- Passed: 180 of 180; of those, 12 rest only on syntax Rust does not have (weakest evidence)
 
 - Passed but left unverified until the prelude code behind them (encoders, cryptography) is independently reviewed: 31
 
@@ -43,6 +43,7 @@ Corpus run (all phases): 177 cases for 177 E rows; 0 E rows have no case yet.
 | CWE-25 | checker | pass |  |
 | CWE-26 | checker | pass |  |
 | CWE-27 | checker | pass |  |
+| CWE-276 | checker | pass |  |
 | CWE-28 | checker | pass |  |
 | CWE-29 | checker | pass |  |
 | CWE-30 | checker | pass |  |
@@ -142,11 +143,13 @@ Corpus run (all phases): 177 cases for 177 E rows; 0 E rows have no case yet.
 | CWE-67 | checker | pass |  |
 | CWE-685 | language | pass |  |
 | CWE-686 | language | pass |  |
+| CWE-689 | checker | pass |  |
 | CWE-69 | checker | pass |  |
 | CWE-690 | checker | pass |  |
 | CWE-692 | language | pass (awaiting independent review) |  |
 | CWE-704 | checker | pass |  |
 | CWE-705 | language | pass |  |
+| CWE-708 | checker | pass |  |
 | CWE-72 | checker | pass |  |
 | CWE-759 | language | pass (awaiting independent review) |  |
 | CWE-760 | language | pass (awaiting independent review) |  |

@@ -9,9 +9,9 @@ Safe Rust can write 729 of the 944 CWEs (724 before 2026-11-04, when five were f
 | | CWEs |
 | --- | ---: |
 | Claimed eliminations (E, not yet verified) | 30 |
-| Checkable (C): Corten has a mechanism or a policy, but the weakness can still be written | 582 |
+| Checkable (C): Corten has a mechanism or a policy, but the weakness can still be written | 579 |
 | Out of reach (O) | 26 |
-| **Total** | **638** |
+| **Total** | **635** |
 
 Of these, 519 are Base or Variant weaknesses. The other 119 are Pillars, Classes or Compounds that overlap their children, so counting them as separate exposures overstates the residue.
 
@@ -32,7 +32,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 | 5 | Least privilege from the manifest, release attestation | 20 | 94 | 94 | stronger C |
 | 6 | Secure-by-default HTTP types | 30 | 352 | | stronger C |
 | 7 | Verified-by-default TLS and network capabilities | 21 | | | E for prelude users: CWE-918, 319, 1428 verified (2026-11-02, question 21) |
-| 8 | DirCap extensions | 31 | 434 | | stronger C |
+| 8 | DirCap extensions | 28 | 434 | | stronger C; E for prelude users: CWE-276, 689, 708 verified (2026-11-06, `docs/gates/fs-caps-e-proposal.md`) |
 | 9 | Labels on errors, logs and debug output | 21 | 200 | | stronger C |
 | 10 | Misuse-resistant cryptography and randomness | 42 | | | E for prelude users, pending the independent review: CWE-323, 916, 759, 760, 347 (question 21) |
 | 11 | Credentials | 26 | | | stronger C |
@@ -116,7 +116,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 
 **Design (2026-11-02).** [`netcap.md`](netcap.md): resolution and its logging, the public-resolver fallback, connecting and failover, and the attack vectors mapped to their CWEs (spec section 8, questions 16 to 18).
 
-### 8. DirCap extensions (31)
+### 8. DirCap extensions (28)
 
 **Today.** `DirCap` opens beneath a root with `openat2` and `RESOLVE_BENEATH`, so the path family is verified. Since 2026-11-02 (built, `docs/gates/phase-6.md`): creation modes are an explicit `FileMode` (0600, 0640, 0644; no default, set exactly), `ReadSingleLink` and `AppendSingleLink` refuse a hard-linked file, and `DirCap::store_upload` stores under a generated name with a server-declared type. `create_temp` was already 0600 and `O_EXCL`.
 

@@ -16,7 +16,7 @@ A strategy that only strengthens C moves no bucket.
 | --- | --- | --- | --- |
 | 1 | Decision 3: the ledger's `strategy` column, checked by `corten-ledger check` | **done** (2026-11-01, below) | |
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
-| 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | strategy 8 **built** (2026-11-02, remaining-work table); 4 and 3 not started | |
+| 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | strategy 8 **built** (2026-11-02, remaining-work table), CWE-276, 689 and 708 E and verified (2026-11-06, below); 4 and 3 not started | |
 | 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
 | 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 **built** (2026-11-02, below): `NetCap` core, then resolution, DNS logging and the opt-in fallback ([`../netcap.md`](../netcap.md)) | |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
@@ -271,7 +271,7 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | CI: the cache does not measurably shorten the corpus step. Measured 2026-11-02 on `main`, with the cache restored: 24.8, 34.5, 27.7 and 18.9 minutes (pushes of `4b91041`, `359a2d5`, `242b1cb`, then the schedule), against 23.6 minutes (1,416 s) uncached; #24 (177 cases) took 27.4. The light path works: docs-only #23's `tests` job took 1.7 minutes with 9 steps skipped. **Why, measured locally (Linux container, 8 CPUs) on one corpus case:** a cold `cargo corten check` took 112 s and compiled 78 crates; a repeat took 2 s and compiled none, and still none after every source file was touched (as a fresh checkout does). So the cache can save only each worker's one cold build (about 2 minutes), while the step runs 308 checker invocations and 384 plain `cargo check` runs (177 cases, counted from the ledger's proof kinds and each variant's `//@ kind`) | Explained; nothing to fix in the cache | If the corpus must get faster: per-invocation cost (vendoring and the sandboxed passes per check), or sharding the step (sota-devsecops rules/16 §16.4) |
 | Batch 2b: labels on errors, logs and debug output (strategy 9) | Not started | Needs an API design first; propose it against the design principles |
 | Batch 3: budgets (strategy 4), safe deserialization and `ConfigCap` (strategy 3) | Not started | Strategy 3 needs a format and dependency review; strategy 4 changes every parsing entry point and needs a migration plan |
-| Strategy 8, DirCap extensions | **Built** (2026-11-02; owner decisions: an explicit `FileMode` enum, opt-in single-link opens, an upload sink with a generated name and a declared type): `OpenMode::CreateExclusive(FileMode)` (0600, 0640 or 0644, set exactly with `fchmod`), `ReadSingleLink` and `AppendSingleLink` (`FsError::HardLink`), `DirCap::store_upload` with `DeclaredType`. The 31 rows stay C: a program can still choose a wider mode or a plain open. Moving any to E (question 21) needs its own corpus case. Tested under `umask 077` (2026-11-03, Linux container): `fs::tests::creation_modes_are_exact_under_umask_077` runs a child test process with that umask, whose plain create of 0644 gets 0600 (the control), and finds 0600, 0640 and 0644 exact; with the `fchmod` call removed it fails (0600 for 0640) while the default-umask test still passes | Corpus cases for the rows the new API makes inexpressible, then an E proposal per row. Next substantive item (owner decision 2026-11-05), after the time-to-first-check measurement below. First cut per row: [`fs-caps-e-proposal.md`](fs-caps-e-proposal.md) (3 E candidates, CWE-276, 689, 708; 28 stay C; awaiting owner review) |
+| Strategy 8, DirCap extensions | **Built** (2026-11-02; owner decisions: an explicit `FileMode` enum, opt-in single-link opens, an upload sink with a generated name and a declared type): `OpenMode::CreateExclusive(FileMode)` (0600, 0640 or 0644, set exactly with `fchmod`), `ReadSingleLink` and `AppendSingleLink` (`FsError::HardLink`), `DirCap::store_upload` with `DeclaredType`. The 31 rows stay C: a program can still choose a wider mode or a plain open. Moving any to E (question 21) needs its own corpus case. Tested under `umask 077` (2026-11-03, Linux container): `fs::tests::creation_modes_are_exact_under_umask_077` runs a child test process with that umask, whose plain create of 0644 gets 0600 (the control), and finds 0600, 0640 and 0644 exact; with the `fchmod` call removed it fails (0600 for 0640) while the default-umask test still passes | **E claims done (2026-11-06)** for CWE-276, 689 and 708 ("Strategy 8 E claims" below); the other 28 rows stay C, each with a reason ([`fs-caps-e-proposal.md`](fs-caps-e-proposal.md)). Open: CWE-62 and CWE-434, owner questions 2 and 3 in that file |
 | Batch 4: authorization proof types (strategy 2) | Not started | Prototype on the corpus; adopt only at 0 false rejections (question 14) |
 | Batch 6: web types, credentials, strict parsers, contracts, runtime, supply chain | Not started | After batch 3 |
 | Key derivation (HKDF) and key agreement (X25519) in `corten_std::crypto`. Listed as not done in strategy 10's result (2026-11-01) but had no row here until 2026-11-05 | Not started | With batch 6, credentials (strategy 11), or earlier when a corpus case or a caller needs derived or agreed keys (owner decision 2026-11-05) |
@@ -340,6 +340,26 @@ Eight rows moved from C to E, prelude-only, each with a corpus case and a reason
 - **Remaining:** 638 CWEs (30 claimed E, 582 C, 26 O). MITRE's 2025 Top 25 still remaining: 16 (CWE-918 left).
 
 **Regeneration order matters.** `scripts/applicability-table.py` before `scripts/residual-map.py`, which reads the table. Run first, the map still said 641.
+
+## Strategy 8 E claims (2026-11-06)
+
+Owner decision 2026-11-06: the three E candidates of [`fs-caps-e-proposal.md`](fs-caps-e-proposal.md) go ahead. CWE-276, 689 and 708 move from C to E, prelude-only, and keep their strategy.
+
+- **Ban-list gap closed.** `std::os::unix::fs::fchown` joins the checker's banned methods (`crates/cargo-corten/src/profile.rs`); `chown` and `lchown` already were. Watched on a probe calling `fchown(std::io::stdout(), ...)`: rc 0 before the ban, rc 1 with `use of a disallowed method std::os::unix::fs::fchown` after (macOS checker build).
+- **Corpus cases** (`corpus/CWE-276`, `689`, `708`), each with a `good.rs` creating a file through `DirCap`:
+  - CWE-276: `File::create`; `OpenOptions` with mode 0666; `set_permissions`; `DirBuilder` with 0777; a `FileMode` from bits (`absent`); `rustix` and `nix` (dependency policy);
+  - CWE-689: `std::fs::copy` then `set_permissions`; create, write, then restrict; `rustix` and `nix`;
+  - CWE-708: `chown`, `lchown`, `fchown` on standard output; `rustix` and `nix`.
+- **ACL test.** `fs::tests::an_inherited_default_acl_grants_no_write_beyond_the_mode` sets a default ACL granting uid 65534 `rwx` and reads back each new file's ACL mask: 0 for 0600, `r` for 0640 and 0644. Its control is a plain create at 0666, which inherits the named user with write. Mutation: `OwnerWriteGroupRead` as 0660 fails it (mask 6, want 4). A filesystem without ACLs fails the test rather than skipping it.
+
+**Evidence (Linux, `--rm` `rust:1.99.1-slim-bookworm` containers):**
+- Clippy `-D warnings` on the workspace: clean.
+- `corten-std` fs tests: 13 passed, 1 ignored (the umask child, run by its parent test).
+- `cargo-corten` ban-list tests: 3 of 3, including `ban_list_resolves_and_safe_program_is_clean`, so the new path resolves.
+- Corpus, phase 6, `--mark-verified`: 11 of 11 detected, 0 of 11 falsely rejected, 0 broken; the run set CWE-276, 689 and 708 to verified.
+- Corpus, all phases (`docs/gates/corpus-report.md` regenerated): 180 of 180 detected, 0 of 180 falsely rejected, 0 failed controls, 0 broken.
+
+**Totals** (`corten-ledger totals`): E 180 / C 721 / O 26 / N 17; 149 of the 180 E rows verified, 31 awaiting the external audit. Written in Rust (787): E 157 / C 604 / O 26. Remaining under Rust and Corten: 635 (`scripts/applicability-table.py`).
 
 ## Safe Rust through a crate (2026-11-04)
 

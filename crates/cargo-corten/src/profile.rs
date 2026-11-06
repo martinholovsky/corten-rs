@@ -108,6 +108,7 @@ disallowed-methods = [
     { path = "std::fs::OpenOptions::open", reason = "ambient filesystem access; use a DirCap" },
     { path = "std::os::unix::fs::chown", reason = "ambient filesystem access; use a DirCap" },
     { path = "std::os::unix::fs::chroot", reason = "ambient privilege operation" },
+    { path = "std::os::unix::fs::fchown", reason = "ambient filesystem access; use a DirCap" },
     { path = "std::os::unix::fs::lchown", reason = "ambient filesystem access; use a DirCap" },
     { path = "std::os::unix::fs::symlink", reason = "ambient filesystem access; use a DirCap" },
     { path = "std::path::Path::canonicalize", reason = "ambient filesystem access; use a DirCap" },

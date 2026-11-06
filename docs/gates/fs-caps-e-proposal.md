@@ -1,6 +1,6 @@
 # Strategy 8: which `fs-caps` rows the DirCap API makes inexpressible (first cut, 2026-11-05)
 
-Status: **proposal, awaiting owner review.** No ledger row moves until a corpus case shows each claim (AGENTS.md rule 1) and the owner signs off per row (spec section 8, question 21).
+Status: **question 1 decided (owner, 2026-11-06): the three E candidates go ahead; CWE-276, 689 and 708 are E and verified** (`gates/phase-6.md`, "Strategy 8 E claims"). Questions 2 and 3 are open; their options are below.
 
 The 31 ledger rows with strategy `fs-caps` are C. Strategy 8 (`gates/phase-6.md`) built `FileMode`, `ReadSingleLink`/`AppendSingleLink` and `store_upload`. This document asks, row by row, whether a Corten program can still write the weakness.
 
@@ -90,6 +90,15 @@ So `fchmod` caps an inherited ACL at the mode's group bits: no one but the owner
 
 1. **Do the three E candidates go ahead** (276, 689, 708)?
    - Recommendation: yes. Each rests on an API that already exists and asks developers for nothing more (principle 1). The ban-list gap is worth fixing either way.
-2. **CWE-62:** keep `ReadSingleLink` opt-in (C, question 2 as decided), or make single-link the default (E candidate, reopens question 2)?
-   - Recommendation: keep it opt-in. A default refusal of multiply-linked files breaks legitimate hard-linked layouts (package stores, deduplicated backups) at a cost to developers.
-3. **CWE-434:** stays C. Making `store_upload` the only way to write client content would need a type distinguishing uploaded bytes from other bytes. That is a labels design (strategy 9), not a strategy 8 change.
+   - **Decision (owner, 2026-11-06): yes**, the recommendation.
+2. **CWE-62 (open).** Context: the attack needs an unprivileged user to hard-link a file they do not own, which `fs.protected_hardlinks = 1` refuses. The podman VM (Fedora 43) has it at 1, set by systemd's `/usr/lib/sysctl.d/50-default.conf`; the kernel's own default and other distributions were not checked.
+   - (A) Keep `ReadSingleLink` opt-in. C; no cost; protection depends on each developer.
+   - (B) Single-link by default, with explicit `ReadAnyLink`/`AppendAnyLink`. Still C, because the opt-out keeps it writable. A breaking API change, cheapest now while nothing is released.
+   - (C) Single-link only, no opt-out. An E candidate, but it reopens question 2 and costs every developer whose files are legitimately hard-linked (principle 1).
+   - (D) (A), plus `corten-sandbox` refusing to start when `fs.protected_hardlinks` is not 1, unless the operator opts out explicitly, with a warning every start. C, because it rests on a kernel setting.
+   - Recommendation: (D). It closes the attack in the kernel for every open, costs developers nothing, and fails closed with an explicit, logged opt-out (principles 1 to 3), like `--allow-udp-without-netns`. This replaces the first cut's recommendation of (A), changed by the `protected_hardlinks` finding.
+3. **CWE-434 (open).**
+   - (A) Stay C now; revisit with labels (strategy 9), where a label on request-derived bytes lets only `store_upload` accept them.
+   - (B) A `served` flag on manifest `dir` grants, where such a `DirCap` accepts only `store_upload`. Still C (it rests on the operator marking every served directory); a manifest grammar change.
+   - (C) `store_upload` as the only way to write client content now. Not feasible: the prelude has no request type before batch 6.
+   - Recommendation: (A), with (B) recorded as a batch 6 candidate. (B) is a manifest grammar change, best decided with the web types.
