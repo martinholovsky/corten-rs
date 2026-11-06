@@ -5,7 +5,7 @@ Corten's capability-oriented prelude (spec sections 4.3 to 4.10; Phase 2). Under
 | Module | Gives | Weaknesses (ledger) |
 | --- | --- | --- |
 | `manifest` | `Capabilities::load`: the signed manifest, the only source of a root `DirCap`, an `ExecCap` or a `DeclassifyCap` | |
-| `path`, `fs` | `PathSeg`, `RelPath`, `DirCap`, `CapFile`: opens beneath a granted directory via `openat2`; refused off Linux | CWE-22 to 40, 42 to 57, 59, 61, 64, 66, 67, 69, 72, 363, 378, 626, 1386 |
+| `path`, `fs` | `PathSeg`, `RelPath`, `DirCap`, `CapFile`: opens beneath a granted directory via `openat2`; new files only with an explicit `FileMode` (0600, 0640, 0644, set exactly); no copy, chmod or chown; refused off Linux | CWE-22 to 40, 42 to 57, 59, 61, 64, 66, 67, 69, 72, 276, 363, 378, 626, 689, 708, 1386 |
 | `process` | `ExecCap`, `ProcessInvocation`, `process!`: argv, no shell, no `PATH` search, operands after `--` | CWE-77, 78, 426 to 428 |
 | `sql` | `SqlQuery`, `sql!`, `SqlExecutor`, `Rows` | CWE-89, 564, 619, 943 |
 | `html` | `Html`, `html!`, `HtmlWriter` | CWE-79 to 87, 692, 838 |

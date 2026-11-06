@@ -23,7 +23,7 @@ A row is an E candidate only if all of these hold. The bar is question 21 and de
 
 ## Measured for this proposal (2026-11-05)
 
-**Default ACLs.** A parent directory with a default ACL granting user `nobody` `rwx`. In a `--rm` `rust:1.99.1-slim-bookworm` container, files were created with the two calls `open_file` makes (an exclusive create with the mode, then `fchmod` to the mode):
+**Default ACLs.** A parent directory with a default ACL granting user `nobody` `rwx`. In a `--rm` `rust:1.99.1-slim-bookworm` container, files were created with the two operations `open_file` performs (an exclusive create with the mode, then `fchmod` to the mode), here through Python's `os.open` and `os.fchmod` rather than `openat2`; the `corten-std` test that followed (`gates/phase-6.md`, "Strategy 8 E claims") exercises `open_file` itself:
 
 | Mode | `nobody`'s effective rights | `nobody` appends |
 | --- | --- | --- |
