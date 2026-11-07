@@ -19,6 +19,11 @@
 //! accepts good.rs; for proof kind `language`, plain cargo rejects bad.rs with
 //! the expected text and the checker accepts good.rs.
 //!
+//! After the report, a timing summary goes to standard error (never into
+//! the report, which is committed): worker-seconds in plain `cargo check`
+//! and `cargo corten check`, the per-call distribution, each worker's first
+//! (cold) case, and the slowest cases.
+//!
 //! Exit status: 0 every case passes, 1 a case fails, 2 usage or I/O error.
 
 use std::collections::BTreeMap;
@@ -29,6 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::Mutex;
 use std::thread;
+use std::time::Instant;
 
 use corten_ledger::{ERow, Ledger, parse_csv};
 
@@ -197,9 +203,45 @@ struct Runner<'a> {
     opts: &'a Options,
     cargo: PathBuf,
     work: PathBuf,
+    /// Every `cargo` invocation, for the timing summary.
+    calls: Mutex<Vec<Call>>,
+}
+
+/// One `cargo` invocation the corpus made.
+#[derive(Debug, Clone, PartialEq)]
+struct Call {
+    case: String,
+    /// `cargo corten check` (true) or the plain `cargo check` (false).
+    checker: bool,
+    secs: f64,
+}
+
+/// One case, as a worker ran it.
+#[derive(Debug, Clone, PartialEq)]
+struct CaseTime {
+    case: String,
+    worker: usize,
+    /// 0 for the worker's first case, which builds its dependencies cold.
+    position: usize,
+    secs: f64,
 }
 
 impl Runner<'_> {
+    /// Records a call against its case: `dir` is `<work>/<case id>/<variant>`.
+    fn record(&self, dir: &Path, checker: bool, start: Instant) {
+        let case = dir
+            .parent()
+            .and_then(Path::file_name)
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+        if let Ok(mut calls) = self.calls.lock() {
+            calls.push(Call {
+                case,
+                checker,
+                secs: start.elapsed().as_secs_f64(),
+            });
+        }
+    }
+
     fn write_crate(&self, dir: &Path, source: &str, d: &Directives) -> io::Result<()> {
         let corten_std = d.corten_std;
         let edition = d.edition.as_deref().unwrap_or("2024");
@@ -260,6 +302,7 @@ impl Runner<'_> {
     }
 
     fn plain(&self, dir: &Path, target: &Path) -> io::Result<Build> {
+        let start = Instant::now();
         let out = Command::new(&self.cargo)
             .arg("check")
             .current_dir(dir)
@@ -270,6 +313,7 @@ impl Runner<'_> {
             .env_remove("RUSTC_WORKSPACE_WRAPPER")
             .env_remove("CARGO_BUILD_WARNINGS")
             .output()?;
+        self.record(dir, false, start);
         Ok(Build {
             code: out.status.code(),
             output: String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -277,6 +321,7 @@ impl Runner<'_> {
     }
 
     fn corten(&self, dir: &Path, target: &Path) -> io::Result<Build> {
+        let start = Instant::now();
         let mut cmd = Command::new(&self.opts.checker);
         let policy = dir.join("operator.policy");
         if policy.is_file() {
@@ -292,6 +337,7 @@ impl Runner<'_> {
             .env_remove("CARGO_BUILD_WARNINGS")
             .env("CARGO_TARGET_DIR", target)
             .output()?;
+        self.record(dir, true, start);
         Ok(Build {
             code: out.status.code(),
             output: String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -377,7 +423,7 @@ impl Runner<'_> {
             let dir = work.join(format!("bad-{i}"));
             self.write_crate(&dir, &source, &d)?;
             // Every variant is evaluated, so the report names each miss.
-            match self.check_bad(row.proof_kind, &dir, target, &d)? {
+            match self.check_bad(row.proof_kind, &dir, &dep_target(target, &d), &d)? {
                 None => {}
                 Some(Verdict::NotDetected(why)) => missed.push(format!("{name}: {why}")),
                 Some(Verdict::ControlFailed(why)) => controls.push(format!("{name}: {why}")),
@@ -386,7 +432,7 @@ impl Runner<'_> {
         }
         let good_dir = work.join("good");
         self.write_crate(&good_dir, &good, &good_d)?;
-        let accepted = self.corten(&good_dir, target)?;
+        let accepted = self.corten(&good_dir, &dep_target(target, &good_d))?;
         if !accepted.ok() {
             return Ok((Verdict::FalseRejection(excerpt(&accepted.output)), false));
         }
@@ -399,6 +445,100 @@ impl Runner<'_> {
         fs::remove_dir_all(&work)?;
         Ok((Verdict::Pass, absent_only))
     }
+}
+
+/// The target directory for one case crate: one per worker and dependency
+/// set. `cargo corten check` keeps one vendor directory per target
+/// directory, and vendoring a crate with other dependencies empties it: a
+/// `corten-std` check after a dependency-free one re-vendored 193 crates and
+/// took about 30 s instead of 2 to 3 (measured 2026-11-07,
+/// docs/gates/phase-6.md, the CI row).
+fn dep_target(base: &Path, d: &Directives) -> PathBuf {
+    let mut fake: Vec<&str> = d.fake_deps.iter().map(String::as_str).collect();
+    fake.sort_unstable();
+    let mut parts: Vec<&str> = Vec::new();
+    if d.corten_std {
+        parts.push("std");
+    }
+    parts.extend(fake);
+    let set = if parts.is_empty() {
+        "none".to_owned()
+    } else {
+        parts.join("+")
+    };
+    base.join(format!("deps-{set}"))
+}
+
+/// Seconds at the given quantile (0.0 to 1.0) of an ascending list.
+fn quantile(sorted: &[f64], q: f64) -> f64 {
+    let last = sorted.len().saturating_sub(1);
+    // Index = round(last * q), computed in f64 and converted back exactly.
+    let wanted = (f64::from(u32::try_from(last).unwrap_or(u32::MAX)) * q).round();
+    let index = (0..=last)
+        .find(|&i| f64::from(u32::try_from(i).unwrap_or(u32::MAX)) >= wanted)
+        .unwrap_or(last);
+    sorted.get(index).copied().unwrap_or(0.0)
+}
+
+/// The timing summary printed to standard error after the report: where
+/// the corpus step's time goes (docs/gates/phase-6.md, the CI row).
+fn timing_summary(cases: &[CaseTime], calls: &[Call]) -> String {
+    let total: f64 = cases.iter().map(|c| c.secs).sum();
+    let mut lines = vec![format!(
+        "Timing (worker-seconds; not in the report): {} cases, {total:.1} s in total",
+        cases.len()
+    )];
+    let mut in_calls = 0.0;
+    for (checker, label) in [(false, "plain cargo check"), (true, "cargo corten check")] {
+        let mut secs: Vec<f64> = calls
+            .iter()
+            .filter(|c| c.checker == checker)
+            .map(|c| c.secs)
+            .collect();
+        secs.sort_by(f64::total_cmp);
+        let sum: f64 = secs.iter().sum();
+        in_calls += sum;
+        lines.push(format!(
+            "- {label}: {} calls, {sum:.1} s; per call min {:.2}, median {:.2}, p90 {:.2}, max {:.2} s",
+            secs.len(),
+            secs.first().copied().unwrap_or(0.0),
+            quantile(&secs, 0.5),
+            quantile(&secs, 0.9),
+            secs.last().copied().unwrap_or(0.0),
+        ));
+    }
+    lines.push(format!(
+        "- outside cargo (writing cases, bookkeeping): {:.1} s",
+        total - in_calls
+    ));
+    let mut cold: Vec<&CaseTime> = cases.iter().filter(|c| c.position == 0).collect();
+    cold.sort_by_key(|c| c.worker);
+    for c in cold {
+        lines.push(format!(
+            "- worker {} first case (cold dependencies): {} {:.1} s",
+            c.worker, c.case, c.secs
+        ));
+    }
+    let mut slowest: Vec<&CaseTime> = cases.iter().collect();
+    slowest.sort_by(|a, b| b.secs.total_cmp(&a.secs));
+    lines.push("- slowest cases:".to_owned());
+    for c in slowest.iter().take(10) {
+        let plain = calls
+            .iter()
+            .filter(|k| k.case == c.case && !k.checker)
+            .count();
+        let checker = calls
+            .iter()
+            .filter(|k| k.case == c.case && k.checker)
+            .count();
+        lines.push(format!(
+            "  {} {:.1} s (worker {}, position {}; {plain} plain + {checker} checker calls)",
+            c.case, c.secs, c.worker, c.position
+        ));
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
 }
 
 fn main() -> ExitCode {
@@ -571,6 +711,63 @@ fn mark_verified(
     Ok(())
 }
 
+/// Runs the cases on `--jobs` workers, each with its own target directory
+/// under `work`, and returns the results and how long each case took.
+fn run_workers(
+    runner: &Runner<'_>,
+    cases: Vec<&ERow<'_>>,
+    work: &Path,
+) -> Result<(Results, Vec<CaseTime>), &'static str> {
+    let queue = Mutex::new(cases);
+    let results = Mutex::new(Results::new());
+    let case_times = Mutex::new(Vec::new());
+    thread::scope(|scope| {
+        // One target directory per worker: dependencies (corten-std and its
+        // crates) build once per worker, not once per case. Plain and
+        // checker builds use different flags, so cargo never reuses one
+        // for the other.
+        let (runner, queue, results, case_times) = (&runner, &queue, &results, &case_times);
+        for worker in 0..runner.opts.jobs {
+            let target = work.join(format!("target-{worker}"));
+            scope.spawn(move || {
+                let mut position = 0usize;
+                loop {
+                    let next = queue.lock().ok().and_then(|mut q| q.pop());
+                    let Some(row) = next else { break };
+                    let start = Instant::now();
+                    let (verdict, absent_only) = runner
+                        .run_case(row, &target)
+                        .unwrap_or_else(|e| (Verdict::Broken(format!("I/O: {e}")), false));
+                    if let Ok(mut times) = case_times.lock() {
+                        times.push(CaseTime {
+                            case: row.id.to_owned(),
+                            worker,
+                            position,
+                            secs: start.elapsed().as_secs_f64(),
+                        });
+                    }
+                    position = position.saturating_add(1);
+                    if let Ok(mut r) = results.lock() {
+                        r.insert(
+                            row.id.to_owned(),
+                            CaseResult {
+                                kind: row.proof_kind.to_owned(),
+                                verdict,
+                                awaiting_review: row.review == "required",
+                                absent_only,
+                                status: row.status.to_owned(),
+                            },
+                        );
+                    }
+                }
+            });
+        }
+    });
+    let results = results.into_inner().map_err(|_| "a worker panicked")?;
+    let case_times = case_times.into_inner().map_err(|_| "a worker panicked")?;
+    Ok((results, case_times))
+}
+
 fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
     let ledger_path = opts.root.join("ledger/cwe-ledger.csv");
     let text = fs::read_to_string(&ledger_path)?;
@@ -598,42 +795,10 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
         opts,
         cargo,
         work: work.clone(),
+        calls: Mutex::new(Vec::new()),
     };
 
-    let queue = Mutex::new(cases.clone());
-    let results = Mutex::new(Results::new());
-    thread::scope(|scope| {
-        // One target directory per worker: dependencies (corten-std and its
-        // crates) build once per worker, not once per case. Plain and
-        // checker builds use different flags, so cargo never reuses one
-        // for the other.
-        let (runner, queue, results) = (&runner, &queue, &results);
-        for worker in 0..opts.jobs {
-            let target = work.join(format!("target-{worker}"));
-            scope.spawn(move || {
-                loop {
-                    let next = queue.lock().ok().and_then(|mut q| q.pop());
-                    let Some(row) = next else { break };
-                    let (verdict, absent_only) = runner
-                        .run_case(row, &target)
-                        .unwrap_or_else(|e| (Verdict::Broken(format!("I/O: {e}")), false));
-                    if let Ok(mut r) = results.lock() {
-                        r.insert(
-                            row.id.to_owned(),
-                            CaseResult {
-                                kind: row.proof_kind.to_owned(),
-                                verdict,
-                                awaiting_review: row.review == "required",
-                                absent_only,
-                                status: row.status.to_owned(),
-                            },
-                        );
-                    }
-                }
-            });
-        }
-    });
-    let results = results.into_inner().map_err(|_| "a worker panicked")?;
+    let (results, case_times) = run_workers(&runner, cases.clone(), &work)?;
     if !keep && let Err(e) = fs::remove_dir_all(&work) {
         eprintln!("warning: could not remove {}: {e}", work.display());
     }
@@ -644,6 +809,8 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
         .map_or("all phases".to_owned(), |p| format!("phase {p}"));
     let report = render_report(&scope, rows.len(), missing.len(), &results)?;
     print!("{report}");
+    let calls = runner.calls.into_inner().map_err(|_| "a worker panicked")?;
+    eprint!("{}", timing_summary(&case_times, &calls));
     if let Some(path) = &opts.report {
         fs::write(path, &report)?;
     }
@@ -683,6 +850,88 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_dependency_set_gets_its_own_target_directory() {
+        let base = Path::new("/w/target-0");
+        let deps = |src: &str| dep_target(base, &directives(src));
+        let none = deps("fn main() {}\n");
+        let std = deps("//@ deps: corten-std\nfn main() {}\n");
+        let nix = deps("//@ fake-dep: nix\nfn main() {}\n");
+        let two = deps("//@ fake-dep: sha2\n//@ fake-dep: argon2\nfn main() {}\n");
+        assert_eq!(none, base.join("deps-none"));
+        assert_eq!(std, base.join("deps-std"));
+        assert_eq!(nix, base.join("deps-nix"));
+        // Sorted, so the same set in another order shares a directory.
+        assert_eq!(two, base.join("deps-argon2+sha2"));
+        assert_eq!(
+            two,
+            deps("//@ fake-dep: argon2\n//@ fake-dep: sha2\nfn main() {}\n")
+        );
+        // A dependency-free variant never shares the corten-std directory.
+        assert_ne!(none, std);
+    }
+
+    #[test]
+    fn timing_summary_splits_the_time_and_orders_the_slowest_first() {
+        let case = |case: &str, worker, position, secs| CaseTime {
+            case: case.to_owned(),
+            worker,
+            position,
+            secs,
+        };
+        let call = |case: &str, checker, secs| Call {
+            case: case.to_owned(),
+            checker,
+            secs,
+        };
+        let cases = [
+            case("CWE-1", 0, 0, 50.0),
+            case("CWE-2", 0, 1, 3.0),
+            case("CWE-3", 1, 0, 40.0),
+            case("CWE-4", 1, 1, 7.0),
+        ];
+        let calls = [
+            call("CWE-1", false, 20.0),
+            call("CWE-1", true, 25.0),
+            call("CWE-2", true, 2.0),
+            call("CWE-3", false, 15.0),
+            call("CWE-3", true, 20.0),
+            call("CWE-4", false, 1.0),
+            call("CWE-4", true, 4.0),
+        ];
+        let s = timing_summary(&cases, &calls);
+        assert!(s.contains("4 cases, 100.0 s in total"), "{s}");
+        assert!(s.contains("plain cargo check: 3 calls, 36.0 s; per call min 1.00, median 15.00, p90 20.00, max 20.00 s"), "{s}");
+        assert!(
+            s.contains("cargo corten check: 4 calls, 51.0 s; per call min 2.00"),
+            "{s}"
+        );
+        assert!(
+            s.contains("outside cargo (writing cases, bookkeeping): 13.0 s"),
+            "{s}"
+        );
+        assert!(
+            s.contains("worker 0 first case (cold dependencies): CWE-1 50.0 s"),
+            "{s}"
+        );
+        assert!(
+            s.contains("worker 1 first case (cold dependencies): CWE-3 40.0 s"),
+            "{s}"
+        );
+        let order: Vec<usize> = ["  CWE-1 ", "  CWE-3 ", "  CWE-4 ", "  CWE-2 "]
+            .iter()
+            .map(|n| s.find(n).unwrap())
+            .collect();
+        assert!(order.is_sorted(), "slowest first: {s}");
+        assert!(
+            s.contains("CWE-1 50.0 s (worker 0, position 0; 1 plain + 1 checker calls)"),
+            "{s}"
+        );
+        assert_eq!(quantile(&[], 0.5), 0.0);
+        assert_eq!(quantile(&[1.0, 2.0, 3.0, 4.0, 5.0], 0.5), 3.0);
+        assert_eq!(quantile(&[1.0, 2.0, 3.0, 4.0, 5.0], 0.9), 5.0);
+    }
 
     #[test]
     fn directives_are_parsed() {

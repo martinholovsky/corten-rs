@@ -1,6 +1,6 @@
 # Compile-fail corpus
 
-One directory per E row in `ledger/cwe-ledger.csv`, named by the row's `proof_test` column (`corpus/CWE-n`). `cargo run -p corten-corpus -- --checker target/debug/cargo-corten` runs every case; CI runs it on every push to `main`, every tag and every pull request that changes more than prose (`scripts/ci-scope.sh`). `--work-dir DIR` keeps the per-worker target directories so the next run reuses compiled dependencies; CI caches that directory.
+One directory per E row in `ledger/cwe-ledger.csv`, named by the row's `proof_test` column (`corpus/CWE-n`). `cargo run -p corten-corpus -- --checker target/debug/cargo-corten` runs every case; CI runs it on every push to `main`, every tag and every pull request that changes more than prose (`scripts/ci-scope.sh`). `--work-dir DIR` keeps the per-worker target directories so the next run reuses compiled dependencies; CI caches that directory. Each case crate is checked in a target directory per worker and dependency set (`target-N/deps-std`, `target-N/deps-none`, ...), because `cargo corten check` keeps one vendor directory per target directory and a crate with other dependencies would empty it. After the report, a timing summary goes to standard error, never into the report: worker-seconds in plain `cargo check` and `cargo corten check`, the per-call distribution, each worker's first (cold) case, and the ten slowest cases.
 
 ## A case
 
