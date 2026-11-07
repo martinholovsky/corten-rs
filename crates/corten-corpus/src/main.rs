@@ -423,7 +423,7 @@ impl Runner<'_> {
             let dir = work.join(format!("bad-{i}"));
             self.write_crate(&dir, &source, &d)?;
             // Every variant is evaluated, so the report names each miss.
-            match self.check_bad(row.proof_kind, &dir, target, &d)? {
+            match self.check_bad(row.proof_kind, &dir, &dep_target(target, &d), &d)? {
                 None => {}
                 Some(Verdict::NotDetected(why)) => missed.push(format!("{name}: {why}")),
                 Some(Verdict::ControlFailed(why)) => controls.push(format!("{name}: {why}")),
@@ -432,7 +432,7 @@ impl Runner<'_> {
         }
         let good_dir = work.join("good");
         self.write_crate(&good_dir, &good, &good_d)?;
-        let accepted = self.corten(&good_dir, target)?;
+        let accepted = self.corten(&good_dir, &dep_target(target, &good_d))?;
         if !accepted.ok() {
             return Ok((Verdict::FalseRejection(excerpt(&accepted.output)), false));
         }
@@ -445,6 +445,28 @@ impl Runner<'_> {
         fs::remove_dir_all(&work)?;
         Ok((Verdict::Pass, absent_only))
     }
+}
+
+/// The target directory for one case crate: one per worker and dependency
+/// set. `cargo corten check` keeps one vendor directory per target
+/// directory, and vendoring a crate with other dependencies empties it: a
+/// `corten-std` check after a dependency-free one re-vendored 193 crates and
+/// took about 30 s instead of 2 to 3 (measured 2026-11-07,
+/// docs/gates/phase-6.md, the CI row).
+fn dep_target(base: &Path, d: &Directives) -> PathBuf {
+    let mut fake: Vec<&str> = d.fake_deps.iter().map(String::as_str).collect();
+    fake.sort_unstable();
+    let mut parts: Vec<&str> = Vec::new();
+    if d.corten_std {
+        parts.push("std");
+    }
+    parts.extend(fake);
+    let set = if parts.is_empty() {
+        "none".to_owned()
+    } else {
+        parts.join("+")
+    };
+    base.join(format!("deps-{set}"))
 }
 
 /// Seconds at the given quantile (0.0 to 1.0) of an ascending list.
@@ -828,6 +850,27 @@ fn run(opts: &Options) -> Result<bool, Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_dependency_set_gets_its_own_target_directory() {
+        let base = Path::new("/w/target-0");
+        let deps = |src: &str| dep_target(base, &directives(src));
+        let none = deps("fn main() {}\n");
+        let std = deps("//@ deps: corten-std\nfn main() {}\n");
+        let nix = deps("//@ fake-dep: nix\nfn main() {}\n");
+        let two = deps("//@ fake-dep: sha2\n//@ fake-dep: argon2\nfn main() {}\n");
+        assert_eq!(none, base.join("deps-none"));
+        assert_eq!(std, base.join("deps-std"));
+        assert_eq!(nix, base.join("deps-nix"));
+        // Sorted, so the same set in another order shares a directory.
+        assert_eq!(two, base.join("deps-argon2+sha2"));
+        assert_eq!(
+            two,
+            deps("//@ fake-dep: argon2\n//@ fake-dep: sha2\nfn main() {}\n")
+        );
+        // A dependency-free variant never shares the corten-std directory.
+        assert_ne!(none, std);
+    }
 
     #[test]
     fn timing_summary_splits_the_time_and_orders_the_slowest_first() {
