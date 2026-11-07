@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net]
-//!                [--allow-udp-without-netns]
+//!                [--allow-udp-without-netns] [--allow-unprotected-hardlinks]
 //!                [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE]
 //!                -- PROGRAM [ARGS]...
 //! ```
@@ -25,6 +25,14 @@
 //!   `--allow-udp-without-netns` is given: then the program runs with UDP
 //!   open and a warning is printed on every start (owner decision,
 //!   2026-11-02).
+//! - The kernel must refuse hard links to files the linking user does not
+//!   own (`fs.protected_hardlinks = 1`). Landlock and `openat2` see the
+//!   name, not where its inode lives, so without it a hard link planted in a
+//!   granted directory could reach a file outside it (CWE-62). If the setting
+//!   is not 1, or cannot be read, the sandbox stops, unless
+//!   `--allow-unprotected-hardlinks` is given: then the program runs and a
+//!   warning is printed on every start (owner decision, 2026-11-06,
+//!   `docs/gates/fs-caps-e-proposal.md`, option D).
 //! - `--manifest`, `--signature`, `--trusted-key`, `--serial-state`: the
 //!   layer 5 mode. The signed capability manifest is verified as in
 //!   `corten_std::manifest`: with the key its `key` line names among the
@@ -60,7 +68,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--allow-udp-without-netns] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
+const USAGE: &str = "Usage: corten-sandbox [--ro PATH]... [--rw PATH]... [--exec PATH]... [--system] [--allow-net] [--allow-udp-without-netns] [--allow-unprotected-hardlinks] [--manifest FILE --signature FILE --trusted-key ID=HEX... --serial-state FILE] -- PROGRAM [ARGS]...";
 
 /// Exit status when the arguments are wrong.
 const EXIT_USAGE: u8 = 2;
@@ -78,6 +86,8 @@ struct Plan {
     allow_net: bool,
     /// Run with UDP open where the network namespace cannot be created.
     allow_udp_without_netns: bool,
+    /// Run where `fs.protected_hardlinks` is not 1 (CWE-62), with a warning.
+    allow_unprotected_hardlinks: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
     manifest: Option<ManifestArgs>,
@@ -266,6 +276,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Plan, String> {
             Some("--system") => plan.execute.extend(SYSTEM_PATHS.iter().map(PathBuf::from)),
             Some("--allow-net") => plan.allow_net = true,
             Some("--allow-udp-without-netns") => plan.allow_udp_without_netns = true,
+            Some("--allow-unprotected-hardlinks") => plan.allow_unprotected_hardlinks = true,
             Some("--manifest") => {
                 plan.manifest
                     .get_or_insert_with(ManifestArgs::default)
@@ -447,6 +458,18 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
+    #[cfg(target_os = "linux")]
+    match hardlink_decision(
+        std::fs::read_to_string(PROTECTED_HARDLINKS),
+        plan.allow_unprotected_hardlinks,
+    ) {
+        Ok(None) => {}
+        Ok(Some(warning)) => eprintln!("corten-sandbox: {warning}"),
+        Err(e) => {
+            eprintln!("corten-sandbox: {e}");
+            return ExitCode::from(EXIT_UNENFORCEABLE);
+        }
+    }
     // Before Landlock: the ID maps are written through /proc.
     #[cfg(target_os = "linux")]
     if needs_netns(&plan) {
@@ -470,6 +493,37 @@ fn main() -> ExitCode {
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
     exec(&plan, pinned.as_ref())
+}
+
+/// The kernel setting that refuses a hard link to a file the linking user
+/// does not own (CWE-62).
+#[cfg(any(target_os = "linux", test))]
+const PROTECTED_HARDLINKS: &str = "/proc/sys/fs/protected_hardlinks";
+
+/// What to do about `fs.protected_hardlinks`, given what reading it returned:
+/// `Ok(None)` runs; `Ok(Some(warning))` runs and prints the warning, because
+/// the operator passed `--allow-unprotected-hardlinks`; `Err` refuses. Any
+/// value but `1`, and a failed read, count as unprotected (fail closed).
+#[cfg(any(target_os = "linux", test))]
+fn hardlink_decision(
+    read: std::io::Result<String>,
+    allow_unprotected: bool,
+) -> Result<Option<String>, String> {
+    let problem = match read {
+        Ok(text) if text.trim() == "1" => return Ok(None),
+        Ok(text) => format!("fs.protected_hardlinks is {:?}, not 1", text.trim()),
+        Err(e) => format!("cannot read {PROTECTED_HARDLINKS}: {e}"),
+    };
+    let risk = "a hard link planted in a granted directory can reach a file outside it";
+    if allow_unprotected {
+        Ok(Some(format!(
+            "warning: {problem}; {risk} (--allow-unprotected-hardlinks)"
+        )))
+    } else {
+        Err(format!(
+            "{problem}. Without it {risk}; set fs.protected_hardlinks = 1, or pass --allow-unprotected-hardlinks to run anyway"
+        ))
+    }
 }
 
 /// A program with no network grant gets an empty network namespace: no
@@ -611,6 +665,40 @@ mod tests {
         assert!(!needs_netns(&open));
         let opted = run(&["--allow-udp-without-netns", "--", "/bin/true"]).unwrap();
         assert!(opted.allow_udp_without_netns && needs_netns(&opted));
+    }
+
+    #[test]
+    fn unprotected_hard_links_refuse_unless_the_operator_opts_out() {
+        let read = |text: &str| Ok(text.to_owned());
+        // Protected: runs, with or without the opt-out, and says nothing.
+        assert_eq!(hardlink_decision(read("1\n"), false), Ok(None));
+        assert_eq!(hardlink_decision(read("1\n"), true), Ok(None));
+        // Unprotected, unreadable or unexpected: refused by default.
+        let missing = || Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+        for refused in [
+            hardlink_decision(read("0\n"), false),
+            hardlink_decision(read(""), false),
+            hardlink_decision(read("2\n"), false),
+            hardlink_decision(missing(), false),
+        ] {
+            let e = refused.unwrap_err();
+            assert!(e.contains("--allow-unprotected-hardlinks"), "{e}");
+        }
+        // With the opt-out: runs, and warns every time.
+        for warned in [
+            hardlink_decision(read("0\n"), true),
+            hardlink_decision(missing(), true),
+        ] {
+            let w = warned.unwrap().unwrap();
+            assert!(w.starts_with("warning: "), "{w}");
+        }
+        let plan = run(&["--allow-unprotected-hardlinks", "--", "/bin/true"]).unwrap();
+        assert!(plan.allow_unprotected_hardlinks);
+        assert!(
+            !run(&["--", "/bin/true"])
+                .unwrap()
+                .allow_unprotected_hardlinks
+        );
     }
 
     #[test]

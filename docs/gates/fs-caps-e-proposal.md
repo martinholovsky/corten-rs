@@ -97,7 +97,7 @@ So `fchmod` caps an inherited ACL at the mode's group bits: no one but the owner
    - (C) Single-link only, no opt-out. An E candidate, but it reopens question 2 and costs every developer whose files are legitimately hard-linked (principle 1).
    - (D) (A), plus `corten-sandbox` refusing to start when `fs.protected_hardlinks` is not 1, unless the operator opts out explicitly, with a warning every start. C, because it rests on a kernel setting.
    - Recommendation: (D). It closes the attack in the kernel for every open, costs developers nothing, and fails closed with an explicit, logged opt-out (principles 1 to 3), like `--allow-udp-without-netns`. This replaces the first cut's recommendation of (A), changed by the `protected_hardlinks` finding.
-   - **Decision (owner, 2026-11-06): (D)**, the recommendation. Tracked in `gates/phase-6.md`, remaining work; CWE-62 stays C.
+   - **Decision (owner, 2026-11-06): (D)**, the recommendation. Built 2026-11-07 (`gates/phase-6.md`, remaining work); CWE-62 stays C.
 3. **CWE-434.**
    - (A) Stay C now; revisit with labels (strategy 9), where a label on request-derived bytes lets only `store_upload` accept them.
    - (B) A `served` flag on manifest `dir` grants, where such a `DirCap` accepts only `store_upload`. Still C (it rests on the operator marking every served directory); a manifest grammar change.
