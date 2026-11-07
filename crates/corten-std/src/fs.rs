@@ -710,6 +710,113 @@ mod tests {
         println!("{UMASK_CHILD_DONE}");
     }
 
+    // POSIX ACL entries in Linux's xattr format (version 2): tag, permission
+    // bits (r 4, w 2, x 1) and id, in tag order.
+    const ACL_USER_OBJ: u16 = 0x01;
+    const ACL_USER: u16 = 0x02;
+    const ACL_GROUP_OBJ: u16 = 0x04;
+    const ACL_MASK: u16 = 0x10;
+    const ACL_OTHER: u16 = 0x20;
+    const ACL_NO_ID: u32 = u32::MAX;
+
+    fn acl_xattr(entries: &[(u16, u16, u32)]) -> Vec<u8> {
+        let mut out = 2u32.to_le_bytes().to_vec();
+        for (tag, perm, id) in entries {
+            out.extend_from_slice(&tag.to_le_bytes());
+            out.extend_from_slice(&perm.to_le_bytes());
+            out.extend_from_slice(&id.to_le_bytes());
+        }
+        out
+    }
+
+    /// The entries, or `None` if the bytes are not a version 2 ACL.
+    fn acl_entries(bytes: &[u8]) -> Option<Vec<(u16, u16, u32)>> {
+        let body = bytes.strip_prefix(&2u32.to_le_bytes()[..])?;
+        let (entries, rest) = body.as_chunks::<8>();
+        if !rest.is_empty() {
+            return None;
+        }
+        Some(
+            entries
+                .iter()
+                .map(|&[t0, t1, p0, p1, i0, i1, i2, i3]| {
+                    (
+                        u16::from_le_bytes([t0, t1]),
+                        u16::from_le_bytes([p0, p1]),
+                        u32::from_le_bytes([i0, i1, i2, i3]),
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    /// CWE-276, 689 (docs/gates/fs-caps-e-proposal.md): a parent's default
+    /// ACL granting another user write is capped by the requested mode, so
+    /// no one but the owner can write a file `open_file` creates. Measured
+    /// with `nobody` on 2026-11-05; here the mask is read back, which needs
+    /// no second user. A filesystem without ACLs fails the test rather than
+    /// skipping it.
+    #[test]
+    fn an_inherited_default_acl_grants_no_write_beyond_the_mode() {
+        let s = Scratch::new("acl").unwrap();
+        let jail_path = s.0.join("jail");
+        let default = acl_xattr(&[
+            (ACL_USER_OBJ, 7, ACL_NO_ID),
+            (ACL_USER, 7, 65534),
+            (ACL_GROUP_OBJ, 5, ACL_NO_ID),
+            (ACL_MASK, 7, ACL_NO_ID),
+            (ACL_OTHER, 5, ACL_NO_ID),
+        ]);
+        rustix::fs::setxattr(
+            &jail_path,
+            "system.posix_acl_default",
+            &default,
+            rustix::fs::XattrFlags::empty(),
+        )
+        .expect("the test filesystem must support POSIX ACLs");
+        let access = |name: &str| {
+            let mut buf = [0u8; 256];
+            let n = rustix::fs::getxattr(
+                jail_path.join(name),
+                "system.posix_acl_access",
+                &mut buf[..],
+            )
+            .unwrap();
+            buf.get(..n)
+                .and_then(acl_entries)
+                .expect("a version 2 ACL of the length getxattr returned")
+        };
+        let mask = |e: &[(u16, u16, u32)]| e.iter().find(|x| x.0 == ACL_MASK).map(|x| x.1);
+        // Control: a plain create at 0666 inherits the named user, and the
+        // mask lets it write, so the checks below can fail.
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o666)
+                .open(jail_path.join("control"))
+                .unwrap();
+        }
+        let control = access("control");
+        assert!(
+            control.iter().any(|x| x.0 == ACL_USER && x.2 == 65534),
+            "default ACL not inherited: {control:?}"
+        );
+        assert_eq!(mask(&control), Some(6), "control: {control:?}");
+        let jail = s.jail().unwrap();
+        for (name, mode, want) in [
+            ("a", FileMode::OwnerOnly, 0),
+            ("b", FileMode::OwnerWriteGroupRead, 4),
+            ("c", FileMode::ReadableByAll, 4),
+        ] {
+            jail.open_file(&rel(name).unwrap(), OpenMode::CreateExclusive(mode))
+                .unwrap();
+            let entries = access(name);
+            assert_eq!(mask(&entries), Some(want), "{name}: {entries:?}");
+        }
+    }
+
     #[test]
     fn single_link_opens_refuse_a_hard_linked_file() {
         let s = Scratch::new("hardlink").unwrap();
