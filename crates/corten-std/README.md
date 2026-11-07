@@ -15,6 +15,10 @@ Corten's capability-oriented prelude (spec sections 4.3 to 4.10; Phase 2). Under
 | `text` | `TextMessage`, `text!`, `TextSender` | CWE-1336 |
 | `ldap` | `LdapFilter`, `LdapDn`, `ldap_filter!`, `ldap_dn!`, `LdapSearcher` | CWE-90 |
 | `xpath` | `XPathExpr`, `XQueryExpr`, `xpath!`, `xquery!`, evaluators | CWE-91, 643, 652 |
+| `template` | `Template`: the compile-time text every sink macro builds on; no runtime value can become sink text | (shared by the sinks above) |
+| `net` | `NetCap` (only from a manifest `net` grant, `Capabilities::take_net`), `NetCap::connect_tls`: TLS 1.3 to the granted destination, every resolved address checked, operator CRLs or a logged `Revocation::Unchecked`, the DNS state logged | CWE-319, 918, 1428 |
+| `crypto` | `AeadKey` and `KeyRing` (XChaCha20-Poly1305, library-chosen nonces, key rotation by `KeyId`), `password` (Argon2id with a cost floor, `Check::Rehash`), `verify_signed` returning `Verified<T>` | CWE-323, 347, 759, 760, 916 (E, awaiting the independent review) |
+| `random` | `fill`, `array`, `u64`: the operating system's generator only, no seedable generator; a failure is an error | (none claimed: strategy 10 strengthens C) |
 | `secret` | `Secret`: wiped, locked, unprintable, constant-time compare | (C: CWE-14, 316) |
 | `refine` | `Bounded<MIN, MAX>`, `bounded!` (proved at check time), `Bounded::new` and `copy_into` (runtime checks): the three-outcome rule (Phase 4) | (C) |
 | `label` | `Labeled<T, L>` over `Public < Internal < Confidential < Secret`; only `Public` reaches a sink; `declassify` needs a manifest-granted `DeclassifyCap` and is logged (Phase 4) | (C) |
