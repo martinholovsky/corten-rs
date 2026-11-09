@@ -17,8 +17,8 @@ use cargo_corten::dep_policy::{self, DepPolicy};
 use cargo_corten::json::Json;
 use cargo_corten::provenance::{Artifact, BuildFacts};
 use cargo_corten::{
-    BuildSandbox, Toolchain, build_command, check_command, deps, lint_command, metadata_command,
-    profile, profile_rustflags, provenance, sha256, vendor_command,
+    BuildSandbox, Toolchain, build_command, check_command, check_rustc_version, deps, lint_command,
+    metadata_command, profile, profile_rustflags, provenance, sha256, vendor_command,
 };
 
 const USAGE: &str = "\
@@ -755,6 +755,26 @@ fn operator_inputs(
     Ok((policy, allow_deps.into_iter().collect()))
 }
 
+/// Runs `rustc -vV` on the toolchain's rustc and refuses a release older than
+/// the checker supports, or one it cannot read (fail closed).
+fn rustc_supported(toolchain: &Toolchain) -> Result<(), String> {
+    let out = std::process::Command::new(&toolchain.rustc)
+        .arg("-vV")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("could not run {} -vV: {e}", toolchain.rustc.display()))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{} -vV failed ({}); refusing to check with an unknown compiler",
+            toolchain.rustc.display(),
+            out.status
+        ));
+    }
+    check_rustc_version(&String::from_utf8_lossy(&out.stdout))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 fn main() -> ExitCode {
     let invocation = match parse(env::args_os().skip(1)) {
         Ok(invocation) => invocation,
@@ -804,6 +824,10 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
+    if let Err(e) = rustc_supported(&toolchain) {
+        eprintln!("error: {e}");
+        return ExitCode::from(EXIT_USAGE);
+    }
     let conf = match ConfDir::create(&policy) {
         Ok(conf) => conf,
         Err(e) => {

@@ -4,7 +4,7 @@ Status: **accepted as the plan for Phase 6, 2026-11-01** ([`gates/phase-6.md`](g
 
 ## What remains
 
-Safe Rust can write 729 of the 944 CWEs (724 before 2026-11-04, when five were found writable through a crate's safe API: `audit/applicability/crates/README.md`). Corten's verified eliminations take out 91 of them, which leaves **638** (2026-11-04; 641 when this proposal was accepted):
+Safe Rust can write 729 of the 944 CWEs (724 before 2026-11-04, when five were found writable through a crate's safe API: `audit/applicability/crates/README.md`). Corten's verified eliminations take out 94 of them, which leaves **635** (2026-11-06; 638 on 2026-11-04, 641 when this proposal was accepted):
 
 | | CWEs |
 | --- | ---: |
@@ -13,7 +13,7 @@ Safe Rust can write 729 of the 944 CWEs (724 before 2026-11-04, when five were f
 | Out of reach (O) | 26 |
 | **Total** | **635** |
 
-Of these, 519 are Base or Variant weaknesses. The other 119 are Pillars, Classes or Compounds that overlap their children, so counting them as separate exposures overstates the residue.
+Of these, 517 are Base or Variant weaknesses. The other 118 are Pillars, Classes or Compounds that overlap their children, so counting them as separate exposures overstates the residue.
 
 **Exploitability.** 16 of MITRE's 2025 Top 25 remain: CWE-79, 89, 352, 862, 78, 94, 434, 502, 863, 20, 284, 200, 306, 77, 639, 770 (CWE-918 was verified as eliminated for prelude users on 2026-11-02, question 21). So do 6 of the 2025 Top 10 KEV weaknesses (those exploited in the wild): CWE-78, 306, 502, 94, 288, 79. What Corten has removed are the memory-safety and path entries (CWE-787, 22, 416, 125, 120, 476, 121, 122 are verified or need `unsafe`). What remains is injection outside the prelude's grammars, authorization, deserialization, resource limits and request forgery.
 

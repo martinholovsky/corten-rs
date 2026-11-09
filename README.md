@@ -45,7 +45,7 @@ The drafted classification of the 944 CWE weaknesses:
 
 Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids down to C.
 
-Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **729** in safe Rust (five of them only through a crate with a safe API, re-reviewed 2026-11-04: [`audit/applicability/crates`](audit/applicability/crates/README.md)), **638** in safe Rust under Corten's verified eliminations (608 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
+Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **729** in safe Rust (five of them only through a crate with a safe API, re-reviewed 2026-11-04: [`audit/applicability/crates`](audit/applicability/crates/README.md)), **635** in safe Rust under Corten's verified eliminations (605 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
 
 Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 180 / C 721 / O 26 / N 17**, or E 157 / C 604 / O 26 / N 0 of the 787 that can be written in Rust (six more E rows moved to C on 2026-10-27 and 28, CWE-1113 to 1117 from N to C on 2026-10-29, and eight rows from C to E on 2026-11-02 under question 21: [`docs/gates/claimed-eliminations.md`](docs/gates/claimed-eliminations.md), [`docs/gates/phase-5.md`](docs/gates/phase-5.md), [`docs/gates/phase-6.md`](docs/gates/phase-6.md)). Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **146 of the 177 are verified** (Phases 1 to 6); the other 31 pass their corpus cases and wait for an independent review (26 encoder rows, 5 cryptography rows). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
@@ -82,9 +82,23 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/assets/logo/`](docs/assets/logo) | The logo, favicon and GitHub social preview, with the script that renders them |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 
+## Quick start
+
+Check a crate of your own with `cargo corten check`. You need rustup, and Rust 1.98.0 or later for the crate being checked (the checker refuses older releases, which falsely reject every binary crate). On Linux, the checker runs the build inside `corten-sandbox` and refuses without it; elsewhere it warns that build scripts and procedural macros run unsandboxed.
+
+```console
+$ git clone https://github.com/martinholovsky/corten-rs.git && cd corten-rs
+$ cargo install --path crates/cargo-corten --locked
+$ cargo install --path crates/corten-sandbox --locked     # Linux only
+$ export CORTEN_DRIVER="$(scripts/build-driver.sh)"        # Corten's own lints, on a pinned nightly
+$ cd path/to/your-crate && cargo corten check
+```
+
+`scripts/build-driver.sh` installs the nightly that `crates/corten-lints` pins, with `rustc-dev`, on first use. A crate with dependencies also needs a dependency policy: dependencies are refused unless the operator admits them ([`crates/cargo-corten/README.md`](crates/cargo-corten/README.md), "Dependency policy"). Measured from a fresh clone to a passing check of a `cargo new` crate: 102 to 141 s on Linux in a `rust:1.99.1` container, 14 to 19 s on macOS with the toolchains already installed ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), "Developer friction").
+
 ## Building
 
-The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. The workspace has no third-party dependencies.
+The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. `cargo-corten`, part of the trusted base, has no third-party dependencies; the prelude's are reviewed in [`docs/gates/phase-6.md`](docs/gates/phase-6.md).
 
 ```console
 $ cargo test --workspace
