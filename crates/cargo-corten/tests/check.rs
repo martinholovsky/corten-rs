@@ -171,6 +171,13 @@ fn rejects_unsafe_after_the_in_source_forbid_is_deleted() {
         "{}",
         out.stderr
     );
+    // Errors that teach: the refused lint is explained, with its fix.
+    assert!(
+        out.stderr
+            .contains("unsafe-code: memory corruption (CWE-787, CWE-416, CWE-125)"),
+        "{}",
+        out.stderr
+    );
 }
 
 #[test]
@@ -310,6 +317,19 @@ fn ambient_filesystem_access_is_rejected() {
     assert_eq!(out.code, Some(1), "{}", out.stderr);
     assert!(
         out.stderr.contains("use of a disallowed method"),
+        "{}",
+        out.stderr
+    );
+    // The ban's reason names the weakness and the fix.
+    assert!(
+        out.stderr
+            .contains("(CWE-22, path traversal); fix: take a DirCap"),
+        "{}",
+        out.stderr
+    );
+    assert!(
+        out.stderr
+            .contains("clippy::disallowed-methods: ambient authority"),
         "{}",
         out.stderr
     );

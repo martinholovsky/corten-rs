@@ -8,12 +8,13 @@ use std::collections::BTreeSet;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
-use std::io;
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
-use std::process::{ExitCode, Stdio};
+use std::process::{Command, ExitCode, ExitStatus, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cargo_corten::dep_policy::{self, DepPolicy};
+use cargo_corten::explain;
 use cargo_corten::json::Json;
 use cargo_corten::provenance::{Artifact, BuildFacts};
 use cargo_corten::{
@@ -611,8 +612,8 @@ fn run_check(
         return ExitCode::from(EXIT_FAILED);
     }
     // No deadline: this is an interactive build, and Ctrl-C reaches cargo
-    // through the shared process group. `status` waits, so no child outlives us.
-    match command.status() {
+    // through the shared process group. It waits, so no child outlives us.
+    match run_explained(&mut command) {
         Ok(status) if status.success() => {}
         Ok(status) => {
             eprintln!("cargo corten check: failed ({status})");
@@ -644,6 +645,41 @@ fn run_check(
             ExitCode::from(EXIT_FAILED)
         }
     }
+}
+
+/// Runs a compile pass with its standard error passed through line by line,
+/// and, when it fails, explains each forbidden lint whose `-F` note appeared
+/// (errors that teach). Colour is kept when our standard error is a terminal.
+fn run_explained(cmd: &mut Command) -> io::Result<ExitStatus> {
+    let mut stderr = io::stderr();
+    if stderr.is_terminal() {
+        cmd.env("CARGO_TERM_COLOR", "always");
+    }
+    let mut child = cmd.stderr(Stdio::piped()).spawn()?;
+    let mut seen = BTreeSet::new();
+    if let Some(pipe) = child.stderr.take() {
+        let mut reader = io::BufReader::new(pipe);
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            // A failed read ends the pass-through, never the wait below.
+            match reader.read_until(b'\n', &mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    // A closed standard error must not stop the build.
+                    let _ignored = stderr.write_all(&line);
+                    if let Some(x) = explain::forbidden_lint_in(&String::from_utf8_lossy(&line)) {
+                        seen.insert(x);
+                    }
+                }
+            }
+        }
+    }
+    let status = child.wait()?;
+    if !status.success() && !seen.is_empty() {
+        eprint!("{}", explain::render(&seen));
+    }
+    Ok(status)
 }
 
 /// `corten-driver`: `CORTEN_DRIVER`, or the one installed beside this binary.
@@ -699,9 +735,7 @@ fn lint_pass(
         plan.as_ref(),
     )
     .map_err(|e| e.to_string())?;
-    let status = cmd
-        .status()
-        .map_err(|e| format!("cannot run the lint pass: {e}"))?;
+    let status = run_explained(&mut cmd).map_err(|e| format!("cannot run the lint pass: {e}"))?;
     if status.success() {
         Ok(true)
     } else {

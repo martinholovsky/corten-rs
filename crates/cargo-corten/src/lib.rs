@@ -8,6 +8,7 @@
 
 pub mod dep_policy;
 pub mod deps;
+pub mod explain;
 pub mod json;
 pub mod profile;
 pub mod provenance;
