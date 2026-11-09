@@ -18,6 +18,8 @@ $ cargo corten build --sbom sbom.json --provenance provenance.json   # Linux
 
 It runs `cargo check --workspace --all-targets` with `clippy-driver` wrapping every crate. Clippy disables itself for registry and git dependencies (built with `--cap-lints allow`), so only the workspace and local path dependencies are linted. The checker writes its `clippy.toml` into a fresh private directory (`create_dir`, mode 0700) and removes it afterwards. Exit status: 0 the build passed, 1 it failed (a profile rule or an ordinary compile error; they are not told apart yet), 2 usage or environment error.
 
+Errors teach: each ban's reason names the weakness with its CWE and the fix, and after a refused pass the checker prints, for every forbidden lint that fired (rustc, Clippy or `corten-driver`), the weakness it guards against and how to fix it ([`src/explain.rs`](src/explain.rs); a test fails when a forbidden lint has no entry). To find them it reads cargo's standard error and passes it through line by line.
+
 ## Dependency policy (layer 3)
 
 Before building, both subcommands read `cargo metadata` and refuse:
