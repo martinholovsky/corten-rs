@@ -7,7 +7,7 @@
 - forbidden Clippy lints: `disallowed_methods`, `disallowed_types`, `arithmetic_side_effects`, `as_conversions`, `let_underscore_must_use`, `mem_forget`, and since Phase 6 `precedence`, `float_cmp`, `float_cmp_const`, `dbg_macro`, `todo`, `unimplemented`, `eq_op`, `absurd_extreme_comparisons`, `impossible_comparisons`, `redundant_comparisons`, `overly_complex_bool_expr`, `nonminimal_bool`, `short_circuit_statement` (aids for the CWEs in `docs/gates/phase-6.md`; they move no bucket);
 - a Clippy configuration banning ambient filesystem, environment, process, network and clock APIs, `catch_unwind`, and the APIs that skip a destructor. This is a denylist over `std`, so it can miss an API; the closed prelude (`corten-std`) is the deny-by-default answer.
 
-"Forbidden" means `-F`: an in-source `allow` or `expect` cannot lower it (E0453). The Clippy toolchain component is required.
+"Forbidden" means `-F`: an in-source `allow` or `expect` cannot lower it (E0453). The Clippy toolchain component is required. The checker runs `rustc -vV` first and refuses a release older than **1.98.0**, or one it cannot read (exit 2): on 1.97.1 the test harness's `#[allow(dead_code)]` collides with `-F dead_code`, so every binary crate is falsely rejected (measured 2026-11-09; 1.98.0 and 1.99.1 accept it).
 
 ```console
 $ cargo install --path crates/cargo-corten --locked

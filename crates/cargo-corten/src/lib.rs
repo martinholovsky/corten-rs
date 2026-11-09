@@ -135,6 +135,101 @@ impl Toolchain {
     }
 }
 
+/// A rustc release as `rustc -vV` reports it. A pre-release (`-beta`,
+/// `-nightly`) orders below the release of the same number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RustcVersion {
+    /// Major version.
+    pub major: u64,
+    /// Minor version.
+    pub minor: u64,
+    /// Patch version.
+    pub patch: u64,
+    /// `false` for a beta or nightly of this number, `true` for the release.
+    pub is_release: bool,
+}
+
+/// The oldest rustc the checker drives. Measured 2026-11-09 with the same
+/// checker and driver: on rustc 1.97.1 the test harness's
+/// `#[allow(dead_code)]` collides with the profile's `-F dead_code` (E0453),
+/// so every binary crate is falsely rejected; 1.98.0 and 1.99.1 accept it.
+pub const MIN_RUSTC: RustcVersion = RustcVersion {
+    major: 1,
+    minor: 98,
+    patch: 0,
+    is_release: true,
+};
+
+/// Why the toolchain's rustc is refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RustcVersionError {
+    /// The output of `rustc -vV` has no `release:` line the checker can read.
+    Unreadable,
+    /// The release is older than [`MIN_RUSTC`]; holds the release as printed.
+    TooOld(String),
+}
+
+impl fmt::Display for RustcVersionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let min = MIN_RUSTC;
+        match self {
+            Self::Unreadable => write!(
+                f,
+                "could not read the rustc release from `rustc -vV`; refusing to check with an unknown compiler"
+            ),
+            Self::TooOld(found) => write!(
+                f,
+                "rustc {found} is older than {}.{}.{}, the oldest the checker supports \
+                 (older releases falsely reject every binary crate); update with `rustup update stable`",
+                min.major, min.minor, min.patch
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RustcVersionError {}
+
+/// Reads the `release:` line of `rustc -vV` output, such as `1.99.1` or
+/// `1.101.0-nightly`. Returns the parsed version and the release as printed.
+#[must_use]
+pub fn parse_rustc_release(verbose_version: &str) -> Option<(RustcVersion, &str)> {
+    let release = verbose_version
+        .lines()
+        .find_map(|line| line.strip_prefix("release: "))?
+        .trim();
+    let (numbers, pre) = match release.split_once('-') {
+        Some((numbers, pre)) if !pre.is_empty() => (numbers, true),
+        Some(_) => return None,
+        None => (release, false),
+    };
+    let mut parts = numbers.split('.').map(str::parse::<u64>);
+    let version = RustcVersion {
+        major: parts.next()?.ok()?,
+        minor: parts.next()?.ok()?,
+        patch: parts.next()?.ok()?,
+        is_release: !pre,
+    };
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((version, release))
+}
+
+/// Refuses a rustc older than [`MIN_RUSTC`], or one whose release cannot be
+/// read (fail closed).
+///
+/// # Errors
+///
+/// Returns [`RustcVersionError`] for an unreadable or too old release.
+pub fn check_rustc_version(verbose_version: &str) -> Result<RustcVersion, RustcVersionError> {
+    let (version, printed) =
+        parse_rustc_release(verbose_version).ok_or(RustcVersionError::Unreadable)?;
+    if version < MIN_RUSTC {
+        return Err(RustcVersionError::TooOld(printed.to_owned()));
+    }
+    Ok(version)
+}
+
 /// Every flag the profile passes to rustc and clippy-driver, in order.
 #[must_use]
 pub fn profile_rustflags() -> Vec<&'static str> {
@@ -522,6 +617,52 @@ mod tests {
             None => EnvSetting::Inherited,
             Some((_, None)) => EnvSetting::Removed,
             Some((_, Some(v))) => EnvSetting::Set(v),
+        }
+    }
+
+    fn vv(release: &str) -> String {
+        format!(
+            "rustc {release} (58cf8f9c3 2026-10-13)\nbinary: rustc\nhost: x86_64-unknown-linux-gnu\nrelease: {release}\nLLVM version: 21.1.2\n"
+        )
+    }
+
+    #[test]
+    fn rustc_older_than_the_minimum_is_refused() {
+        // Measured: 1.97.1 falsely rejects every binary crate (E0453).
+        assert_eq!(
+            check_rustc_version(&vv("1.97.1")),
+            Err(RustcVersionError::TooOld("1.97.1".to_owned()))
+        );
+        // A nightly of the minimum predates the release.
+        assert!(matches!(
+            check_rustc_version(&vv("1.98.0-nightly")),
+            Err(RustcVersionError::TooOld(_))
+        ));
+        assert!(check_rustc_version(&vv("0.200.0")).is_err());
+    }
+
+    #[test]
+    fn rustc_at_or_above_the_minimum_is_accepted() {
+        for release in ["1.98.0", "1.98.1", "1.99.1", "1.101.0-nightly", "2.0.0"] {
+            assert!(check_rustc_version(&vv(release)).is_ok(), "{release}");
+        }
+    }
+
+    #[test]
+    fn unreadable_rustc_release_is_refused() {
+        for out in [
+            String::new(),
+            "rustc 1.99.1\n".to_owned(),
+            vv("1.99"),
+            vv("1.99.1.0"),
+            vv("1.99.x"),
+            vv("1.99.1-"),
+        ] {
+            assert_eq!(
+                check_rustc_version(&out),
+                Err(RustcVersionError::Unreadable),
+                "{out:?}"
+            );
         }
     }
 

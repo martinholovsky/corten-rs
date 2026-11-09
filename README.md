@@ -82,9 +82,23 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`docs/assets/logo/`](docs/assets/logo) | The logo, favicon and GitHub social preview, with the script that renders them |
 | [`AGENTS.md`](AGENTS.md) | Ground rules for contributors and AI coding agents (also read via `CLAUDE.md`) |
 
+## Quick start
+
+Check a crate of your own with `cargo corten check`. You need rustup, and Rust 1.98.0 or later for the crate being checked (the checker refuses older releases, which falsely reject every binary crate). On Linux, the checker runs the build inside `corten-sandbox` and refuses without it; elsewhere it warns that build scripts and procedural macros run unsandboxed.
+
+```console
+$ git clone https://github.com/martinholovsky/corten-rs.git && cd corten-rs
+$ cargo install --path crates/cargo-corten --locked
+$ cargo install --path crates/corten-sandbox --locked     # Linux only
+$ export CORTEN_DRIVER="$(scripts/build-driver.sh)"        # Corten's own lints, on a pinned nightly
+$ cd path/to/your-crate && cargo corten check
+```
+
+`scripts/build-driver.sh` installs the nightly that `crates/corten-lints` pins, with `rustc-dev`, on first use. A crate with dependencies also needs a dependency policy: dependencies are refused unless the operator admits them ([`crates/cargo-corten/README.md`](crates/cargo-corten/README.md), "Dependency policy"). Measured from a fresh clone to a passing check of a `cargo new` crate: 102 to 141 s on Linux in a `rust:1.99.1` container, 14 to 19 s on macOS with the toolchains already installed ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), "Developer friction").
+
 ## Building
 
-The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. The workspace has no third-party dependencies.
+The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. `cargo-corten`, part of the trusted base, has no third-party dependencies; the prelude's are reviewed in [`docs/gates/phase-6.md`](docs/gates/phase-6.md).
 
 ```console
 $ cargo test --workspace

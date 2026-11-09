@@ -189,6 +189,42 @@ fn accepts_the_matched_safe_program() {
     assert_eq!(out.code, Some(0), "{}", out.stderr);
 }
 
+/// A stand-in rustc that only answers `-vV` with `release`.
+#[cfg(unix)]
+fn fake_rustc(fx: &Fixture, release: &str) -> io::Result<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = fx.dir.join(format!("fake-rustc-{release}"));
+    fs::write(
+        &path,
+        format!("#!/bin/sh\nprintf 'rustc {release}\\nrelease: {release}\\n'\n"),
+    )?;
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+    Ok(path)
+}
+
+/// Measured 2026-11-09: rustc 1.97.1 falsely rejects every binary crate
+/// (E0453 on `-F dead_code` in the test target), so the checker refuses it
+/// before running anything. The control, a fake 1.98.0, passes the gate and
+/// fails later on its missing compiler, never with the version message.
+#[cfg(unix)]
+#[test]
+fn rustc_older_than_the_minimum_is_refused_before_checking() {
+    let fx = Fixture::new("old-rustc", SAFE).unwrap();
+    let old = fake_rustc(&fx, "1.97.1").unwrap();
+    let out = corten(&fx, &[("RUSTC", old.to_str().unwrap())]).unwrap();
+    assert_eq!(out.code, Some(2), "{}", out.stderr);
+    assert!(
+        out.stderr
+            .contains("rustc 1.97.1 is older than 1.98.0, the oldest the checker supports"),
+        "{}",
+        out.stderr
+    );
+    let new = fake_rustc(&fx, "1.98.0").unwrap();
+    let out = corten(&fx, &[("RUSTC", new.to_str().unwrap())]).unwrap();
+    assert!(!out.stderr.contains("older than"), "{}", out.stderr);
+    assert_ne!(out.code, Some(0), "a fake rustc cannot pass a check");
+}
+
 #[test]
 fn operator_rustflags_cannot_lower_the_profile() {
     let fx = Fixture::new("operator-rustflags", UNSAFE_NO_ATTRIBUTE).unwrap();
