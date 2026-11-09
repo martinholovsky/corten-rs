@@ -78,9 +78,15 @@ jobs:
       # zizmor cache-poisoning is suppressed below: tag (release) runs skip this
       # step by its `if:`, so a release never restores or saves a cache, and only
       # main writes one (save-if). zizmor reads the trigger, not the condition.
+      # `key` hashes corten-corpus's source, which decides the layout of
+      # corpus-work: rust-cache does not save after an exact key match ("Cache
+      # up-to-date."), and its automatic key hashes only Cargo files and
+      # toolchains, so a layout change otherwise never reaches the cache
+      # (measured: runs 42422911164 to 42629047981 restored the old layout).
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
         with:
+          key: corpus-${{ hashFiles('crates/corten-corpus/src/**') }}
           workspaces: |
             . -> target
             crates/corten-lints -> target
