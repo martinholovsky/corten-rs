@@ -20,7 +20,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** All five phases are implemented, the earlier gates are not all passed, and Phase 4's mechanisms back C rows only.
+- **Not finished.** Phases 0 to 5 are implemented and Phase 6 is in progress; the Phase 1 to 3 gates are only partly passed, Phase 4's mechanisms back C rows only, and nothing is released yet.
 
 ## Why "Corten"
 
@@ -50,7 +50,7 @@ Treat E = 186 as a ceiling: in ratification the panel challenged 78 of those ids
 Which of the 944 can be written in Rust was reviewed per CWE on 2026-10-27 ([`docs/rust-applicability.md`](docs/rust-applicability.md), with a program wherever the compiler decides): **787** with `unsafe` allowed, **729** in safe Rust (five of them only through a crate with a safe API, re-reviewed 2026-11-04: [`audit/applicability/crates`](audit/applicability/crates/README.md)), **635** in safe Rust under Corten's verified eliminations (605 if every claimed elimination held). The other 157 need a construct Rust lacks (67) or are not weaknesses of code (90).
 
 
-Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 180 / C 721 / O 26 / N 17**, or E 157 / C 604 / O 26 / N 0 of the 787 that can be written in Rust (six more E rows moved to C on 2026-10-27 and 28, CWE-1113 to 1117 from N to C on 2026-10-29, and eight rows from C to E on 2026-11-02 under question 21: [`docs/gates/claimed-eliminations.md`](docs/gates/claimed-eliminations.md), [`docs/gates/phase-5.md`](docs/gates/phase-5.md), [`docs/gates/phase-6.md`](docs/gates/phase-6.md)). Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **146 of the 177 are verified** (Phases 1 to 6); the other 31 pass their corpus cases and wait for an independent review (26 encoder rows, 5 cryptography rows). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
+Phase 0 (2026-10-26) re-bucketed the disputed ids in the ledger: today it holds **E 180 / C 721 / O 26 / N 17**, or E 157 / C 604 / O 26 / N 0 of the 787 that can be written in Rust (six more E rows moved to C on 2026-10-27 and 28, CWE-1113 to 1117 from N to C on 2026-10-29, and eight rows from C to E on 2026-11-02 under question 21: [`docs/gates/claimed-eliminations.md`](docs/gates/claimed-eliminations.md), [`docs/gates/phase-5.md`](docs/gates/phase-5.md), [`docs/gates/phase-6.md`](docs/gates/phase-6.md)). Every E row names its mechanism, its TCB assumption ([`docs/tcb.md`](docs/tcb.md)) and a compile-fail test; **149 of the 180 are verified** (Phases 1 to 6); the other 31 pass their corpus cases and wait for an independent review (26 encoder rows, 5 cryptography rows). `cargo run -p corten-ledger -- totals` recomputes these numbers. [`docs/rust-comparison.md`](docs/rust-comparison.md) compares plain Rust and Corten category by category.
 
 ### Weaknesses you can write, by language
 
@@ -138,7 +138,14 @@ $ cargo build -p cargo-corten && cargo run -p corten-corpus -- --checker target/
 
 ## Where to help
 
-The roadmap in [`docs/spec.md`](docs/spec.md) section 9 starts with Phase 0: turning the ledger into a per-CWE record of mechanism and proof test, and settling the nine open design decisions in section 8. Issues and pull requests on either are welcome. Read [`AGENTS.md`](AGENTS.md) first; commits run a gitleaks secret scan through pre-commit (`pre-commit install --hook-type pre-commit --hook-type pre-push`).
+Phase 6 is under way; its open items, with what starts each one, are in [`docs/gates/phase-6.md`](docs/gates/phase-6.md) ("Remaining work"). The ones where outside help counts most:
+
+- **Review the encoders and `corten_std::crypto`.** 31 eliminations (26 encoder rows, 5 cryptography rows) pass their corpus cases and wait for a review by someone other than their author before they count as verified (AGENTS.md rule 1). The owner decided on one external audit covering all of them; the hand-over starts at [`docs/gates/encoder-prereview.md`](docs/gates/encoder-prereview.md).
+- **Authorization and authentication as proof types** (strategy 2), the next strategy: the design note is [`docs/gates/authz-proposal.md`](docs/gates/authz-proposal.md), and six of its rows are elimination candidates.
+- **The batches not started**: labels on errors and logs (strategy 9), resource budgets and safe deserialization (strategies 3 and 4), and web types, credentials and strict parsers (batch 6), each listed in [`docs/residual-mitigation.md`](docs/residual-mitigation.md).
+- **Corpus cases**: a program that exhibits a weakness Corten claims to eliminate and still builds is the most useful bug report there is ([`corpus/README.md`](corpus/README.md)).
+
+Read [`AGENTS.md`](AGENTS.md) first; commits run a gitleaks secret scan through pre-commit (`pre-commit install --hook-type pre-commit --hook-type pre-push`).
 
 ## License
 
