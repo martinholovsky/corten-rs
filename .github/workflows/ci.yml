@@ -125,11 +125,12 @@ jobs:
       # program is re-checked against its pinned compiler, in a container
       # with no network that only compiles, and the rows, docs and chart
       # must match what the evidence generates.
-      - name: C, C++ and Java applicability evidence
+      - name: C, C++, Java and Go applicability evidence
         run: |
           gcc=docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9
           jdk=docker.io/library/eclipse-temurin@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
-          for spec in "c $gcc" "cpp $gcc" "java $jdk"; do
+          golang=docker.io/library/golang@sha256:01aa404fa56b604b6f48e90c1d6e2c79fe5cd78f9592f78d80303fbe171cdcc0
+          for spec in "c $gcc" "cpp $gcc" "java $jdk" "go $golang"; do
             lang=${spec%% *}
             docker run --rm --network=none --cap-drop=ALL --security-opt=no-new-privileges \
               --read-only --tmpfs /tmp -v "$PWD":/src:ro -w /src "${spec#* }" \

@@ -29,6 +29,8 @@ LANGS = [
      {"C++", "Not Language-Specific", "Memory-Unsafe", "Compiled", "Object-Oriented"}),
     ("Java", "java", "javac 25.0.5 (Temurin)",
      {"Java", "Not Language-Specific", "Object-Oriented"}),
+    ("Go", "go", "go1.27.4 (cgo with gcc)",
+     {"Go", "Not Language-Specific", "Compiled"}),
 ]
 RUST_TAGS = {"Rust", "Not Language-Specific", "Compiled"}
 COMPARISON = Path("docs/language-comparison.md")
@@ -249,7 +251,7 @@ def chart(table, langs, ks, rk):
 {chr(10).join(rows_svg)}
     <line x1="72" y1="{y - 6}" x2="1128" y2="{y - 6}" stroke="#3A2E28" stroke-width="1"/>
     <g font-size="13" font-weight="500" fill="#A89A90">
-      <text x="72" y="{y + 20}">Hatched: only through the escape hatch (Java: JNI, sun.misc, java.lang.foreign). Dashed line: what MITRE's language tags would count.</text>
+      <text x="72" y="{y + 20}">Hatched: only through the escape hatch (Java: JNI, sun.misc; Go: unsafe, cgo). Dashed line: what MITRE's language tags would count.</text>
       <text x="72" y="{y + 42}">The tags record where a weakness was documented, not what a language allows, so they over- and under-count (docs/language-comparison.md).</text>
       <text x="72" y="{y + 64}">Each language is read the way the Rust audit reads the same CWE.</text>
     </g>
