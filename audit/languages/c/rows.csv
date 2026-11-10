@@ -1,13 +1,91 @@
 cwe_id,with_hatch,without_hatch,evidence,reasoning
+CWE-8,no,no,none,"Construct absent: C has no J2EE, entity beans or deployment descriptors, so there is no remote interface declaration to misconfigure."
 CWE-9,no,no,none,EJB method permissions live in a J2EE deployment descriptor or annotations; C has no EJB container or descriptor.
 CWE-11,no,no,none,ASP.NET web.config debug compilation is an ASP.NET construct absent from C; no C program can contain it.
 CWE-13,no,no,none,"Specific to ASP.NET web.config; C has no ASP.NET configuration construct. The generic weakness, a password in a configuration file, is CWE-260."
+CWE-15,yes,yes,none,Letting input set a configuration value is a design and authorisation decision; passing request data to setenv or a config setter compiles.
+CWE-22,yes,yes,none,open and fopen perform no containment check; restricting a path to a directory is application logic no compiler can infer.
+CWE-23,yes,yes,none,Path-string validation logic: fopen and open accept relative ../ segments like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-24,yes,yes,none,Path-string validation logic: fopen and open accept '../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-25,yes,yes,none,Path-string validation logic: fopen and open accept '/../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-26,yes,yes,none,Path-string validation logic: fopen and open accept '/dir/../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-27,yes,yes,none,Path-string validation logic: fopen and open accept 'dir/../../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-28,yes,yes,none,Path-string validation logic: fopen and open accept Windows '..\filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-29,yes,yes,none,Path-string validation logic: fopen and open accept Windows '\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-30,yes,yes,none,Path-string validation logic: fopen and open accept '\dir\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-31,yes,yes,none,Path-string validation logic: fopen and open accept 'dir\..\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-32,yes,yes,none,Stripping '..' so that '...' variants survive is sanitiser logic over a char array; any language can get it wrong and the compiler cannot judge the filter.
+CWE-33,yes,yes,none,Non-recursive removal of '..' from '....' is sanitiser logic over a char array; any language can get it wrong and the compiler cannot judge the filter.
+CWE-34,yes,yes,none,A single-pass filter turning '....//' into '../' is sanitiser logic over a char array; any language can get it wrong and the compiler cannot judge the filter.
+CWE-35,yes,yes,none,Collapsing '.../...//' to '../' by incomplete filtering is sanitiser logic over a char array; any language can get it wrong and the compiler cannot judge the filter.
+CWE-36,yes,yes,none,"Concatenating a base directory with input that is an absolute path, or opening the input directly, reaches any absolute path; nothing checks it."
+CWE-37,yes,yes,none,Path-string validation logic: fopen and open accept an absolute '/abs/path' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-38,yes,yes,none,Path-string validation logic: fopen and open accept '\absolute\path' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-39,yes,yes,none,Path-string validation logic: fopen and open accept drive-relative 'C:dirname' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-40,yes,yes,none,Path-string validation logic: fopen and open accept UNC '\\server\share' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-41,yes,yes,none,"Resolving equivalent path spellings before a security decision is application logic; open passes names to the OS, and no compiler enforces canonicalisation."
+CWE-42,yes,yes,none,Path-equivalence handling (trailing dot) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-43,yes,yes,none,Path-equivalence handling (multiple trailing dots) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-44,yes,yes,none,Path-equivalence handling (internal dot) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-45,yes,yes,none,Path-equivalence handling (multiple internal dots) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-46,yes,yes,none,Path-equivalence handling (trailing space) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-47,yes,yes,none,Path-equivalence handling (leading space) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-48,yes,yes,none,Path-equivalence handling (internal whitespace) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-49,yes,yes,none,Path-equivalence handling (trailing slash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-50,yes,yes,none,Path-equivalence handling (multiple leading slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-51,yes,yes,none,Path-equivalence handling (multiple internal slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-52,yes,yes,none,Path-equivalence handling (multiple trailing slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-53,yes,yes,none,Path-equivalence handling (doubled internal backslash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-54,yes,yes,none,Path-equivalence handling (trailing backslash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-55,yes,yes,none,Path-equivalence handling ('/./' segment) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-56,yes,yes,none,Path-equivalence handling (wildcard '*') is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-57,yes,yes,none,Path-equivalence handling ('fakedir/../realdir') is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-58,yes,yes,none,Path-equivalence handling (Windows 8.3 short names) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-59,yes,yes,none,open and fopen follow symbolic links unless O_NOFOLLOW is passed; checking link targets is application logic the compiler cannot enforce.
+CWE-61,yes,yes,none,"open follows UNIX symlinks by default (no O_NOFOLLOW unless requested); failing to guard is logic, not a type error."
+CWE-62,yes,yes,none,Hard links are indistinguishable from the original name at open; not checking link count/ownership is filesystem logic no compiler can verify.
+CWE-64,yes,yes,none,Following a .LNK target supplied by a user is application logic in a Windows program (shell API as stub); no language rule prevents it.
+CWE-65,yes,yes,none,"Windows hard links, like UNIX ones, are transparent to CreateFile and fopen; not detecting them is logic outside any type system."
+CWE-66,yes,yes,none,"Names like /dev/zero, /proc/self/... or CON are valid paths to open; recognising virtual resources is application logic."
+CWE-67,yes,yes,none,"CreateFile and fopen on Windows treat 'CON', 'AUX', 'COM1' as device names; filtering them is application logic no compiler performs."
+CWE-69,yes,yes,none,'file.txt::$DATA' is a valid name on NTFS; extension checks that miss the stream suffix are logic errors.
+CWE-72,yes,yes,none,'file/..namedfork/rsrc' is a valid path on macOS; extension/access checks that ignore it are logic errors any safe program can make.
+CWE-73,yes,yes,none,"Passing request data straight into fopen or open compiles; deciding which paths are allowed is policy, not typing."
+CWE-74,yes,yes,none,Splicing input into text a downstream interpreter parses is string formatting. Building it with sprintf or strcat from input compiles; no compiler of any language can tell which characters a downstream parser treats as special.
+CWE-75,yes,yes,none,Failing to sanitise special elements crossing into another plane is data-flow logic; bytes carry no plane or trust marking.
+CWE-76,yes,yes,none,Missing equivalent special elements in a filter is a gap in its denylist; nothing checks filter completeness.
+CWE-77,yes,yes,none,"A command string for any interpreter (shell, Redis, SMTP) built from input compiles. Building it with sprintf or strcat from input compiles; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-78,yes,yes,none,"system() and popen() pass a string to /bin/sh, and building it with sprintf from input compiles; C's standard way to run a command uses the shell."
+CWE-79,yes,yes,none,HTML is built with sprintf into a char array; the C library has no HTML escaping and no type distinguishes trusted markup from user text.
+CWE-80,yes,yes,none,Writing <script> tags from input into HTML unescaped is string handling; the compiler cannot flag it.
+CWE-81,yes,yes,none,Echoing the request into an HTML error page is ordinary string formatting; escaping is the program's responsibility.
+CWE-82,yes,yes,none,"Emitting user-controlled IMG attributes (javascript: src, onerror) unescaped is string formatting; nothing applies attribute escaping."
+CWE-83,yes,yes,none,Event-handler attributes such as onmouseover from input are written as text; the type system does not model HTML attribute contexts.
+CWE-84,yes,yes,none,"Failing to neutralise encoded URI schemes (javascript:, data:) is filter logic over strings; the C library has no URL validation."
+CWE-85,yes,yes,none,"Doubled-character XSS evades a naive filter that removes one occurrence; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-86,yes,yes,none,Browsers ignoring invalid characters inside tag names defeats a filter; the filter is program logic and the browser is outside the program.
+CWE-87,yes,yes,none,"Alternate XSS syntax bypassing a denylist is a filter-completeness bug; the compiler checks types, not denylist coverage."
+CWE-88,yes,yes,none,"execv passes arguments without a shell, but a value starting with -- is still parsed as an option by the callee; C cannot know the callee's argument grammar."
+CWE-89,yes,yes,none,"SQL built with sprintf from input compiles; parameter binding is a library choice (sqlite3_bind, PQexecParams). No compiler of any language can tell which characters a downstream parser treats as special."
+CWE-90,yes,yes,none,An LDAP filter built with sprintf from input compiles; LDAP escaping is the program's job.
+CWE-91,yes,yes,none,Writing input into XML or an XPath without escaping is string formatting; nothing enforces escaping.
+CWE-93,yes,yes,none,"CRLF in input written into a line-based protocol (SMTP, HTTP) is plain concatenation; strings allow \r\n and nothing checks framing."
+CWE-94,yes,yes,none,"C has no eval, but a C program can generate source for another interpreter or a compiler from input; code generation is string formatting."
+CWE-95,yes,yes,none,"C has no eval, but embedded interpreters (Lua, Python, JavaScript engines) are called with strings; passing unneutralised input to them compiles."
+CWE-96,yes,yes,none,"Writing input into a configuration file, script or template that is later executed is file output; the compiler cannot see the later execution."
+CWE-97,yes,yes,none,Emitting <!--#exec ...--> from input into a page a server processes for SSI is string output; the SSI processor is outside the program.
 CWE-98,no,no,none,"#include is resolved at compile time from a literal name, so request data cannot choose source to include; loading native code at run time with dlopen is CWE-114 or 829."
+CWE-99,yes,yes,none,"Letting input name a file, port or resource identifier is program logic; the types check that it is a char pointer, not that it is permitted."
+CWE-102,no,no,none,Struts Validator forms are a Java framework construct absent from C; the weakness is defined by duplicate form names in a Struts validation.xml.
 CWE-103,no,no,none,Struts validate() methods are a Java framework construct absent from C; no C program can contain it.
 CWE-104,no,no,none,Struts form beans extending ValidatorForm are a Java framework construct absent from C; no C program can contain it.
 CWE-107,no,no,none,Struts validation.xml forms are a Java framework construct absent from C; no C program can contain it.
 CWE-110,no,no,none,Struts validator field definitions are a Java framework construct absent from C; no C program can contain it.
 CWE-111,no,no,none,"The weakness is a Java program importing native-code risk through JNI. C code is already native: there is no managed-to-native boundary for a C program to cross, and C's own memory weaknesses are counted under their own CWEs."
+CWE-113,yes,yes,none,Writing input containing CRLF into an HTTP header is string formatting; header validation is a library or program choice.
+CWE-114,yes,yes,none,"system, exec and dlopen run or load whatever path they are given; trusting the source is policy no compiler checks."
+CWE-116,yes,yes,none,"Improper encoding of output is a mismatch between data and a downstream grammar; C strings are byte arrays with no context or taint marking, so the compiler cannot detect it."
+CWE-117,yes,yes,none,fprintf of a user string containing newlines forges log entries; printf's %s does not escape control characters.
 CWE-118,yes,yes,none,"Nothing checks indexes in C, so reading a neighbouring record in a shared buffer is as easy as overrunning it; the logical sub-range is not known to the compiler."
 CWE-119,yes,yes,CWE-119.c,"Pointer arithmetic and array indexing are unchecked; a write past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-120,yes,yes,CWE-120.c,"strcpy copies until the source's terminator whatever the destination's size. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
@@ -19,8 +97,46 @@ CWE-125,yes,yes,CWE-125.c,"Reading a[i] with i out of range compiles; arrays car
 CWE-126,yes,yes,CWE-126.c,"strlen and memcpy read until a terminator or a given length, past the end of the source if it is too short. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-127,yes,yes,CWE-127.c,"Reading before the start of a buffer through a negative offset compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-129,yes,yes,none,"An array index taken from input is used without a range check; C has no checked indexing, so nothing stops it (CWE-125, 787)."
+CWE-130,yes,yes,none,"Trusting a length field inside a message and copying that many bytes compiles; it is the Heartbleed shape, and C has no bounds check to stop the over-read either."
 CWE-131,yes,yes,none,malloc takes a byte count the program computes; using the element count instead of count times size compiles.
 CWE-134,yes,yes,CWE-134.c,"printf takes a format string at run time, so passing user input as the format compiles; gcc's -Wformat-security only warns, and ISO C requires no diagnostic."
+CWE-138,yes,yes,none,"Neutralising special elements for a downstream parser is application logic; C strings are byte arrays with no context or taint marking, so nothing models downstream grammars."
+CWE-140,yes,yes,none,Delimiters in input breaking a record format is a serialisation bug; a char array accepts any delimiter and nothing checks the format.
+CWE-141,yes,yes,none,"Unescaped parameter or argument delimiters (&, ;, spaces) in input are string handling; no type distinguishes a delimited list from a value."
+CWE-142,yes,yes,none,"Value delimiters (commas, colons) in input split one value into several downstream; sprintf and strcat permit it."
+CWE-143,yes,yes,none,Record delimiters (newlines) in input create extra records in a file or stream; fwrite and fprintf do not inspect content.
+CWE-144,yes,yes,none,Line delimiters in input inject lines into line-oriented output; nothing rejects \n in a string.
+CWE-145,yes,yes,none,"Section delimiters (e.g. MIME boundaries, INI headers) in input create new sections; a formatting logic bug no compiler can see."
+CWE-146,yes,yes,none,Expression or command delimiters such as ; in input end the intended statement downstream; the compiler sees only string concatenation.
+CWE-147,yes,yes,none,"An input terminator (e.g. a lone ""."" in SMTP data) inside input ends the input early downstream; protocol framing is program logic."
+CWE-148,yes,yes,none,Leading special elements (- or !) change how a downstream parser reads the value; C has no notion of that parser's grammar.
+CWE-149,yes,yes,none,Quotes in input closing a quoted context downstream is an escaping bug; format! inserts quotes verbatim and the compiler cannot know the quoting rules.
+CWE-150,yes,yes,none,C strings may contain ESC and other control bytes; printing them to a terminal or log with %s passes them through.
+CWE-151,yes,yes,none,"Comment delimiters (--, /*, #) in input comment out the rest of a downstream statement; Building it with sprintf or strcat from input compiles; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-152,yes,yes,none,Macro symbols in input expanded by a downstream macro processor is a neutralisation bug outside the type system.
+CWE-153,yes,yes,none,"Substitution characters ($, %) in input triggering downstream substitution is string handling C does not inspect."
+CWE-154,yes,yes,none,Variable-name delimiters such as ${ } in input cause downstream variable expansion; the downstream interpreter's grammar is invisible to the compiler.
+CWE-155,yes,yes,none,"Wildcards (*, ?, %) from input in a glob, LIKE or fnmatch pattern widen matches; nothing requires escaping them."
+CWE-156,yes,yes,none,Whitespace in input changing token boundaries downstream is a neutralisation bug; whitespace is ordinary string content.
+CWE-157,yes,yes,none,"Unbalanced paired delimiters (brackets, quotes) in input break downstream parsing; it is grammar logic the compiler does not check."
+CWE-158,yes,yes,none,"NUL ends a C string, so input with an embedded NUL is silently truncated by every string function while a length-based check saw the whole of it."
+CWE-159,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-160,yes,yes,none,"Leading special elements (../, /) not neutralised is string-prefix logic; the type system does not constrain string contents."
+CWE-161,yes,yes,none,"Stripping only one of several leading special elements is a filter loop bug; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-162,yes,yes,none,Trailing special elements (e.g. trailing dot or slash) not neutralized is string-suffix logic outside the type system.
+CWE-163,yes,yes,none,"Removing only one of multiple trailing special elements is filter logic; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-164,yes,yes,none,Internal special elements not neutralised is filter logic over string content; C cannot know which characters are special downstream.
+CWE-165,yes,yes,none,"Handling only the first of several internal special elements (one strchr instead of a loop) is a filter bug; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-166,yes,yes,none,A parser that assumes a delimiter is present gets NULL from strchr when it is missing; dereferencing that compiles.
+CWE-167,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-168,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-170,yes,yes,CWE-170.c,"Arrays carry no terminator guarantee: strncpy leaves the destination unterminated when the source is long, and reading it as a string compiles."
+CWE-172,yes,yes,none,"C strings have no encoding, so treating bytes in the wrong one, or decoding lossily so distinct inputs map to one value, compiles."
+CWE-173,yes,yes,none,"Validating input before decoding alternate encodings (percent, overlong UTF-8, HTML entities) is an ordering error the compiler does not check."
+CWE-174,yes,yes,none,Decoding twice after validating once is program logic; C compiles a validate-then-decode-again sequence.
+CWE-175,yes,yes,none,"Mixing encodings across components (UTF-8, Latin-1, UTF-16) is a data-interpretation bug; a char array has no encoding to check."
+CWE-176,yes,yes,none,"C strings are bytes; slicing UTF-8 at a byte offset splits characters, and the library has no Unicode normalisation."
+CWE-177,yes,yes,none,"Validating before or without URL-decoding lets %2e%2e through; the C library has no URL decoder, so the order is program logic."
 CWE-178,yes,yes,none,"strcmp is exact and strcasecmp is not; nothing in the type system knows another component compares case-insensitively, so a case variant bypasses the check."
 CWE-179,yes,yes,none,Validating before a later transformation is an ordering decision in program logic; no compiler of any language can tell.
 CWE-180,yes,yes,none,Checking a path before realpath() is a logic order error; no type distinguishes raw from canonical paths.
@@ -34,8 +150,24 @@ CWE-197,yes,yes,none,Implicit and explicit conversions between integer types are
 CWE-198,yes,yes,none,Integers are read from bytes with memcpy or casts in host order; nothing distinguishes network from host byte order.
 CWE-202,yes,yes,none,Pure logic: no compiler of any language can tell whether aggregate query results leak individual records; the type system does not model statistical inference.
 CWE-212,yes,yes,none,Which fields leave the process is a design decision; no type system knows a field is sensitive unless the programmer encodes it.
+CWE-219,yes,yes,none,Writing sensitive files under a served document root is a deployment and path choice; fopen writes wherever told.
+CWE-220,yes,yes,none,Storing sensitive files under an FTP root is a path and deployment choice; the compiler cannot know exposure.
 CWE-221,yes,yes,none,Recording too little security-relevant information is a logging-design omission; no compiler can tell which events matter.
 CWE-226,yes,yes,none,"free() does not clear memory and malloc does not zero it, so a reused buffer can resend stale bytes."
+CWE-228,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-229,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-230,yes,yes,none,A missing value read as a NULL pointer or zero and given a default that changes meaning compiles; the handling is the program's choice.
+CWE-231,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-232,yes,yes,none,"An undefined value (a status code outside the enum) needs explicit handling; a default case that mishandles it compiles, and C enums accept any int."
+CWE-233,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-234,yes,yes,none,A missing request parameter comes back as NULL; treating absence as a default (for example admin) compiles.
+CWE-235,yes,yes,none,Extra or duplicated parameters (HTTP parameter pollution) handled inconsistently is parse logic; a lookup returns whichever occurrence the code finds first.
+CWE-236,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-237,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-238,yes,yes,none,Incomplete structural elements (truncated records) are a parser concern; a C parser reading a fixed record size past the data reads garbage or overruns.
+CWE-239,yes,yes,none,Failing to handle an incomplete element is parse logic; nothing forces the program to check that a read returned a whole element.
+CWE-240,yes,yes,none,"Parse logic: a C parser can mishandle it exactly as one in any language, and the compiler checks only types."
+CWE-241,yes,yes,none,"External input is untyped bytes; atoi on a non-numeric field silently returns 0. Static typing covers program values, not wire data."
 CWE-242,no,no,CWE-242.c,"C11 removed gets(), the canonical function that can never be used safely, and glibc no longer declares it in C11 and later modes; ISO C17 has no function that is unsafe for every input. Functions that are dangerous when misused (strcpy, sprintf) are CWE-676."
 CWE-243,yes,yes,none,"chroot() does not change the working directory, and omitting chdir(""/"") afterwards compiles."
 CWE-244,yes,yes,none,"free() does not clear memory, and a memset before it may be removed as a dead store; secrets stay in freed heap."
@@ -105,6 +237,11 @@ CWE-367,yes,yes,none,access() then fopen() is the classic TOCTOU; file-system st
 CWE-368,yes,yes,none,A process-global privilege or mode switched in steps is visible to other threads mid-switch; nothing makes the switch atomic.
 CWE-370,yes,yes,none,Pure logic: no compiler of any language can tell whether revocation is re-checked over a session's life; it is protocol logic.
 CWE-372,yes,yes,none,"Enums make states explicit, but nothing forces the programmer to model every security-relevant distinction; a conflated state compiles."
+CWE-374,yes,yes,none,Passing a non-const pointer to untrusted code grants mutation; const is the caller's choice and casts can remove it.
+CWE-375,yes,yes,none,A function returning a non-const pointer to internal state compiles; nothing restricts who may write through it.
+CWE-377,yes,yes,none,tmpnam and mktemp return a predictable name that another process can create first; both are in the C library (mkstemp is the safe form).
+CWE-378,yes,yes,none,"open(path, O_CREAT, 0666) on a temporary file, or relying on the default umask, compiles; choosing restrictive modes is the program's job."
+CWE-379,yes,yes,none,Creating temporary files in a world-writable directory without checks compiles; directory trust is environment logic.
 CWE-382,no,no,none,"Defined for J2EE containers, which C has no counterpart of; library code calling exit() is CWE-705."
 CWE-383,no,no,none,The J2EE prohibition of thread management in web containers is a Java EE contract absent from C; no C program can contain it.
 CWE-384,yes,yes,none,Marking an existing session id authenticated instead of rotating it compiles; session ids are ordinary strings.
@@ -116,6 +253,8 @@ CWE-396,no,no,CWE-396.c,"C has no exceptions, so it has no catch clause, generic
 CWE-397,no,no,none,C has no exceptions and no throws declarations.
 CWE-400,yes,yes,none,"C imposes no resource quotas; sizing allocations, loops or threads from input compiles."
 CWE-401,yes,yes,none,malloc'd memory is released only by an explicit free(); a missing call leaks it. C has no destructors.
+CWE-402,yes,yes,none,"Handing private resources (descriptors, data, sessions) to another sphere is a design decision the compiler does not check."
+CWE-403,yes,yes,none,"open, socket and pipe create inheritable descriptors unless O_CLOEXEC or SOCK_CLOEXEC is passed, so a later exec leaks them to the child."
 CWE-404,yes,yes,none,"C has no destructors: every resource is released by an explicit call (free, fclose, close), and a missing call compiles."
 CWE-405,yes,yes,none,Letting a cheap request trigger expensive work is a protocol-design flaw that no type system models.
 CWE-406,yes,yes,none,Replying with more traffic than requested is a network-protocol design choice beyond any compiler's view.
@@ -133,9 +272,13 @@ CWE-420,yes,yes,none,Pure logic: no compiler of any language can tell whether an
 CWE-421,yes,yes,none,Creating a socket or pipe and then calling chmod leaves a window where another process can open it; the language does not govern OS-level races.
 CWE-422,yes,yes,none,A window procedure that trusts unverified window messages is logic; the Win32 messaging API is a C API and the missing sender check compiles.
 CWE-425,yes,yes,none,Pure logic: no compiler of any language can tell whether every restricted URL enforces authorization; it is routing logic.
+CWE-426,yes,yes,none,"execlp, execvp, system and popen resolve a bare name through the inherited PATH; trusting the search path is environment policy."
+CWE-427,yes,yes,none,"setenv(""PATH"", ...) or a current-directory entry can add attacker-writable directories; search-path hygiene is application logic."
+CWE-428,yes,yes,none,Passing an unquoted path with spaces to CreateProcess or registering one as a service compiles; Windows resolves it ambiguously.
 CWE-430,yes,yes,none,Dispatching to the wrong handler is a logic choice; a switch or function-pointer table accepts any target.
 CWE-431,yes,yes,none,"A switch with no case for a value, or a callback never registered, compiles; C does not require exhaustive switches."
 CWE-432,yes,yes,CWE-432.c,A handler installed with signal() stays live during sensitive operations unless the program blocks it with sigprocmask; nothing requires that.
+CWE-433,yes,yes,none,Serving source or configuration files raw instead of executing or denying them is web-server configuration logic; a C file server does it with plain I/O.
 CWE-434,yes,yes,none,Validating uploaded file types is application logic; no language prevents storing a dangerous file.
 CWE-440,yes,yes,none,Contracts such as qsort's requirement of a consistent comparator are documentation; a comparator violating them compiles.
 CWE-441,yes,yes,none,Pure logic: no compiler of any language can tell whether a forwarded request preserves its original source; confused-deputy behaviour is design.
@@ -151,8 +294,11 @@ CWE-457,yes,yes,CWE-457.c,Reading an uninitialised automatic variable compiles; 
 CWE-459,yes,yes,none,"C has no destructors, so cleanup such as deleting a temporary file runs only if every path calls it; an early return skips it."
 CWE-460,no,no,none,"C has no exceptions, so no cleanup can be skipped by a thrown one; cleanup skipped by an early return or longjmp is CWE-459."
 CWE-462,yes,yes,none,An array of key/value pairs used as an association list accepts duplicate keys; a linear lookup returns the first silently.
+CWE-463,yes,yes,none,"Overwriting a sentinel such as a string's NUL makes the next scan run past the data, and compiles."
+CWE-464,yes,yes,none,"Inserting an input value equal to the sentinel (an embedded NUL, a 0 in a 0-terminated array) truncates the structure; the convention is program logic."
 CWE-466,yes,yes,CWE-466.c,"A function can return any pointer value, including one computed outside the object it should point into. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-471,yes,yes,none,"const covers in-process objects; data round-tripped through clients (hidden fields, cookies) is mutable by attackers, and trusting it compiles."
+CWE-472,yes,yes,none,Trusting a hidden form field or URL parameter is web-application logic; C types cannot mark client data as tamperable.
 CWE-474,yes,yes,none,"Library functions behave differently across platforms (rename over an existing file, the sign of char, strerror_r's two signatures), and calls compile on all of them."
 CWE-475,yes,yes,CWE-475.c,"Many standard functions have undefined behaviour for some inputs (memcpy with overlapping buffers, strcpy into itself, toupper with a negative char), and calls with such inputs compile."
 CWE-476,yes,yes,CWE-476.c,A pointer may be NULL and dereferencing it compiles; C has no non-null pointer type.
@@ -164,9 +310,16 @@ CWE-482,yes,yes,none,A statement `x == 0;` compiles; gcc warns only with -Wunuse
 CWE-483,yes,yes,CWE-483.c,"An if or loop body without braces takes only the next statement, so an indented second statement runs unconditionally."
 CWE-484,yes,yes,CWE-484.c,"switch cases fall through unless they end with break, so an omitted break silently runs the next case; gcc warns only with -Wimplicit-fallthrough."
 CWE-487,no,no,none,"C has no packages or package-level scope; file-scope static and external linkage are fixed at link time, so no code can join a package to reach its members."
+CWE-488,yes,yes,none,A process-wide cache or static buffer shared across request threads compiles; nothing separates one session's data from another's.
 CWE-489,yes,yes,none,"Leaving debug code compiled in (#ifdef DEBUG left defined, debug handlers) is a build and deployment choice; no compiler prevents it."
+CWE-491,no,no,none,"Construct absent: C has no inheritance, Object.clone() or final modifier, so a type cannot be subclassed to hijack cloning."
+CWE-492,no,no,none,Construct absent: C has no inner classes whose private members are compiled to package-visible accessors.
+CWE-493,yes,yes,none,File-scope variables are externally visible and writable unless declared static or const; a critical one left neither compiles.
 CWE-495,yes,yes,none,"A function can return a pointer to an internal static or private structure, and the caller can modify it through that pointer."
 CWE-496,yes,yes,none,"Storing a caller's pointer in a structure keeps it aliased, so the caller can keep modifying the stored array."
+CWE-498,yes,yes,none,Any struct can be copied by assignment or memcpy; C cannot forbid duplicating one that holds a secret.
+CWE-499,yes,yes,CWE-499.c,"fwrite of a struct writes every member, secrets included; C has no field privacy to stop it."
+CWE-500,yes,yes,none,A file-scope variable is public and writable by default; nothing requires const.
 CWE-501,yes,yes,none,Mixing trusted and untrusted data in one structure is a design decision; types are not trust-labelled by the language.
 CWE-506,yes,yes,none,Malicious code is intent expressed in any Turing-complete language; no language feature constrains purpose.
 CWE-507,yes,yes,none,A trojan horse is hidden intended behaviour; any C program can express it.
@@ -179,11 +332,20 @@ CWE-520,no,no,none,.NET impersonation and trust-level configuration; C has no CL
 CWE-521,yes,yes,none,Pure logic: no compiler of any language can tell whether a password policy is strong enough; it is a policy constant.
 CWE-522,yes,yes,none,Pure logic: no compiler of any language can tell whether credentials are protected in transit or at rest; it is a design choice.
 CWE-523,yes,yes,none,Pure logic: no compiler of any language can tell whether a login form is served over TLS; sending credentials over a plain socket compiles.
+CWE-524,yes,yes,none,Caching sensitive data where others can read it is a design decision; a shared cache table compiles.
+CWE-525,yes,yes,none,Omitting Cache-Control: no-store on sensitive responses is HTTP logic in a server stub; no compiler knows which responses are sensitive.
+CWE-527,yes,yes,none,Serving or packaging a .git directory is deployment logic; a C file server exposes it if not filtered.
+CWE-528,yes,yes,none,Core dumps landing in served or shared locations is process configuration; a C program crash-dumps like any other.
+CWE-529,yes,yes,none,Exposing ACL files is a file-placement or serving decision; the code serves whatever path it is given.
+CWE-530,yes,yes,none,"Leaving backup copies (.bak, ~) in served directories is deployment logic; the compiler does not know what is served."
+CWE-539,yes,yes,none,Setting a persistent cookie (Expires/Max-Age) with sensitive data is HTTP logic in a server stub; no type system classifies cookie content.
 CWE-543,yes,yes,none,"A lazily initialised global pointer checked and set without a lock lets two threads construct the instance; C has no classes, but the pattern is a static pointer and an init function."
 CWE-546,yes,yes,none,Comments such as FIXME or TODO hack are free text; the compiler does not inspect comment content.
 CWE-547,yes,yes,none,Hard-coding security values as literals instead of named constants is a design choice; the compiler accepts both.
 CWE-549,yes,yes,none,Pure logic: no compiler of any language can tell whether password input is echoed; reading a password with fgets from a terminal echoes it.
 CWE-551,yes,yes,none,Checking a path prefix before percent-decoding compiles; the order of validation and canonicalisation is logic the compiler does not see.
+CWE-552,yes,yes,none,Making files reachable by external parties is access-control and deployment logic; the file API imposes no such policy.
+CWE-553,yes,yes,none,Placing a shell or command executor in a web-accessible location is deployment logic; nothing language-level prevents it.
 CWE-555,no,no,none,J2EE-specific (a plaintext password in a J2EE descriptor); C has no J2EE configuration. The generic form is CWE-260.
 CWE-556,no,no,none,ASP.NET identity impersonation configured in web.config; C has no ASP.NET runtime or such configuration element.
 CWE-558,yes,yes,CWE-558.c,"getlogin() returns a pointer to a static buffer shared by all threads, and calling it from several threads compiles."
@@ -191,6 +353,8 @@ CWE-560,yes,yes,none,"umask() takes a mode mask whose meaning is the inverse of 
 CWE-561,yes,yes,none,Unreachable or never-called code compiles; gcc warns only for some cases (-Wunused-function).
 CWE-562,yes,yes,CWE-562.c,Returning the address of a local compiles; gcc warns (-Wreturn-local-addr) but ISO C requires no diagnostic and it is not an error.
 CWE-563,yes,yes,none,Dead stores compile; gcc warns only with -Wunused-but-set-variable.
+CWE-564,no,no,none,"Defined for Hibernate, a Java ORM, which C does not have. SQL injection through a C database API is CWE-89."
+CWE-565,yes,yes,none,Trusting unsigned cookie values is web-application logic; C types cannot tell client data from validated data.
 CWE-566,yes,yes,none,"A parameterised query keyed only by a caller-supplied id compiles; parameterisation stops injection, but the missing owner predicate is logic."
 CWE-567,yes,yes,CWE-567.c,"Threads share every global, and an unsynchronised read-modify-write of one compiles; C has no Send/Sync-like check."
 CWE-568,no,no,none,"C has no finalizers or inheritance, so there is no super.finalize() to omit."
@@ -206,6 +370,8 @@ CWE-578,no,no,none,"The EJB class-loader restriction is an Enterprise JavaBeans 
 CWE-579,no,no,none,HttpSession attributes and Java serializability are J2EE constructs absent from C; no C program can contain it.
 CWE-580,no,no,none,"C has no inheritance or clone(), so there is no superclass clone to omit."
 CWE-581,yes,yes,none,"C has no object model, but hash tables take separate hash and equality functions; a case-insensitive comparison paired with a case-sensitive hash compiles."
+CWE-582,yes,yes,CWE-582.c,"C has the same shallow-constness trap: a const pointer at file scope fixes the pointer, not the array, so any code can rewrite the elements."
+CWE-583,no,no,none,Construct absent: C has no finalize() or destructors to declare public.
 CWE-584,no,no,CWE-584.c,"C has no try/finally, so there is no finally block to return from."
 CWE-585,yes,yes,none,"C has no synchronized block, but locking and immediately unlocking a mutex with nothing in between leaves the protected work unsynchronised, and compiles."
 CWE-586,no,no,none,"C has no finalizers or destructors, so there is no finalize() to call explicitly."
@@ -222,6 +388,7 @@ CWE-601,yes,yes,none,Formatting a query parameter into a Location header compile
 CWE-603,yes,yes,none,Pure logic: no compiler of any language can tell whether authentication runs server-side rather than in a client; it is architecture.
 CWE-605,yes,yes,none,Setting SO_REUSEADDR or SO_REUSEPORT lets a second socket bind the same port; the socket API allows it.
 CWE-607,yes,yes,none,A const pointer to a mutable object leaves the object writable; const on the pointer does not reach the pointee.
+CWE-608,no,no,none,Construct absent: C has no Struts framework or ActionForm classes.
 CWE-609,yes,yes,none,Double-checked locking with a plain or relaxed-atomic flag compiles; a reader can see the flag set before the object is initialised.
 CWE-610,yes,yes,none,"Letting input name a path, URL or resource is logic; fopen and connect accept any reference the program passes."
 CWE-611,yes,yes,none,"Pure logic: no compiler of any language can tell whether an XML parser resolves external entities; libxml2, a C library, does so when XML_PARSE_NOENT is passed."
@@ -229,20 +396,31 @@ CWE-612,yes,yes,none,Pure logic: no compiler of any language can tell whether a 
 CWE-613,yes,yes,none,A session lookup that never compares the stored time with now compiles; an unused struct member draws no diagnostic.
 CWE-617,yes,yes,none,assert() on attacker-controlled data aborts the process when assertions are enabled.
 CWE-618,yes,yes,none,Exposing a dangerous method to scripts is a component-interface design choice; COM objects are implementable in C.
+CWE-619,yes,yes,none,C has no destructors; a database cursor stays open unless the program closes it on every path.
 CWE-620,yes,yes,none,Pure logic: no compiler of any language can tell whether a password change asks for the old password; it is a missing step.
+CWE-621,no,no,none,Requires extracting input into variables named at run time (PHP extract()); C has no runtime variable namespace or reflection.
 CWE-623,yes,yes,none,"A COM control registered safe for scripting is a registration and IObjectSafety choice; COM is implementable in C, and the flag is data."
+CWE-624,no,no,none,Requires a regex with an executable component (the Perl/PHP /e modifier); POSIX regex and PCRE have no code-executing constructs.
+CWE-626,yes,yes,none,"A check like an extension test on a buffer with an embedded NUL, followed by a call that stops at the NUL, sees two different names."
+CWE-627,no,no,none,Defined for languages where input chooses a variable name at run time ($$var); C resolves all names at compile time.
 CWE-628,yes,yes,none,Types cannot tell same-typed arguments apart; swapping two int arguments compiles.
 CWE-639,yes,yes,none,Using a request-supplied id to index a table without comparing the owner compiles; the type system does not encode who may read which record.
 CWE-640,yes,yes,none,Pure logic: no compiler of any language can tell whether a recovery flow is strong; security questions or guessable tokens are design.
+CWE-641,yes,yes,none,"Allowing input to choose file or resource names (reserved names, special characters) without restriction is logic; fopen accepts them."
+CWE-642,yes,yes,none,"Keeping critical state in client-controlled storage (cookies, hidden fields, files) is design logic; C types cannot mark data as attacker-controlled."
+CWE-643,yes,yes,none,An XPath query built with sprintf from input compiles; XPath escaping is program logic the compiler cannot check.
+CWE-644,yes,yes,none,Writing input into HTTP headers that a client interprets as script is output handling; strings carry no header context.
 CWE-645,yes,yes,none,Pure logic: no compiler of any language can tell whether lockout thresholds are too strict; it is a policy constant.
 CWE-647,yes,yes,none,"strncmp against a prefix on a raw, non-canonical path compiles; the compiler cannot know that //admin and /./admin resolve to /admin."
 CWE-648,yes,yes,none,Pure logic: no compiler of any language can tell whether a privileged API's preconditions are met; calling OS APIs in the wrong order is valid C.
+CWE-652,yes,yes,none,An XQuery built from input compiles. Building it with sprintf or strcat from input compiles; no compiler of any language can tell which characters a downstream parser treats as special.
 CWE-662,yes,yes,none,"Separate lock acquisitions for check and act compile, as does no locking at all."
 CWE-663,yes,yes,none,"Functions keeping state in statics (strtok, asctime) are non-reentrant and callable from any thread."
 CWE-664,yes,yes,none,"Every resource's lifetime is managed by hand in C; leaking, double release and use after release all compile."
 CWE-665,yes,yes,none,"Automatic variables are not initialised by default, and initialisers can supply wrong values; both compile."
 CWE-666,yes,yes,none,"Nothing models lifecycle phases, so calling a function before its setup function compiles."
 CWE-667,yes,yes,none,pthread_mutex_lock and unlock are separate calls; a return path that skips the unlock compiles. C has no RAII.
+CWE-668,yes,yes,none,Exposing a resource to the wrong control sphere is an access-control design flaw; C has no runtime notion of spheres.
 CWE-669,yes,yes,none,Moving data or resources between trust spheres wrongly is a design error; the type system has no sphere labels.
 CWE-670,yes,yes,none,A control-flow path that never matches the algorithm is a logic error no compiler detects.
 CWE-673,yes,yes,none,Letting external actors define control spheres is an access-model design flaw with no language-level counterpart.
@@ -260,12 +438,15 @@ CWE-688,yes,yes,none,Passing the wrong variable of the right type compiles; the 
 CWE-689,yes,yes,none,Writing a copy and then calling chmod leaves a window with umask permissions; the language has no atomic create-with-mode for copies.
 CWE-690,yes,yes,CWE-690.c,"malloc's NULL result can be dereferenced without a check; pointers are not optional types. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-691,yes,yes,none,An early return or goto that skips cleanup or state restoration compiles; C has no destructors.
+CWE-692,yes,yes,none,A denylist of XSS patterns missing cases is filter logic; the compiler compiles an incomplete denylist as written.
+CWE-694,yes,yes,none,"The compiler rejects duplicate names in source, but runtime resources keyed by string can collide; uniqueness checks are program logic."
 CWE-695,yes,yes,none,"A framework prohibiting low-level calls (blocking threads, raw sockets) is policy outside the language; rustc cannot see framework rules."
 CWE-696,yes,yes,none,Performing an action before its prerequisite check is statement ordering the compiler accepts.
 CWE-698,yes,yes,none,A CGI or embedded web handler that sends a redirect and keeps running compiles; a redirect is just output.
 CWE-704,yes,yes,none,"Casts between pointer types, and between integer and pointer, compile; C trusts any cast."
 CWE-705,yes,yes,none,exit() or longjmp in library code bypasses the caller's control flow and compiles.
 CWE-706,yes,yes,none,Name resolution against the file system or DNS happens at run time; the compiler cannot see what a name resolves to.
+CWE-707,yes,yes,none,Improper neutralisation of structured messages is a data-to-grammar mismatch; the type system does not model downstream message structure.
 CWE-708,yes,yes,none,Pure logic: no compiler of any language can tell whether the assigned owner is within the control sphere; uid values are runtime data.
 CWE-710,yes,yes,none,Coding-standard adherence is project policy; the compiler enforces only the language.
 CWE-732,yes,yes,none,"chmod(""key.pem"", 0644) on a private key compiles; modes are untyped integers."
@@ -277,6 +458,7 @@ CWE-763,yes,yes,CWE-763.c,"free() accepts any pointer, including one never retur
 CWE-764,yes,yes,none,Locking a default pthread mutex twice on one thread compiles and deadlocks.
 CWE-765,yes,yes,none,"pthread_mutex_unlock can be called twice; for a default mutex the result is undefined, and nothing tracks lock state."
 CWE-766,yes,yes,none,"Struct members have no access control and file-scope variables have external linkage by default, so critical data is writable by any code."
+CWE-767,yes,yes,none,A non-static function that writes a struct member unchecked compiles; what an exported function exposes is design.
 CWE-768,yes,yes,none,"&& and || short-circuit, so a side effect in the right operand is skipped; this is defined behaviour."
 CWE-770,yes,yes,none,"C imposes no limits on threads, allocations or connections; unthrottled allocation compiles."
 CWE-771,yes,yes,none,Overwriting the only pointer to a malloc'd block loses it with no diagnostic.
@@ -288,11 +470,20 @@ CWE-776,yes,yes,none,"Recursion and expansion limits are parser logic; unbounded
 CWE-779,yes,yes,none,How much to log is an operational design choice no compiler judges.
 CWE-782,yes,yes,none,Kernel drivers are written in C; an ioctl handler that skips a capability check compiles.
 CWE-783,yes,yes,none,"& binds looser than ==, so `x & MASK == 0` parses as `x & (MASK == 0)`; gcc warns only with -Wparentheses."
+CWE-784,yes,yes,none,Making authorization decisions from unsigned cookie values is web logic; no compiler distinguishes validated from client-supplied data.
 CWE-785,yes,yes,CWE-785.c,realpath() writes into a caller-supplied buffer; passing one smaller than PATH_MAX compiles.
 CWE-786,yes,yes,CWE-786.c,"Accessing memory before a buffer's start through a decremented pointer compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-787,yes,yes,CWE-787.c,"Writing past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-788,yes,yes,CWE-788.c,"Accessing memory after a buffer's end through pointer arithmetic compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-789,yes,yes,none,"malloc takes any size, including one taken from input; C has no allocation limit."
+CWE-790,yes,yes,none,"The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-791,yes,yes,none,"The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-792,yes,yes,none,"The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-793,yes,yes,none,"The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-794,yes,yes,none,"Incomplete filtering of multiple instances (non-recursive removal that turns ....// into ../) is logic; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-795,yes,yes,none,Filtering only at a fixed location (strip_prefix only) leaves elsewhere unfiltered; a logic choice outside the type system.
+CWE-796,yes,yes,none,"Filtering only relative to a marker is program logic; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
+CWE-797,yes,yes,none,"Filtering only at an absolute position (index 0) is program logic; The filter is program logic over a char array; the compiler cannot know which elements must go, and compiles any filter as written."
 CWE-798,yes,yes,none,A string literal API token compiles; the compiler has no secret detection.
 CWE-799,yes,yes,none,"Missing rate limiting is an absent policy, not a construct any compiler can require."
 CWE-804,yes,yes,none,Pure logic: no compiler of any language can tell whether a CAPTCHA is machine-solvable; it is a design property.
@@ -315,6 +506,7 @@ CWE-834,yes,yes,none,Iteration counts taken from input compile; loops have no bu
 CWE-835,yes,yes,none,`for (unsigned char i = 0; i <= 255; i++)` never exits; the comparison is always true and C accepts it.
 CWE-836,yes,yes,none,Comparing a client-supplied hash string with the stored hash compiles; string equality says nothing about which value should be the credential.
 CWE-837,yes,yes,none,Not marking a one-time action as used is missing state logic; C has no type that a value can be consumed through.
+CWE-838,yes,yes,none,Using HTML encoding in a JavaScript or URL context is an encoding-context mismatch; strings carry no context and the C library has no encoders.
 CWE-841,yes,yes,none,Workflow steps not enforced by state checks compile; nothing in the language models a protocol's order.
 CWE-842,yes,yes,none,Pure logic: no compiler of any language can tell whether a user is placed in the correct group; group membership is data.
 CWE-843,yes,yes,CWE-843.c,"Casting a pointer to an incompatible type, or reading a union member other than the one last written, compiles. C does not track a union's active member."
@@ -325,6 +517,8 @@ CWE-909,yes,yes,none,"A critical resource can be left uninitialised or at an emp
 CWE-911,yes,yes,none,Reference counts are hand-written integers in C; a missing increment or an extra decrement compiles.
 CWE-912,yes,yes,none,Undocumented functionality is a design and disclosure issue; any language can implement it.
 CWE-913,yes,yes,none,"C has no eval or reflection, but objects modelled as attribute tables are common, and letting input write arbitrary keys compiles."
+CWE-914,no,no,none,"C has no dynamically identified variables: no eval, reflection or runtime symbol table. A hand-written name-to-field dispatch is mass assignment (CWE-915)."
+CWE-917,yes,yes,none,"C has no expression language built in, but feeding input-built expressions to an embedded evaluator compiles. No compiler of any language can tell which characters a downstream parser treats as special."
 CWE-918,yes,yes,none,connect() to a request-supplied host and port compiles; no type distinguishes internal from external destinations.
 CWE-920,yes,yes,none,"Power budgeting (busy-waiting, polling) is a design property no compiler models."
 CWE-921,yes,yes,none,"Pure logic: no compiler of any language can tell whether storage (e.g. removable media, FAT) lacks access control; it is a deployment choice."
@@ -337,6 +531,7 @@ CWE-939,yes,yes,none,Pure logic: no compiler of any language can tell whether a 
 CWE-940,yes,yes,none,Pure logic: no compiler of any language can tell whether an incoming channel's origin is verified; it is a missing check.
 CWE-941,yes,yes,none,Pure logic: no compiler of any language can tell whether an outgoing destination is specified correctly; addresses are runtime data.
 CWE-942,yes,yes,none,Pure logic: no compiler of any language can tell whether a CSP or cross-domain policy lists untrusted domains; the policy is a string the server emits.
+CWE-943,yes,yes,none,"Query logic for any data store (SQL, NoSQL JSON filters) built from input is string formatting; the compiler cannot see query semantics."
 CWE-1004,yes,yes,none,A Set-Cookie string without HttpOnly compiles; header text has no typed attributes.
 CWE-1007,yes,yes,none,Rendering identifiers without distinguishing homoglyphs is UI logic; the compiler cannot know display intent.
 CWE-1021,yes,yes,none,Pure logic: no compiler of any language can tell whether frame-ancestor/X-Frame-Options headers are emitted; it is missing response configuration.
@@ -449,6 +644,7 @@ CWE-1232,n/a,n/a,none,Hardware: lock bits that become writable after power-state
 CWE-1233,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bit not covering security-sensitive controls).
 CWE-1234,n/a,n/a,none,Hardware: debug or internal modes overriding lock protection is a hardware design weakness.
 CWE-1235,no,no,none,C has no autoboxing; every allocation is an explicit call.
+CWE-1236,yes,yes,none,CSV output with a leading = from input is written verbatim; fprintf does not neutralise spreadsheet formulas.
 CWE-1239,n/a,n/a,none,Hardware design: clearing built-in registers when a hardware block changes user is a property of the hardware.
 CWE-1242,n/a,n/a,none,n/a: hardware/SoC design weakness (chicken bits and undocumented device features).
 CWE-1243,n/a,n/a,none,n/a: hardware/SoC design weakness (fuse contents exposed during debug).
@@ -514,12 +710,14 @@ CWE-1322,yes,yes,none,A blocking read or sleep inside an event-loop callback com
 CWE-1323,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC trace data stored or routed to untrusted agents).
 CWE-1325,yes,yes,none,C imposes no aggregate allocation limit; per-item caps without a total cap compile.
 CWE-1326,n/a,n/a,none,"Missing immutable hardware root of trust; silicon/boot ROM hardware design, not program code."
+CWE-1327,yes,yes,none,Binding to INADDR_ANY (0.0.0.0) compiles; choosing the bind address is configuration logic.
 CWE-1328,n/a,n/a,none,n/a: hardware/SoC design weakness (security version number mutable in hardware).
 CWE-1330,n/a,n/a,none,Physical/hardware: data remanence in memory circuits after erase.
 CWE-1331,n/a,n/a,none,"Network-on-Chip isolation of fabric resources; hardware design, not program code."
 CWE-1332,n/a,n/a,none,Hardware: missing circuitry or sensors to detect instruction skips is a chip design weakness.
 CWE-1333,yes,yes,none,"regcomp/regexec and libraries such as PCRE are backtracking matchers, and a backtracking matcher written in C is exponential on some patterns."
 CWE-1334,n/a,n/a,none,n/a: hardware/SoC design weakness (error injection into redundant hardware blocks).
+CWE-1336,yes,yes,none,Putting input into a template's source rather than its context lets the engine evaluate it; the template engine is a library and the compiler sees only a string.
 CWE-1338,n/a,n/a,none,"Missing hardware overheating protection; physical/hardware design, not code."
 CWE-1341,yes,yes,none,close() on the same descriptor twice compiles; a descriptor is a plain int with no ownership.
 CWE-1342,n/a,n/a,none,Hardware design: the processor failing to clear microarchitectural state after transient execution.
@@ -538,5 +736,7 @@ CWE-1420,yes,yes,none,"Bounds checks written in C are ordinary branches, and a s
 CWE-1421,yes,yes,none,MITRE names system software that skips state-sanitizing operations at context switches. Omitting a barrier is writable in any language; no compiler requires it.
 CWE-1422,n/a,n/a,none,Hardware design: stale-data forwarding to transient operations is a processor property.
 CWE-1423,yes,yes,none,Omitting a predictor barrier (IBPB) when switching contexts is writable in C; no compiler requires it.
+CWE-1426,yes,yes,none,Acting on generative-AI output without validating it is design logic; the model output is untyped text no compiler can vet.
+CWE-1427,yes,yes,none,Concatenating untrusted text into an LLM prompt is string formatting; the instruction/data boundary exists only in the model.
 CWE-1431,n/a,n/a,none,Not about code: a hardware crypto module driving intermediate state onto its output wires is an RTL/hardware design flaw.
 CWE-1434,yes,yes,none,Configuring a model's inference parameters badly is application configuration; no compiler checks it.
