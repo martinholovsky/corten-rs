@@ -1,6 +1,6 @@
 # Strategy 2: authorization and authentication as proof types (design note, 2026-11-10)
 
-Status: **proposed, awaiting the owner's decisions** (questions below). Owner decision 2026-11-10: this is the next Phase 6 strategy (`gates/phase-6.md`, batch 4). Question 14 (spec section 8) already decided the gate: prototype on the corpus, adopt only at 0 false rejections. Nothing here is built.
+Status: **Q1 and Q2 decided (owner, 2026-11-10, the recommendation on both): manifest-flagged `protected` grants; prelude authenticators only.** Q3 (policy in Rust, Cedar weighed later) stands as proposed. Owner decision 2026-11-10: this is the next Phase 6 strategy (`gates/phase-6.md`, batch 4). Question 14 (spec section 8) already decided the gate: prototype on the corpus, adopt only at 0 false rejections. Nothing here is built.
 
 ## What it can and cannot claim
 
