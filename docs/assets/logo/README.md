@@ -7,7 +7,8 @@ The mark is original. It is not derived from the Rust logo: the Rust Foundation'
 | File | Use |
 | --- | --- |
 | `corten-mark.svg` | The mark; scales to any size |
-| `corten-mark-16.png`, `-32.png`, `-180.png`, `-512.png` | Raster sizes (favicon, touch icon, avatars). The repository README shows `-512.png` at 160 px, because some company networks block SVG images |
+| `corten-mark-16.png`, `-32.png`, `-180.png`, `-512.png` | Raster sizes (favicon, touch icon, avatars) |
+| `corten-lockup.svg`, `corten-lockup.png` | The mark with the wordmark beside it, in `#B5541E` so it reads on light and dark backgrounds. The repository README shows the PNG (1240×400) at 310 px wide: some company networks block SVG images |
 | `favicon.ico` | 16 and 32 px |
 | `social-preview.svg`, `social-preview.png` | GitHub social preview, 1280×640. Upload the PNG in the repository's Settings, Social preview: GitHub has no API for it |
 | `render.sh` | Regenerates every PNG and the favicon |
