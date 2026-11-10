@@ -14,13 +14,20 @@ number is counted here; nothing is typed by hand.
 
 Usage: scripts/language-docs.py [--check]   (run from the repository root)
   --check  exit 1 if any output on disk differs from what would be written.
-The README shows a PNG of the chart, rendered by hand because it needs the
-Archivo font installed (an <img> cannot load fonts, so the SVG falls back):
-  rsvg-convert -z 2 docs/assets/cwe-languages.svg -o docs/assets/cwe-languages.png
+Writing also renders docs/assets/cwe-languages.png, the image the README
+shows, whenever the SVG changes or the PNG is stale: rsvg-convert -z 2, with the
+Archivo font installed (an <img> cannot load fonts, so the SVG alone falls
+back). It refuses rather than render in a substitute font. The SHA-256 of the
+SVG a PNG was rendered from is kept beside it (cwe-languages.png.sha256), and
+--check fails when it does not match, so CI, which has no Archivo, still
+catches a stale PNG.
 """
 
 import collections
 import csv
+import hashlib
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -44,6 +51,8 @@ RUST_TAGS = {"Rust", "Not Language-Specific", "Compiled"}
 COMPARISON = Path("docs/language-comparison.md")
 SVG = Path("docs/assets/cwe-languages.svg")
 LEDGER = Path("ledger/cwe-ledger.csv")
+PNG = Path("docs/assets/cwe-languages.png")
+PNG_STAMP = Path("docs/assets/cwe-languages.png.sha256")
 # Proposed eliminations not yet in the ledger as E: the elimination candidates
 # of the Phase 6 authorization design note. The generator refuses to run once
 # any of them is no longer a C row, so the chart cannot go stale silently.
@@ -351,6 +360,19 @@ def readme_with_table(text, table):
     return text[:a + len(MARK_START)] + "\n" + table + "\n" + text[b:]
 
 
+def render_png(svg_hash):
+    """Renders the README's PNG from the SVG, refusing a substitute font."""
+    for tool in ("rsvg-convert", "fc-match"):
+        if not shutil.which(tool):
+            sys.exit(f"{tool} is needed to render {PNG} (librsvg, fontconfig)")
+    family = subprocess.run(["fc-match", "-f", "%{family}", "Archivo"], capture_output=True, text=True, check=True).stdout
+    if not family.split(",")[0].strip() == "Archivo":
+        sys.exit(f"the Archivo font is not installed (fontconfig substitutes {family!r}); install it to render {PNG}")
+    subprocess.run(["rsvg-convert", "-z", "2", str(SVG), "-o", str(PNG)], check=True)
+    PNG_STAMP.write_text(svg_hash)
+    print(f"rendered {PNG}")
+
+
 def main():
     table, langs = load()
     ks = [lang_counts(table, L) for L in langs]
@@ -367,6 +389,13 @@ def main():
                 stale.append(str(path))
         else:
             path.write_text(text)
+    svg_hash = hashlib.sha256(outputs[SVG].encode()).hexdigest() + "\n"
+    png_current = PNG.exists() and PNG_STAMP.exists() and PNG_STAMP.read_text() == svg_hash
+    if "--check" in sys.argv[1:]:
+        if not png_current:
+            stale.append(f"{PNG} (rendered from a different SVG)")
+    elif not png_current:
+        render_png(svg_hash)
     if stale:
         print("stale: " + ", ".join(stale) + ": run scripts/language-docs.py", file=sys.stderr)
         return 1
