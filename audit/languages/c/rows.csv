@@ -1,4 +1,10 @@
 cwe_id,with_hatch,without_hatch,evidence,reasoning
+CWE-11,no,no,none,ASP.NET web.config debug compilation is an ASP.NET construct absent from C; no C program can contain it.
+CWE-103,no,no,none,Struts validate() methods are a Java framework construct absent from C; no C program can contain it.
+CWE-104,no,no,none,Struts form beans extending ValidatorForm are a Java framework construct absent from C; no C program can contain it.
+CWE-107,no,no,none,Struts validation.xml forms are a Java framework construct absent from C; no C program can contain it.
+CWE-110,no,no,none,Struts validator field definitions are a Java framework construct absent from C; no C program can contain it.
+CWE-111,no,no,none,"The weakness is a Java program importing native-code risk through JNI. C code is already native: there is no managed-to-native boundary for a C program to cross, and C's own memory weaknesses are counted under their own CWEs."
 CWE-119,yes,yes,CWE-119.c,"Pointer arithmetic and array indexing are unchecked; a write past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-120,yes,yes,CWE-120.c,"strcpy copies until the source's terminator whatever the destination's size. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-121,yes,yes,CWE-121.c,"A stack array written past its end compiles; nothing ties the index to the declared length. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
@@ -11,28 +17,312 @@ CWE-127,yes,yes,CWE-127.c,"Reading before the start of a buffer through a negati
 CWE-129,yes,yes,none,"An array index taken from input is used without a range check; C has no checked indexing, so nothing stops it (CWE-125, 787)."
 CWE-131,yes,yes,none,malloc takes a byte count the program computes; using the element count instead of count times size compiles.
 CWE-134,yes,yes,CWE-134.c,"printf takes a format string at run time, so passing user input as the format compiles; gcc's -Wformat-security only warns, and ISO C requires no diagnostic."
+CWE-179,yes,yes,none,Validating before a later transformation is an ordering decision in program logic; no compiler of any language can tell.
+CWE-180,yes,yes,none,Checking a path before realpath() is a logic order error; no type distinguishes raw from canonical paths.
+CWE-181,yes,yes,none,Filtering after validation is an ordering choice in logic; the compiler cannot know the filter can reintroduce what validation removed.
 CWE-188,yes,yes,none,Code can read a struct through a byte pointer or assume field offsets and padding; layout is implementation-defined and nothing stops a program relying on it.
 CWE-198,yes,yes,none,Integers are read from bytes with memcpy or casts in host order; nothing distinguishes network from host byte order.
+CWE-242,no,no,CWE-242.c,"C11 removed gets(), the canonical function that can never be used safely, and glibc no longer declares it in C11 and later modes; ISO C17 has no function that is unsafe for every input. Functions that are dangerous when misused (strcpy, sprintf) are CWE-676."
 CWE-244,yes,yes,none,"free() does not clear memory, and a memset before it may be removed as a dead store; secrets stay in freed heap."
+CWE-245,no,no,none,J2EE container-managed connections are a Java EE contract absent from C; no C program can contain it.
+CWE-246,no,no,none,The J2EE container restriction on sockets is a Java EE contract absent from C; no C program can contain it.
+CWE-248,no,no,CWE-248.c,"C has no exceptions to leave uncaught: errors are return values and errno, and a crash from a signal is CWE-703 or the weakness that caused it."
+CWE-253,yes,yes,none,"Checking write() for -1 but not for a short count, or comparing a return to the wrong value, compiles; nothing checks that the right condition is tested."
+CWE-358,yes,yes,none,Implementing a standard security check incompletely is protocol logic; no type system knows a protocol specification.
+CWE-362,yes,yes,none,Two threads updating shared data without a lock compile; C11 makes a data race undefined behaviour but requires no diagnostic.
+CWE-363,yes,yes,none,Checking a path with lstat and then opening it are separate calls; nothing makes the pair atomic.
+CWE-364,yes,yes,CWE-364.c,signal() installs a handler that can touch the same global state as the interrupted code; C has no restriction on what a handler shares.
+CWE-366,yes,yes,none,A load-then-store on shared data loses updates whether or not it uses _Atomic; the compiler cannot see the intended atomic unit.
+CWE-367,yes,yes,none,access() then fopen() is the classic TOCTOU; file-system state is outside the language.
+CWE-368,yes,yes,none,A process-global privilege or mode switched in steps is visible to other threads mid-switch; nothing makes the switch atomic.
+CWE-382,no,no,none,"Defined for J2EE containers, which C has no counterpart of; library code calling exit() is CWE-705."
+CWE-383,no,no,none,The J2EE prohibition of thread management in web containers is a Java EE contract absent from C; no C program can contain it.
+CWE-392,yes,yes,none,A function can fail and return a plain value with no error indication; C has no error type that must be returned or checked.
+CWE-393,yes,yes,none,Returning 0 (success) from a failure path compiles; an int status carries no meaning the compiler checks.
+CWE-395,no,no,none,C has no NullPointerException to catch; a NULL dereference is undefined behaviour (CWE-476).
+CWE-396,no,no,CWE-396.c,"C has no exceptions, so it has no catch clause, generic or specific."
+CWE-397,no,no,none,C has no exceptions and no throws declarations.
 CWE-401,yes,yes,none,malloc'd memory is released only by an explicit free(); a missing call leaks it. C has no destructors.
+CWE-408,yes,yes,none,Doing expensive work before authentication is an ordering decision in logic that no compiler can judge.
+CWE-412,yes,yes,none,A lock file in a world-writable directory is file-system policy; no language controls who can create it.
+CWE-413,yes,yes,none,"A pthread mutex is associated with data only by convention, so code can touch the resource without taking it."
+CWE-414,yes,yes,none,"Nothing ties data to the mutex that guards it, so an access that skips the lock check compiles."
 CWE-415,yes,yes,CWE-415.c,"Calling free() twice on one pointer compiles; nothing tracks that a pointer was freed. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-416,yes,yes,CWE-416.c,"Reading through a pointer after free() compiles; C has no lifetimes. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-430,yes,yes,none,Dispatching to the wrong handler is a logic choice; a switch or function-pointer table accepts any target.
+CWE-431,yes,yes,none,"A switch with no case for a value, or a callback never registered, compiles; C does not require exhaustive switches."
+CWE-432,yes,yes,CWE-432.c,A handler installed with signal() stays live during sensitive operations unless the program blocks it with sigprocmask; nothing requires that.
+CWE-440,yes,yes,none,Contracts such as qsort's requirement of a consistent comparator are documentation; a comparator violating them compiles.
+CWE-446,yes,yes,none,UI feedback misrepresenting a security setting is application logic; no compiler checks UI state against configuration.
+CWE-448,yes,yes,none,Failing to warn about an obsolete UI function is product logic; no language prevents it.
+CWE-449,yes,yes,none,A UI performing the wrong action is application logic; no type system knows user intent.
+CWE-451,yes,yes,none,UI misrepresentation of critical information is presentation logic; no compiler prevents it.
+CWE-455,yes,yes,none,Ignoring a failed initialisation's return value and continuing compiles; nothing forces the error to be handled.
+CWE-462,yes,yes,none,An array of key/value pairs used as an association list accepts duplicate keys; a linear lookup returns the first silently.
 CWE-466,yes,yes,CWE-466.c,"A function can return any pointer value, including one computed outside the object it should point into. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-474,yes,yes,none,"Library functions behave differently across platforms (rename over an existing file, the sign of char, strerror_r's two signatures), and calls compile on all of them."
+CWE-475,yes,yes,CWE-475.c,"Many standard functions have undefined behaviour for some inputs (memcpy with overlapping buffers, strcpy into itself, toupper with a negative char), and calls with such inputs compile."
+CWE-476,yes,yes,CWE-476.c,A pointer may be NULL and dereferencing it compiles; C has no non-null pointer type.
+CWE-477,yes,yes,none,"Obsolescent functions (asctime, POSIX bcopy and usleep) still compile; gcc warns only for those marked deprecated."
+CWE-479,yes,yes,CWE-479.c,"A signal handler may call any function, including non-reentrant ones such as printf and malloc; C does not restrict it."
+CWE-480,yes,yes,none,"& and | are valid on int operands where && and || were meant, so the wrong operator type-checks."
+CWE-481,yes,yes,CWE-481.c,"An assignment is an expression with a value, so `if (x = 0)` compiles; gcc warns only with -Wparentheses."
+CWE-482,yes,yes,none,A statement `x == 0;` compiles; gcc warns only with -Wunused-value.
+CWE-483,yes,yes,CWE-483.c,"An if or loop body without braces takes only the next statement, so an indented second statement runs unconditionally."
+CWE-484,yes,yes,CWE-484.c,"switch cases fall through unless they end with break, so an omitted break silently runs the next case; gcc warns only with -Wimplicit-fallthrough."
+CWE-489,yes,yes,none,"Leaving debug code compiled in (#ifdef DEBUG left defined, debug handlers) is a build and deployment choice; no compiler prevents it."
+CWE-506,yes,yes,none,Malicious code is intent expressed in any Turing-complete language; no language feature constrains purpose.
+CWE-507,yes,yes,none,A trojan horse is hidden intended behaviour; any C program can express it.
+CWE-508,yes,yes,none,Non-replicating malicious code is program intent; no language feature prevents it.
+CWE-509,yes,yes,none,"Self-replicating code needs only file and network I/O, which the C library and POSIX provide."
+CWE-510,yes,yes,none,A trapdoor is an extra authentication branch; no compiler distinguishes it from legitimate logic.
+CWE-511,yes,yes,none,A time or logic bomb is a conditional on the clock or on state; the C library provides both.
+CWE-512,yes,yes,none,Collecting user data without consent is policy; C has all the file and network access it needs.
+CWE-543,yes,yes,none,"A lazily initialised global pointer checked and set without a lock lets two threads construct the instance; C has no classes, but the pattern is a static pointer and an init function."
+CWE-546,yes,yes,none,Comments such as FIXME or TODO hack are free text; the compiler does not inspect comment content.
+CWE-547,yes,yes,none,Hard-coding security values as literals instead of named constants is a design choice; the compiler accepts both.
+CWE-558,yes,yes,CWE-558.c,"getlogin() returns a pointer to a static buffer shared by all threads, and calling it from several threads compiles."
+CWE-560,yes,yes,none,"umask() takes a mode mask whose meaning is the inverse of chmod's, and passing a chmod-style value compiles."
+CWE-561,yes,yes,none,Unreachable or never-called code compiles; gcc warns only for some cases (-Wunused-function).
 CWE-562,yes,yes,CWE-562.c,Returning the address of a local compiles; gcc warns (-Wreturn-local-addr) but ISO C requires no diagnostic and it is not an error.
+CWE-563,yes,yes,none,Dead stores compile; gcc warns only with -Wunused-but-set-variable.
+CWE-567,yes,yes,CWE-567.c,"Threads share every global, and an unsynchronised read-modify-write of one compiles; C has no Send/Sync-like check."
+CWE-570,yes,yes,none,Always-false comparisons such as an unsigned value < 0 compile; gcc warns only with -Wtype-limits.
+CWE-571,yes,yes,none,Always-true comparisons such as an unsigned value >= 0 compile; gcc warns only with -Wtype-limits.
+CWE-572,no,no,none,C threads have no separate run()/start(): thrd_create and pthread_create always start the function on a new thread. The weakness is a Java Thread API mistake.
+CWE-573,yes,yes,none,"Standard functions document preconditions (strtok's non-reentrancy, qsort's comparator rules, freeing only what malloc returned) that callers can break; nothing checks them."
+CWE-574,no,no,none,An Enterprise JavaBeans contract; C has no EJB container whose rules a program could break.
+CWE-575,no,no,none,The EJB restriction on AWT/Swing is an Enterprise JavaBeans contract absent from C; no C program can contain it.
+CWE-576,no,no,none,The EJB restriction on java.io is an Enterprise JavaBeans contract absent from C; no C program can contain it.
+CWE-577,no,no,none,The EJB restriction on sockets is an Enterprise JavaBeans contract absent from C; no C program can contain it.
+CWE-578,no,no,none,"The EJB class-loader restriction is an Enterprise JavaBeans contract, and C has no class loader; no C program can contain it."
+CWE-579,no,no,none,HttpSession attributes and Java serializability are J2EE constructs absent from C; no C program can contain it.
+CWE-581,yes,yes,none,"C has no object model, but hash tables take separate hash and equality functions; a case-insensitive comparison paired with a case-sensitive hash compiles."
+CWE-584,no,no,CWE-584.c,"C has no try/finally, so there is no finally block to return from."
+CWE-585,yes,yes,none,"C has no synchronized block, but locking and immediately unlocking a mutex with nothing in between leaves the protected work unsynchronised, and compiles."
+CWE-586,no,no,none,"C has no finalizers or destructors, so there is no finalize() to call explicitly."
 CWE-587,yes,yes,CWE-587.c,"An integer constant converts to a pointer with a cast. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-589,yes,yes,none,"Functions outside ISO C (POSIX, Linux or BSD extensions) compile where declared and fail or are missing elsewhere."
 CWE-590,yes,yes,CWE-590.c,"free() accepts any pointer, including a stack address. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-591,yes,yes,none,Secrets in ordinary memory can be swapped to disk unless the program calls mlock; nothing requires it.
+CWE-594,no,no,none,J2EE container persistence of unserializable objects is a Java EE construct absent from C; no C program can contain it.
+CWE-600,no,no,none,Servlets are a Java construct absent from C.
+CWE-605,yes,yes,none,Setting SO_REUSEADDR or SO_REUSEPORT lets a second socket bind the same port; the socket API allows it.
+CWE-609,yes,yes,none,Double-checked locking with a plain or relaxed-atomic flag compiles; a reader can see the flag set before the object is initialised.
+CWE-617,yes,yes,none,assert() on attacker-controlled data aborts the process when assertions are enabled.
+CWE-628,yes,yes,none,Types cannot tell same-typed arguments apart; swapping two int arguments compiles.
+CWE-663,yes,yes,none,"Functions keeping state in statics (strtok, asctime) are non-reentrant and callable from any thread."
+CWE-667,yes,yes,none,pthread_mutex_lock and unlock are separate calls; a return path that skips the unlock compiles. C has no RAII.
+CWE-670,yes,yes,none,A control-flow path that never matches the algorithm is a logic error no compiler detects.
+CWE-674,yes,yes,none,"Recursion depth driven by input compiles; C has no recursion limit, and a stack overflow crashes."
+CWE-675,yes,yes,none,"Locking the same default mutex twice, or closing a descriptor twice, compiles; nothing tracks resource state."
+CWE-676,yes,yes,none,"strcpy, strcat, sprintf and scanf(""%s"") write without a bound and are easy to misuse; they are part of ISO C."
 CWE-680,yes,yes,CWE-680.c,"size_t arithmetic wraps silently, so count * size can overflow to a small allocation that is then written in full. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-683,yes,yes,none,"Same-typed parameters can be swapped; memset(buf, sizeof buf, 0) compiles and writes nothing."
+CWE-684,yes,yes,none,Code not matching its published specification is a logic error; no compiler knows the specification.
+CWE-685,yes,yes,CWE-685.c,"Variadic functions take any number of arguments, so printf(""%d %d"", x) compiles; gcc warns only with -Wformat."
+CWE-686,yes,yes,none,"Implicit conversions between arithmetic types and from void * let a wrong argument type compile, and variadic arguments are not type-checked at all."
+CWE-687,yes,yes,none,"A wrong value of the right type, such as seconds passed to usleep, type-checks."
+CWE-688,yes,yes,none,Passing the wrong variable of the right type compiles; the type system cannot tell user_key from server_key.
+CWE-689,yes,yes,none,Writing a copy and then calling chmod leaves a window with umask permissions; the language has no atomic create-with-mode for copies.
 CWE-690,yes,yes,CWE-690.c,"malloc's NULL result can be dereferenced without a check; pointers are not optional types. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-691,yes,yes,none,An early return or goto that skips cleanup or state restoration compiles; C has no destructors.
+CWE-695,yes,yes,none,"A framework prohibiting low-level calls (blocking threads, raw sockets) is policy outside the language; rustc cannot see framework rules."
+CWE-696,yes,yes,none,Performing an action before its prerequisite check is statement ordering the compiler accepts.
+CWE-698,yes,yes,none,A CGI or embedded web handler that sends a redirect and keeps running compiles; a redirect is just output.
+CWE-705,yes,yes,none,exit() or longjmp in library code bypasses the caller's control flow and compiles.
+CWE-710,yes,yes,none,Coding-standard adherence is project policy; the compiler enforces only the language.
+CWE-758,yes,yes,none,"C has extensive undefined, unspecified and implementation-defined behaviour (signed overflow, evaluation order, int width, char signedness), and code relying on it compiles."
 CWE-761,yes,yes,CWE-761.c,"free() accepts a pointer into the middle of a block. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-762,yes,yes,CWE-762.c,"Nothing ties a pointer to the allocator that produced it, so memory from one routine can be released with another. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-763,yes,yes,CWE-763.c,"free() accepts any pointer, including one never returned by malloc. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-764,yes,yes,none,Locking a default pthread mutex twice on one thread compiles and deadlocks.
+CWE-765,yes,yes,none,"pthread_mutex_unlock can be called twice; for a default mutex the result is undefined, and nothing tracks lock state."
+CWE-766,yes,yes,none,"Struct members have no access control and file-scope variables have external linkage by default, so critical data is writable by any code."
+CWE-768,yes,yes,none,"&& and || short-circuit, so a side effect in the right operand is skipped; this is defined behaviour."
+CWE-783,yes,yes,none,"& binds looser than ==, so `x & MASK == 0` parses as `x & (MASK == 0)`; gcc warns only with -Wparentheses."
+CWE-785,yes,yes,CWE-785.c,realpath() writes into a caller-supplied buffer; passing one smaller than PATH_MAX compiles.
 CWE-786,yes,yes,CWE-786.c,"Accessing memory before a buffer's start through a decremented pointer compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-787,yes,yes,CWE-787.c,"Writing past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-788,yes,yes,CWE-788.c,"Accessing memory after a buffer's end through pointer arithmetic compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-789,yes,yes,none,"malloc takes any size, including one taken from input; C has no allocation limit."
+CWE-799,yes,yes,none,"Missing rate limiting is an absent policy, not a construct any compiler can require."
 CWE-805,yes,yes,CWE-805.c,"memcpy takes a separate length that nothing ties to the destination's size. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-806,yes,yes,CWE-806.c,"Copying with the source's size instead of the destination's compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-820,yes,yes,none,Threads can update shared data with no synchronisation at all; C requires none.
+CWE-821,yes,yes,none,Splitting a check and an update across two lock acquisitions compiles; the mutex is used but the critical section is wrong.
 CWE-822,yes,yes,CWE-822.c,"A pointer read from input or untrusted memory can be dereferenced. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-823,yes,yes,CWE-823.c,"Pointer arithmetic with an untrusted offset compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-824,yes,yes,CWE-824.c,"An automatic pointer has an indeterminate value until assigned, and using it compiles; gcc warns only with -Wuninitialized. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
 CWE-825,yes,yes,CWE-825.c,"Dereferencing a pointer whose object has gone out of scope compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-828,yes,yes,CWE-828.c,A signal handler can call functions that are not async-signal-safe; C does not restrict a handler's body.
+CWE-831,yes,yes,CWE-831.c,One function can be installed for several signals and re-entered by the second while handling the first.
+CWE-832,yes,yes,none,pthread_mutex_unlock on a mutex the thread does not hold compiles; for a default mutex it is undefined.
+CWE-833,yes,yes,none,Taking two mutexes in opposite orders on two threads compiles; C has no lock-order checking.
+CWE-834,yes,yes,none,Iteration counts taken from input compile; loops have no built-in bound.
+CWE-835,yes,yes,none,`for (unsigned char i = 0; i <= 255; i++)` never exits; the comparison is always true and C accepts it.
+CWE-837,yes,yes,none,Not marking a one-time action as used is missing state logic; C has no type that a value can be consumed through.
+CWE-841,yes,yes,none,Workflow steps not enforced by state checks compile; nothing in the language models a protocol's order.
+CWE-912,yes,yes,none,Undocumented functionality is a design and disclosure issue; any language can implement it.
+CWE-1007,yes,yes,none,Rendering identifiers without distinguishing homoglyphs is UI logic; the compiler cannot know display intent.
+CWE-1037,n/a,n/a,none,"MITRE introduces it only in processor design: the CPU's optimization removes a software check. The software-reachable case, a bounds check speculated past, is CWE-1420."
+CWE-1041,yes,yes,none,Duplicated code is a maintenance issue; the compiler does not detect it.
+CWE-1043,yes,yes,none,A struct with many non-primitive members compiles; the compiler imposes no limit.
+CWE-1044,yes,yes,none,Architectural layering is design; C has no module system to enforce a layer count.
+CWE-1045,no,no,none,"C has no classes, inheritance or destructors, so no destructor can be virtual or not."
+CWE-1047,yes,yes,none,Translation units can call each other cyclically through headers; nothing forbids it.
+CWE-1048,yes,yes,none,High fan-out is a complexity metric; the compiler imposes no limit.
+CWE-1053,n/a,n/a,none,"Missing design documentation is a process artifact, not program code."
+CWE-1054,yes,yes,none,Calls that skip architectural layers are design; every non-static function is callable from anywhere.
+CWE-1055,no,no,CWE-1055.c,C has no classes or inheritance; the C++ spelling of deriving from two classes does not parse.
+CWE-1056,yes,yes,CWE-1056.c,"Functions can be defined variadic with ..., and va_arg reads arguments with no type or count check."
+CWE-1057,yes,yes,none,Bypassing a designated data-manager component is architecture; nothing in C prevents direct access.
+CWE-1058,yes,yes,CWE-1058.c,A function called from several threads can modify a non-const static; C has no rule that shared statics be synchronised.
+CWE-1059,n/a,n/a,none,"Insufficient technical documentation is a process artifact, not code."
+CWE-1060,yes,yes,none,Issuing many inefficient queries is application design; no language prevents it.
+CWE-1061,yes,yes,none,"Struct members are all visible wherever the definition is; only an opaque type hides them, and nothing requires one."
+CWE-1062,yes,yes,none,"C emulates class hierarchies by embedding a base struct; a base's functions can name a specific derived struct, and the compiler accepts it."
+CWE-1064,yes,yes,none,Functions with many parameters compile; ISO C requires support for at least 127.
+CWE-1065,yes,yes,none,An app-server-style framework forbidding direct resource management is policy outside the language; rustc cannot see it.
+CWE-1066,yes,yes,none,"C has no serialization framework; writing a struct with fwrite serializes every member, secrets and pointers included."
+CWE-1068,yes,yes,none,Implementation diverging from design documentation is a process issue; no compiler reads the design.
+CWE-1069,no,no,none,"C has no exceptions, so there is no exception block to leave empty; an ignored error return is CWE-252 or 390."
+CWE-1070,no,no,none,"C has no serialization mechanism that marks types serializable, so a serializable element containing a non-serializable one cannot be expressed; writing raw structs is CWE-1066."
+CWE-1071,yes,yes,none,Empty blocks compile; gcc warns only for some (-Wempty-body).
+CWE-1074,yes,yes,none,C emulates inheritance by embedding a base struct as the first member; such chains can be arbitrarily deep.
+CWE-1075,yes,yes,none,"goto jumps anywhere within a function, outside any switch."
+CWE-1076,yes,yes,none,Expected conventions are project policy; the compiler does not enforce them.
+CWE-1078,yes,yes,none,Source formatting is unconstrained by the compiler.
+CWE-1079,no,no,none,"C has no classes, inheritance or destructors, so a parent class cannot lack a virtual destructor."
+CWE-1080,yes,yes,none,The compiler imposes no limit on file length.
+CWE-1082,yes,yes,CWE-1082.c,"C has no classes, but a function given an object can free it while the caller still holds the pointer, the C form of `delete this`."
+CWE-1083,yes,yes,none,Accessing data outside the designated data manager is architecture; no language prevents it.
+CWE-1085,yes,yes,none,Commented-out code is free text; the compiler ignores comments.
+CWE-1086,yes,yes,none,C emulates subclasses by struct embedding; a base can have any number of them and the compiler imposes no limit.
+CWE-1087,no,no,none,C has no virtual methods or destructors.
+CWE-1088,yes,yes,none,connect() and read() on a blocking socket wait indefinitely unless the program sets SO_RCVTIMEO or uses poll.
+CWE-1090,yes,yes,none,Any function can read any struct's members; C has no per-type access control.
+CWE-1092,yes,yes,none,Reusing one function across layers is design; C permits it.
+CWE-1093,yes,yes,none,Overly complex data representations compile; this is design.
+CWE-1095,yes,yes,none,A loop variable can be modified in the body; C does not restrict it.
+CWE-1096,yes,yes,none,A singleton created on first use behind an unsynchronised NULL check can be created twice; nothing requires pthread_once or call_once.
+CWE-1097,no,no,CWE-1097.c,"C has no default comparison for structs: `a == b` on two structs is a constraint violation, so a persistent element cannot fall back to identity comparison. Comparing with memcmp, padding included, is a different weakness (CWE-1102 or 188)."
+CWE-1098,yes,yes,CWE-1098.c,"Assigning a struct copies its pointer members shallowly, and freeing through both copies compiles."
+CWE-1099,yes,yes,none,Mixed naming conventions compile.
+CWE-1100,yes,yes,none,Scattering #ifdef platform code throughout instead of isolating it is design; the compiler accepts it.
+CWE-1101,yes,yes,none,Generated code can depend on a runtime support library; this is a build design choice.
+CWE-1102,yes,yes,none,"int and long widths, padding and byte order vary by target, and code can write structs to disk or the network as raw bytes."
+CWE-1103,yes,yes,none,Depending on crates without equivalent support on all platforms is a dependency choice; no language prevents it.
+CWE-1104,n/a,n/a,none,"Not about code: depending on unmaintained components is a supply-chain process issue, independent of what the language allows."
+CWE-1105,yes,yes,none,"Machine-dependent code (#ifdef on architecture, inline assembly, byte order) can be scattered unencapsulated."
+CWE-1106,yes,yes,none,Literal constants instead of named constants compile; this is style.
+CWE-1107,yes,yes,none,Scattering #define and const definitions across files is code organisation; the compiler accepts it.
+CWE-1108,yes,yes,none,File-scope variables are global by default and freely writable; C has no restriction on global state.
+CWE-1109,yes,yes,none,A variable can be reused for unrelated values of the same type.
+CWE-1110,n/a,n/a,none,"Incomplete design documentation is a process artifact, not code."
+CWE-1111,n/a,n/a,none,"Incomplete I/O documentation is a process artifact, not code."
+CWE-1112,n/a,n/a,none,"Incomplete documentation of program execution is a process artifact, not code."
+CWE-1113,yes,yes,none,Comment style is source text; the compiler does not check it.
+CWE-1114,yes,yes,none,Whitespace style is source text; the compiler ignores it.
+CWE-1115,yes,yes,none,A missing standard file prologue is source text; the compiler does not require headers.
+CWE-1116,yes,yes,none,Inaccurate comments are source text; the compiler does not check comments against code.
+CWE-1117,yes,yes,none,A function's prototype can under-describe its behaviour; nothing requires documentation.
+CWE-1118,n/a,n/a,none,"Error-handling documentation is a process artifact, not code."
+CWE-1119,yes,yes,none,goto is unrestricted; the compiler places no limit on its use.
+CWE-1120,yes,yes,none,Code complexity is a metric; the compiler does not limit it.
+CWE-1121,yes,yes,none,Cyclomatic complexity is a metric; the compiler does not limit it.
+CWE-1122,yes,yes,none,Halstead complexity is a metric; the compiler does not limit it.
+CWE-1123,yes,yes,none,"With mprotect or a writable-executable mapping, a C program can write its own code pages."
+CWE-1124,yes,yes,none,Deep nesting compiles; ISO C requires support for at least 127 nesting levels and implementations allow more.
+CWE-1125,yes,yes,none,Attack surface size is a design measure; no language bounds it.
+CWE-1126,yes,yes,none,Declaring a variable wider than its use (file scope instead of block scope) compiles.
+CWE-1127,yes,yes,none,gcc enables few warnings by default and -w silences them all; most warnings are not errors.
+CWE-1164,yes,yes,none,Statements with no effect compile; gcc warns only with -Wunused-value.
+CWE-1177,yes,yes,none,Using a prohibited function or library is project policy; the compiler does not know the prohibition.
+CWE-1189,n/a,n/a,none,SoC hardware design: shared resources between trusted and untrusted agents on the chip; not a property of program code.
+CWE-1190,n/a,n/a,none,"SoC hardware design: which IP blocks power up DMA-capable before boot firmware runs is decided in silicon and boot architecture, not in program code."
+CWE-1191,n/a,n/a,none,n/a: hardware/SoC design weakness (chip debug/test interface access control); not about program code in any software language.
+CWE-1192,n/a,n/a,none,SoC hardware design: lack of unique immutable identifiers for IP blocks; not a property of program code.
+CWE-1193,n/a,n/a,none,"SoC hardware boot architecture: enabling untrusted cores before fabric access control is a hardware design weakness, not source code."
+CWE-1209,n/a,n/a,none,"Reserved bits in a hardware design are a silicon/HDL issue, not software code."
+CWE-1221,n/a,n/a,none,"Hardware design: register defaults in HDL code, not software any programming language governs."
+CWE-1222,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bits covering too large an address region).
+CWE-1223,n/a,n/a,none,Hardware register design: write-once register programmability ordering between trusted and untrusted agents is silicon behaviour.
+CWE-1224,n/a,n/a,none,n/a: hardware/SoC design weakness (write-once/sticky bit fields implemented in RTL).
+CWE-1231,n/a,n/a,none,n/a: hardware/SoC design weakness (lock bit modifiable after being set).
+CWE-1232,n/a,n/a,none,Hardware: lock bits that become writable after power-state transitions are a register/power-management design weakness.
+CWE-1233,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bit not covering security-sensitive controls).
+CWE-1234,n/a,n/a,none,Hardware: debug or internal modes overriding lock protection is a hardware design weakness.
+CWE-1239,n/a,n/a,none,Hardware design: clearing built-in registers when a hardware block changes user is a property of the hardware.
+CWE-1242,n/a,n/a,none,n/a: hardware/SoC design weakness (chicken bits and undocumented device features).
+CWE-1243,n/a,n/a,none,n/a: hardware/SoC design weakness (fuse contents exposed during debug).
+CWE-1244,n/a,n/a,none,n/a: hardware/SoC design weakness (debug access levels assigned to internal assets).
+CWE-1245,n/a,n/a,none,"Faulty finite state machines in hardware logic are an HDL/silicon issue, not software code."
+CWE-1247,n/a,n/a,none,"Physical/hardware: protection against voltage and clock glitches is circuit design, not code."
+CWE-1248,n/a,n/a,none,"Semiconductor manufacturing defects in hardware logic; physical, not code."
+CWE-1251,n/a,n/a,none,Hardware design: mirrored memory or register regions in a chip architecture.
+CWE-1252,n/a,n/a,none,"n/a: hardware/SoC design weakness (CPU lacks configured W^X support); a CPU property, not program code."
+CWE-1253,n/a,n/a,none,"Hardware fuse logic where the secure state depends on an unblown fuse; a silicon design choice, not program code."
+CWE-1256,n/a,n/a,none,n/a: hardware/SoC design weakness (software-reachable power/clock controls not restricted by the device design).
+CWE-1257,n/a,n/a,none,n/a: hardware/SoC design weakness (mirrored/aliased memory regions with inconsistent hardware permissions).
+CWE-1258,n/a,n/a,none,Hardware design: the hardware clearing key material on debug-mode entry.
+CWE-1259,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security-token protection).
+CWE-1260,n/a,n/a,none,n/a: hardware/SoC design weakness (overlapping protected memory ranges in hardware protection units).
+CWE-1261,n/a,n/a,none,Physical/hardware: single event upsets are radiation-induced bit flips handled by hardware design.
+CWE-1262,n/a,n/a,none,n/a: hardware/SoC design weakness (access control on memory-mapped register interfaces is enforced by the SoC design).
+CWE-1263,n/a,n/a,none,n/a: physical access control to a device or facility; not a property of code.
+CWE-1264,n/a,n/a,none,Hardware logic forwarding data before the security check completes is an RTL design weakness.
+CWE-1265,yes,yes,none,A callback can re-enter a function that is midway through updating its state; C has no reentrancy check.
+CWE-1267,n/a,n/a,none,n/a: hardware/SoC design weakness (obsolete encoding of SoC transaction source identifiers).
+CWE-1268,n/a,n/a,none,n/a: hardware/SoC design weakness (hardware-enforced control vs write policy privilege mismatch).
+CWE-1270,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC generates incorrect security tokens).
+CWE-1271,n/a,n/a,none,Hardware design: security logic and registers not set to known values on reset.
+CWE-1272,n/a,n/a,none,Hardware design: clearing sensitive state across power or debug state transitions of the device.
+CWE-1273,n/a,n/a,none,"Not about code: sharing device-unlock credentials among multiple parties (vendors, integrators) is an organizational/process decision."
+CWE-1274,n/a,n/a,none,n/a: hardware/SoC design weakness (secure-boot volatile memory lacks hardware access control).
+CWE-1276,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block signals wired incorrectly to the parent design).
+CWE-1278,n/a,n/a,none,"Physical reverse engineering of an IC by imaging; a physical hardware property, not code."
+CWE-1280,n/a,n/a,none,"Describes hardware-based access control logic checking after the asset is accessed: a hardware design (RTL) weakness, not program code."
+CWE-1281,n/a,n/a,none,"Processor ISA/microarchitecture design weakness: instruction combinations locking the CPU are a property of the hardware, not of programs."
+CWE-1282,n/a,n/a,none,"Not about code: whether bootloaders and IDs sit in ROM or re-programmable memory is a hardware/memory-map design choice, not source-level behaviour."
+CWE-1283,n/a,n/a,none,n/a: hardware/SoC design weakness (attestation/measurement registers writable by adversary).
+CWE-1290,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-transaction decoding to security identifiers).
+CWE-1292,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-signal conversion to security identifiers).
+CWE-1294,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security identifier mechanism).
+CWE-1296,n/a,n/a,none,n/a: hardware/SoC design weakness (debug component chaining and granularity).
+CWE-1297,n/a,n/a,none,n/a: supply-chain/process weakness (confidential data accessible to OSAT vendors); not a property of code.
+CWE-1298,n/a,n/a,none,"Race conditions in hardware logic are a circuit/RTL design weakness, not program code."
+CWE-1299,n/a,n/a,none,n/a: hardware/SoC design weakness (unprotected shadow registers and alternate hardware paths).
+CWE-1300,n/a,n/a,none,"Not about code: protection against physical power, EM and acoustic side channels is a hardware/physical design property."
+CWE-1301,n/a,n/a,none,Hardware design: incomplete data removal inside hardware components.
+CWE-1302,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC transactions sent without a security identifier).
+CWE-1303,n/a,n/a,none,"Microarchitectural shared structures (caches, predictors) across contexts; a CPU design weakness, not program code."
+CWE-1304,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block configuration state integrity across power save/restore).
+CWE-1310,n/a,n/a,none,Hardware design: ROM code patchability is fixed in silicon.
+CWE-1311,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge translation of security attributes).
+CWE-1312,n/a,n/a,none,n/a: hardware/SoC design weakness (on-chip fabric firewall missing mirrored regions).
+CWE-1313,n/a,n/a,none,n/a: hardware/SoC design weakness (test/debug logic activatable at runtime).
+CWE-1314,n/a,n/a,none,n/a: hardware/SoC design weakness (sensor parametric data not write-protected by the device).
+CWE-1315,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-controller capability bits in fabric end-points).
+CWE-1316,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric address map allows overlapping protected regions).
+CWE-1317,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge lacks access checks between IP blocks).
+CWE-1318,n/a,n/a,none,"On-chip fabric/bus lacking privilege separation; hardware interconnect design, not program code."
+CWE-1319,n/a,n/a,none,"Susceptibility to electromagnetic fault injection; physical hardware property, not code."
+CWE-1320,n/a,n/a,none,n/a: hardware/SoC design weakness (alert/sensor signal response disableable by untrusted agents).
+CWE-1322,yes,yes,none,A blocking read or sleep inside an event-loop callback compiles; nothing marks blocking calls.
+CWE-1323,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC trace data stored or routed to untrusted agents).
+CWE-1326,n/a,n/a,none,"Missing immutable hardware root of trust; silicon/boot ROM hardware design, not program code."
+CWE-1328,n/a,n/a,none,n/a: hardware/SoC design weakness (security version number mutable in hardware).
+CWE-1330,n/a,n/a,none,Physical/hardware: data remanence in memory circuits after erase.
+CWE-1331,n/a,n/a,none,"Network-on-Chip isolation of fabric resources; hardware design, not program code."
+CWE-1332,n/a,n/a,none,Hardware: missing circuitry or sensors to detect instruction skips is a chip design weakness.
+CWE-1334,n/a,n/a,none,n/a: hardware/SoC design weakness (error injection into redundant hardware blocks).
+CWE-1338,n/a,n/a,none,"Missing hardware overheating protection; physical/hardware design, not code."
+CWE-1341,yes,yes,none,close() on the same descriptor twice compiles; a descriptor is a plain int with no ownership.
+CWE-1342,n/a,n/a,none,Hardware design: the processor failing to clear microarchitectural state after transient execution.
+CWE-1351,n/a,n/a,none,Physical/hardware: behaviour in exceptionally cold environments is a hardware property.
+CWE-1357,yes,yes,none,Depending on an insufficiently trusted library or component is a supply-chain choice; no language prevents it.
+CWE-1384,n/a,n/a,none,Physical/hardware: handling physical or environmental conditions is a hardware design weakness.
+CWE-1422,n/a,n/a,none,Hardware design: stale-data forwarding to transient operations is a processor property.
+CWE-1431,n/a,n/a,none,Not about code: a hardware crypto module driving intermediate state onto its output wires is an RTL/hardware design flaw.
+CWE-1434,yes,yes,none,Configuring a model's inference parameters badly is application configuration; no compiler checks it.
