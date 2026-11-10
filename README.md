@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/logo/corten-mark.svg" alt="Corten logo: a weathered steel plate with a C cut through it, on a layered rust shield" width="160"></p>
+<p align="center"><img src="docs/assets/logo/corten-lockup.png" alt="Corten logo: a weathered steel plate with a C cut through it, on a layered rust shield, beside the word corten" width="310"></p>
 
 # Corten
 
