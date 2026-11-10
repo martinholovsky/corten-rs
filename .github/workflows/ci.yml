@@ -125,13 +125,15 @@ jobs:
       # program is re-checked against its pinned compiler, in a container
       # with no network that only compiles, and the rows, docs and chart
       # must match what the evidence generates.
-      - name: C applicability evidence
+      - name: C and C++ applicability evidence
         run: |
-          docker run --rm --network=none --cap-drop=ALL --security-opt=no-new-privileges \
-            --read-only --tmpfs /tmp -v "$PWD":/src:ro -w /src \
-            docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9 \
-            bash scripts/language-check.sh c > "$RUNNER_TEMP/c-verdicts.tsv"
-          python3 scripts/language-table.py c "$RUNNER_TEMP/c-verdicts.tsv"
+          for lang in c cpp; do
+            docker run --rm --network=none --cap-drop=ALL --security-opt=no-new-privileges \
+              --read-only --tmpfs /tmp -v "$PWD":/src:ro -w /src \
+              docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9 \
+              bash scripts/language-check.sh "$lang" > "$RUNNER_TEMP/$lang-verdicts.tsv"
+            python3 scripts/language-table.py "$lang" "$RUNNER_TEMP/$lang-verdicts.tsv"
+          done
           python3 scripts/language-docs.py --check
       # docs/rust-comparison.md is generated against the ledger at a baseline
       # commit, which the shallow checkout lacks: fetch exactly that commit.
