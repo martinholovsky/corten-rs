@@ -255,7 +255,7 @@ def chart(table, langs, ks, rk):
     <rect x="72" y="{y + 12}" width="{TRACK}" height="30" rx="4" fill="#3A2C25"/>
     <rect x="72" y="{y + 12}" width="{w(rk['corten'])}" height="30" rx="4" fill="#D2702A"><title>Safe Rust under Corten: {rk['corten']} CWEs</title></rect>
     <text x="848" y="{y + 34}" font-size="20" font-weight="800" fill="#F6EBDD">{rk['corten']}</text>
-    <text x="900" y="{y + 34}" font-size="15" font-weight="500" fill="#E8873A">−{rk['verified']} eliminated, verified</text>""")
+    <text x="900" y="{y + 34}" font-size="15" font-weight="500" fill="#E8873A">−{rk['verified']} eliminated so far, each verified</text>""")
     y += 84
     h = y + 112
     names = ", ".join(L["name"] for L in langs)
