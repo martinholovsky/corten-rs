@@ -125,12 +125,14 @@ jobs:
       # program is re-checked against its pinned compiler, in a container
       # with no network that only compiles, and the rows, docs and chart
       # must match what the evidence generates.
-      - name: C and C++ applicability evidence
+      - name: C, C++ and Java applicability evidence
         run: |
-          for lang in c cpp; do
+          gcc=docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9
+          jdk=docker.io/library/eclipse-temurin@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
+          for spec in "c $gcc" "cpp $gcc" "java $jdk"; do
+            lang=${spec%% *}
             docker run --rm --network=none --cap-drop=ALL --security-opt=no-new-privileges \
-              --read-only --tmpfs /tmp -v "$PWD":/src:ro -w /src \
-              docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9 \
+              --read-only --tmpfs /tmp -v "$PWD":/src:ro -w /src "${spec#* }" \
               bash scripts/language-check.sh "$lang" > "$RUNNER_TEMP/$lang-verdicts.tsv"
             python3 scripts/language-table.py "$lang" "$RUNNER_TEMP/$lang-verdicts.tsv"
           done
