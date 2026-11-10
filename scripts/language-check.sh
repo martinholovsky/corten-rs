@@ -12,7 +12,8 @@
 #   // @rejected: <text>      must fail, with <text> in the compiler's output
 # The escape hatch is what Rust's `unsafe` is to safe Rust: Java's JNI
 # (native methods), java.lang.foreign and the jdk.unsupported sun.misc
-# classes (Unsafe, Signal); Go's unsafe package and cgo (import "C"). C and C++ have
+# classes (Unsafe, Signal); Go's unsafe package and cgo (import "C");
+# Python's ctypes. C and C++ have
 # none. Verdict per CWE: writable if a `compiles` file passes; hatch-only if
 # a `compiles: hatch` file passes and a `rejected` file shows the plain form
 # fails; rejected if only `rejected` files exist. A file whose expectation
@@ -45,11 +46,17 @@
 #        with that image and "go":
 #          docker.io/library/golang@sha256:01aa404fa56b604b6f48e90c1d6e2c79fe5cd78f9592f78d80303fbe171cdcc0
 #        GO overrides the toolchain.
+#   python  compile() of the source by Python 3.15.2 (syntax and symbol-table
+#        errors only; warnings do not count), in docker.io/library/python:3
+#        pinned by its multi-arch index digest recorded 2026-11-10 (end of
+#        life not looked up). Locally, as for c with that image and "python":
+#          docker.io/library/python@sha256:8c9a3bf2d6dea60d60a2ae2a07c2b2fb1e7d8daed64b146b6792c74ae0d62ac4
+#        PYTHON overrides the interpreter.
 #
 # Usage: scripts/language-check.sh <lang> [CWE-n ...]
 set -euo pipefail
 
-usage() { echo "usage: $0 <c|cpp|java|go> [CWE-n ...]" >&2; exit 2; }
+usage() { echo "usage: $0 <c|cpp|java|go|python> [CWE-n ...]" >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 lang=$1
 shift
@@ -58,6 +65,7 @@ case "$lang" in
     cpp) ext=cpp ;;
     java) ext=java ;;
     go) ext=go ;;
+    python) ext=py ;;
     *) usage ;;
 esac
 
@@ -77,6 +85,7 @@ compile() {
         java) rm -rf "$work/classes" && mkdir "$work/classes" &&
             "${JAVAC:-javac}" -Xlint:none -d "$work/classes" "$1" >"$work/log" 2>&1 ;;
         go) "${GO:-go}" build -o /dev/null "$1" >"$work/log" 2>&1 ;;
+        python) "${PYTHON:-python3}" -I -c 'import sys; compile(open(sys.argv[1], encoding="utf-8").read(), sys.argv[1], "exec")' "$1" >"$work/log" 2>&1 ;;
     esac
 }
 
@@ -86,6 +95,7 @@ uses_hatch() {
     case "$lang" in
         java) grep -qE 'sun\.misc\.|java\.lang\.foreign|(^|[[:space:]])native[[:space:]][^;]*\(' "$1" ;;
         go) grep -qE '^[[:space:]]*(import[[:space:]]+)?"(unsafe|C)"[[:space:]]*$' "$1" ;;
+        python) grep -qE '^[[:space:]]*(import[[:space:]]+ctypes|from[[:space:]]+ctypes[[:space:]]+import)' "$1" ;;
         *) return 1 ;;
     esac
 }
