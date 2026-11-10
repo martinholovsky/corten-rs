@@ -20,6 +20,6 @@ python3 scripts/language-table.py c c-verdicts.tsv
 python3 scripts/language-docs.py
 ```
 
-`language-check.sh` derives a verdict per CWE from the programs and fails on any program whose header does not hold. `language-table.py` refuses a row that disagrees with its programs, a program no row cites, a missing or duplicate row, or a value outside `yes`, `no`, `n/a`. `language-docs.py` writes `docs/<lang>-applicability.md`, `docs/language-comparison.md` and `docs/assets/cwe-languages.svg`; CI runs all three and fails when a generated file is stale. Never edit the generated files by hand.
+`language-check.sh` derives a verdict per CWE from the programs and fails on any program whose header does not hold. `language-table.py` refuses a row that disagrees with its programs, a program no row cites, a missing or duplicate row, or a value outside `yes`, `no`, `n/a`. `language-docs.py` writes `docs/<lang>-applicability.md`, `docs/language-comparison.md` (with the reasoning and program behind every disagreement with MITRE's tags), `docs/assets/cwe-languages.svg` and the table in the repository README; CI runs all three and fails when a generated file is stale. Never edit the generated files by hand.
 
 Shown to fail before being trusted: the check rejected a program that does not compile, a rejection with the wrong message, and a file without a header (exit 1); the validator rejected a row saying `no` for a CWE whose program compiles (2026-11-10).
