@@ -26,16 +26,19 @@
 #            docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9 \
 #            bash scripts/language-check.sh c
 #        CC overrides the compiler.
+#   cpp  g++ -std=c++20 -pedantic-errors -c, in the same image (g++ 15.3.0);
+#        run as for c with "cpp". CXX overrides the compiler.
 #
 # Usage: scripts/language-check.sh <lang> [CWE-n ...]
 set -euo pipefail
 
-usage() { echo "usage: $0 <c> [CWE-n ...]" >&2; exit 2; }
+usage() { echo "usage: $0 <c|cpp> [CWE-n ...]" >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 lang=$1
 shift
 case "$lang" in
     c) ext=c ;;
+    cpp) ext=cpp ;;
     *) usage ;;
 esac
 
@@ -48,6 +51,7 @@ trap 'rm -rf "$work"' EXIT
 compile() {
     case "$lang" in
         c) "${CC:-gcc}" -std=c17 -pedantic-errors -c -o "$work/out.o" "$1" >"$work/log" 2>&1 ;;
+        cpp) "${CXX:-g++}" -std=c++20 -pedantic-errors -c -o "$work/out.o" "$1" >"$work/log" 2>&1 ;;
     esac
 }
 

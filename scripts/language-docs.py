@@ -25,6 +25,8 @@ TABLE = Path("audit/applicability/table.csv")
 LANGS = [
     ("C", "c", "gcc 15.3.0, -std=c17 -pedantic-errors",
      {"C", "Not Language-Specific", "Memory-Unsafe", "Compiled"}),
+    ("C++", "cpp", "g++ 15.3.0, -std=c++20 -pedantic-errors",
+     {"C++", "Not Language-Specific", "Memory-Unsafe", "Compiled", "Object-Oriented"}),
 ]
 RUST_TAGS = {"Rust", "Not Language-Specific", "Compiled"}
 COMPARISON = Path("docs/language-comparison.md")

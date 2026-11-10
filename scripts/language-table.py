@@ -18,7 +18,7 @@ import csv
 import sys
 from pathlib import Path
 
-LANGS = {"c": ("C", ".c")}
+LANGS = {"c": ("C", ".c"), "cpp": ("C++", ".cpp")}
 TABLE = Path("audit/applicability/table.csv")
 
 
