@@ -1,0 +1,38 @@
+cwe_id,with_hatch,without_hatch,evidence,reasoning
+CWE-119,yes,yes,CWE-119.c,"Pointer arithmetic and array indexing are unchecked; a write past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-120,yes,yes,CWE-120.c,"strcpy copies until the source's terminator whatever the destination's size. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-121,yes,yes,CWE-121.c,"A stack array written past its end compiles; nothing ties the index to the declared length. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-122,yes,yes,CWE-122.c,"malloc returns an untyped block with no length attached, so writing beyond it compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-123,yes,yes,CWE-123.c,"Any integer can be cast to a pointer and written through, so an attacker-chosen address and value form a write-what-where. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-124,yes,yes,CWE-124.c,"A negative index or a pointer decremented below the start of a buffer compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-125,yes,yes,CWE-125.c,"Reading a[i] with i out of range compiles; arrays carry no length. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-126,yes,yes,CWE-126.c,"strlen and memcpy read until a terminator or a given length, past the end of the source if it is too short. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-127,yes,yes,CWE-127.c,"Reading before the start of a buffer through a negative offset compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-129,yes,yes,none,"An array index taken from input is used without a range check; C has no checked indexing, so nothing stops it (CWE-125, 787)."
+CWE-131,yes,yes,none,malloc takes a byte count the program computes; using the element count instead of count times size compiles.
+CWE-134,yes,yes,CWE-134.c,"printf takes a format string at run time, so passing user input as the format compiles; gcc's -Wformat-security only warns, and ISO C requires no diagnostic."
+CWE-188,yes,yes,none,Code can read a struct through a byte pointer or assume field offsets and padding; layout is implementation-defined and nothing stops a program relying on it.
+CWE-198,yes,yes,none,Integers are read from bytes with memcpy or casts in host order; nothing distinguishes network from host byte order.
+CWE-244,yes,yes,none,"free() does not clear memory, and a memset before it may be removed as a dead store; secrets stay in freed heap."
+CWE-401,yes,yes,none,malloc'd memory is released only by an explicit free(); a missing call leaks it. C has no destructors.
+CWE-415,yes,yes,CWE-415.c,"Calling free() twice on one pointer compiles; nothing tracks that a pointer was freed. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-416,yes,yes,CWE-416.c,"Reading through a pointer after free() compiles; C has no lifetimes. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-466,yes,yes,CWE-466.c,"A function can return any pointer value, including one computed outside the object it should point into. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-562,yes,yes,CWE-562.c,Returning the address of a local compiles; gcc warns (-Wreturn-local-addr) but ISO C requires no diagnostic and it is not an error.
+CWE-587,yes,yes,CWE-587.c,"An integer constant converts to a pointer with a cast. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-590,yes,yes,CWE-590.c,"free() accepts any pointer, including a stack address. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-680,yes,yes,CWE-680.c,"size_t arithmetic wraps silently, so count * size can overflow to a small allocation that is then written in full. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-690,yes,yes,CWE-690.c,"malloc's NULL result can be dereferenced without a check; pointers are not optional types. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-761,yes,yes,CWE-761.c,"free() accepts a pointer into the middle of a block. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-762,yes,yes,CWE-762.c,"Nothing ties a pointer to the allocator that produced it, so memory from one routine can be released with another. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-763,yes,yes,CWE-763.c,"free() accepts any pointer, including one never returned by malloc. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-786,yes,yes,CWE-786.c,"Accessing memory before a buffer's start through a decremented pointer compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-787,yes,yes,CWE-787.c,"Writing past an array's end compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-788,yes,yes,CWE-788.c,"Accessing memory after a buffer's end through pointer arithmetic compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-789,yes,yes,none,"malloc takes any size, including one taken from input; C has no allocation limit."
+CWE-805,yes,yes,CWE-805.c,"memcpy takes a separate length that nothing ties to the destination's size. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-806,yes,yes,CWE-806.c,"Copying with the source's size instead of the destination's compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-822,yes,yes,CWE-822.c,"A pointer read from input or untrusted memory can be dereferenced. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-823,yes,yes,CWE-823.c,"Pointer arithmetic with an untrusted offset compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-824,yes,yes,CWE-824.c,"An automatic pointer has an indeterminate value until assigned, and using it compiles; gcc warns only with -Wuninitialized. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
+CWE-825,yes,yes,CWE-825.c,"Dereferencing a pointer whose object has gone out of scope compiles. C performs no bounds, lifetime or ownership check, so ISO C17 accepts it without a diagnostic."
