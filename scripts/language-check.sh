@@ -12,7 +12,7 @@
 #   // @rejected: <text>      must fail, with <text> in the compiler's output
 # The escape hatch is what Rust's `unsafe` is to safe Rust: Java's JNI
 # (native methods), java.lang.foreign and the jdk.unsupported sun.misc
-# classes (Unsafe, Signal). C and C++ have
+# classes (Unsafe, Signal); Go's unsafe package and cgo (import "C"). C and C++ have
 # none. Verdict per CWE: writable if a `compiles` file passes; hatch-only if
 # a `compiles: hatch` file passes and a `rejected` file shows the plain form
 # fails; rejected if only `rejected` files exist. A file whose expectation
@@ -39,11 +39,17 @@
 #        with that image and "java":
 #          docker.io/library/eclipse-temurin@sha256:83f4a7fc27df94dcc7b8de04d14cbbba8da14406f921e966969c3b09000aa507
 #        JAVAC overrides the compiler.
+#   go   go build (go1.27.4, GOTOOLCHAIN=local, cgo with the image's gcc), in
+#        docker.io/library/golang:1 pinned by its multi-arch index digest
+#        recorded 2026-11-10 (end of life not looked up). Locally, as for c
+#        with that image and "go":
+#          docker.io/library/golang@sha256:01aa404fa56b604b6f48e90c1d6e2c79fe5cd78f9592f78d80303fbe171cdcc0
+#        GO overrides the toolchain.
 #
 # Usage: scripts/language-check.sh <lang> [CWE-n ...]
 set -euo pipefail
 
-usage() { echo "usage: $0 <c|cpp|java> [CWE-n ...]" >&2; exit 2; }
+usage() { echo "usage: $0 <c|cpp|java|go> [CWE-n ...]" >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 lang=$1
 shift
@@ -51,6 +57,7 @@ case "$lang" in
     c) ext=c ;;
     cpp) ext=cpp ;;
     java) ext=java ;;
+    go) ext=go ;;
     *) usage ;;
 esac
 
@@ -59,6 +66,9 @@ dir="$(cd "$(dirname "$0")/.." && pwd)/audit/languages/$lang"
 cd "$dir"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# go needs writable cache and module directories; keep them in the work dir,
+# and never let it fetch another toolchain.
+export GOCACHE="${GOCACHE:-$work/gocache}" GOPATH="${GOPATH:-$work/gopath}" GOTOOLCHAIN=local
 
 compile() {
     case "$lang" in
@@ -66,6 +76,7 @@ compile() {
         cpp) "${CXX:-g++}" -std=c++20 -pedantic-errors -c -o "$work/out.o" "$1" >"$work/log" 2>&1 ;;
         java) rm -rf "$work/classes" && mkdir "$work/classes" &&
             "${JAVAC:-javac}" -Xlint:none -d "$work/classes" "$1" >"$work/log" 2>&1 ;;
+        go) "${GO:-go}" build -o /dev/null "$1" >"$work/log" 2>&1 ;;
     esac
 }
 
@@ -74,6 +85,7 @@ compile() {
 uses_hatch() {
     case "$lang" in
         java) grep -qE 'sun\.misc\.|java\.lang\.foreign|(^|[[:space:]])native[[:space:]][^;]*\(' "$1" ;;
+        go) grep -qE '^[[:space:]]*(import[[:space:]]+)?"(unsafe|C)"[[:space:]]*$' "$1" ;;
         *) return 1 ;;
     esac
 }
