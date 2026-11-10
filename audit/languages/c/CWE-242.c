@@ -1,8 +1,8 @@
-// @rejected: implicit declaration of function 'gets'; did you mean 'fgets'?
-// CWE-242: gets() is gone from C17; calling it is an implicit declaration, an error under -pedantic-errors.
-#include <stdio.h>
+// @compiles
+// CWE-242: gets() is declared by hand, since C17 headers no longer provide it, and called.
+char *gets(char *s);
 
-void f(void) {
-    char buf[16];
+void read_line(void) {
+    char buf[64];
     gets(buf);
 }

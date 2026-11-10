@@ -15,13 +15,15 @@
 # exhibits the weakness is the judgement stated in its comment.
 #
 # Toolchains (the CI job runs inside the same image, pinned by digest):
-#   c    gcc -std=c17 -pedantic-errors -c, in docker.io/library/gcc:15.
+#   c    gcc -std=c17 -pedantic-errors -c, in docker.io/library/gcc:15 (gcc
+#        15.3.0), pinned by the multi-arch index digest recorded 2026-11-10;
+#        GCC 15 branch end of life: not looked up, check before bumping.
 #        Locally (programs are compiled, never run; the container still gets
 #        no network, no capabilities and a read-only root):
 #          podman run --rm --network=none --cap-drop=ALL \
 #            --security-opt=no-new-privileges --read-only --tmpfs /tmp \
 #            -v "$PWD":/src:ro -w /src \
-#            docker.io/library/gcc@sha256:3a49295e08ff62055af03114fd1162403c7613f91b18b10da72b352ed9ea375b \
+#            docker.io/library/gcc@sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9 \
 #            bash scripts/language-check.sh c
 #        CC overrides the compiler.
 #
