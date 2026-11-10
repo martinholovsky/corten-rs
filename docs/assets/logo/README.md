@@ -8,7 +8,8 @@ The mark is original. It is not derived from the Rust logo: the Rust Foundation'
 | --- | --- |
 | `corten-mark.svg` | The mark; scales to any size |
 | `corten-mark-16.png`, `-32.png`, `-180.png`, `-512.png` | Raster sizes (favicon, touch icon, avatars) |
-| `corten-lockup.svg`, `corten-lockup.png` | The mark with the wordmark beside it, in `#B5541E` so it reads on light and dark backgrounds. The repository README shows the PNG (1240×400) at 310 px wide: some company networks block SVG images |
+| `corten-lockup.svg` | The mark with the wordmark beside it, in `#B5541E` so it reads on light and dark backgrounds; the repository README shows it at 310 px wide. The wordmark is outlines, not text: an `<img>` cannot load fonts, so live text would fall back to whatever the viewer has installed |
+| `outline-wordmark.py` | Prints the wordmark's outline path from the Archivo variable font (weight 800, HarfBuzz shaping). Run it with `uv run --no-project --with fonttools --with uharfbuzz python -I outline-wordmark.py <Archivo-VariableFont_wdth,wght.ttf>` and paste the output into the lockup's `<path>` |
 | `favicon.ico` | 16 and 32 px |
 | `social-preview.svg`, `social-preview.png` | GitHub social preview, 1280×640. Upload the PNG in the repository's Settings, Social preview: GitHub has no API for it |
 | `render.sh` | Regenerates every PNG and the favicon |

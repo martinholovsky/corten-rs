@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Renders the logo PNGs and favicon from corten-mark.svg, the README lockup
-# (mark and wordmark) from corten-lockup.svg, and the GitHub social preview
-# from social-preview.svg.
+# Renders the logo PNGs and favicon from corten-mark.svg, and the GitHub
+# social preview from social-preview.svg. (corten-lockup.svg carries its
+# wordmark as outlines, made by outline-wordmark.py, and needs no render.)
 #
 # Needs rsvg-convert, ImageMagick (magick) and the Archivo font installed
 # (SIL Open Font License, https://fonts.google.com/specimen/Archivo; the
@@ -33,7 +33,5 @@ for size in 16 32 180 512; do
     rsvg-convert -w "$size" -h "$size" corten-mark.svg -o "corten-mark-$size.png"
 done
 magick corten-mark-16.png corten-mark-32.png favicon.ico
-# Twice the size the README shows it at (310 px wide), for high-density screens.
-rsvg-convert -w 1240 -h 400 corten-lockup.svg -o corten-lockup.png
 rsvg-convert -w 1280 -h 640 social-preview.svg -o social-preview.png
 echo "render.sh: rendered (Archivo check: ${differing%% *} pixels differ from a missing font)"
