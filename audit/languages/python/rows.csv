@@ -1,0 +1,945 @@
+cwe_id,with_hatch,without_hatch,evidence,reasoning
+CWE-5,no,no,none,Python has no J2EE deployment descriptors; no Python program can contain it.
+CWE-6,no,no,none,Python has no J2EE container or session configuration; no Python program can contain it.
+CWE-7,no,no,none,Python has no J2EE web.xml error pages; error pages are ordinary code (CWE-756); no Python program can contain it.
+CWE-8,no,no,none,Python has no J2EE entity beans; no Python program can contain it.
+CWE-9,no,no,none,Python has no EJB container or method permissions; no Python program can contain it.
+CWE-11,no,no,none,Python has no ASP.NET web.config; no Python program can contain it.
+CWE-12,no,no,none,Python has no ASP.NET customErrors; no Python program can contain it.
+CWE-13,no,no,none,Python has no ASP.NET configuration; the generic weakness is CWE-260; no Python program can contain it.
+CWE-14,no,no,none,"CPython's compiler does not eliminate stores: a wipe of a bytearray is a method call it always executes. Immutable bytes and str cannot be wiped at all, which is CWE-316."
+CWE-15,yes,yes,none,Letting input set a configuration value is a design and authorisation decision; passing request data to setenv or a config setter compiles.
+CWE-20,yes,yes,none,"Validation is program logic: atoi or strtol gives an integer, not one in the range the business rules need."
+CWE-22,yes,yes,none,open and fopen perform no containment check; restricting a path to a directory is application logic no compiler can infer.
+CWE-23,yes,yes,none,Path-string validation logic: fopen and open accept relative ../ segments like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-24,yes,yes,none,Path-string validation logic: fopen and open accept '../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-25,yes,yes,none,Path-string validation logic: fopen and open accept '/../filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-26,yes,yes,none,Path-string validation logic: fopen and open accept '/dir/../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-27,yes,yes,none,Path-string validation logic: fopen and open accept 'dir/../../filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-28,yes,yes,none,Path-string validation logic: fopen and open accept Windows '..\filedir' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-29,yes,yes,none,Path-string validation logic: fopen and open accept Windows '\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-30,yes,yes,none,Path-string validation logic: fopen and open accept '\dir\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-31,yes,yes,none,Path-string validation logic: fopen and open accept 'dir\..\..\filename' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-32,yes,yes,none,"Stripping '..' so that '...' variants survive is sanitiser logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-33,yes,yes,none,"Non-recursive removal of '..' from '....' is sanitiser logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-34,yes,yes,none,"A single-pass filter turning '....//' into '../' is sanitiser logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-35,yes,yes,none,"Collapsing '.../...//' to '../' is sanitiser logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-36,yes,yes,none,"Concatenating a base directory with input that is an absolute path, or opening the input directly, reaches any absolute path; nothing checks it."
+CWE-37,yes,yes,none,Path-string validation logic: fopen and open accept an absolute '/abs/path' like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-38,yes,yes,none,Path-string validation logic: fopen and open accept '\absolute\path' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-39,yes,yes,none,Path-string validation logic: open and pathlib accept drive-relative 'C:dirname' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-40,yes,yes,none,Path-string validation logic: fopen and open accept UNC '\\server\share' on Windows like any path; whether it escapes the intended directory is a policy no type system checks.
+CWE-41,yes,yes,none,"Resolving equivalent path spellings before a security decision is application logic; open passes names to the OS, and no compiler enforces canonicalisation."
+CWE-42,yes,yes,none,Path-equivalence handling (trailing dot) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-43,yes,yes,none,Path-equivalence handling (multiple trailing dots) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-44,yes,yes,none,Path-equivalence handling (internal dot) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-45,yes,yes,none,Path-equivalence handling (multiple internal dots) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-46,yes,yes,none,Path-equivalence handling (trailing space) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-47,yes,yes,none,Path-equivalence handling (leading space) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-48,yes,yes,none,Path-equivalence handling (internal whitespace) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-49,yes,yes,none,Path-equivalence handling (trailing slash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-50,yes,yes,none,Path-equivalence handling (multiple leading slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-51,yes,yes,none,Path-equivalence handling (multiple internal slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-52,yes,yes,none,Path-equivalence handling (multiple trailing slashes) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-53,yes,yes,none,Path-equivalence handling (doubled internal backslash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-54,yes,yes,none,Path-equivalence handling (trailing backslash) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-55,yes,yes,none,Path-equivalence handling ('/./' segment) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-56,yes,yes,none,Path-equivalence handling (wildcard '*') is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-57,yes,yes,none,Path-equivalence handling ('fakedir/../realdir') is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-58,yes,yes,none,Path-equivalence handling (Windows 8.3 short names) is file-system semantics checked by application logic; open passes the name to the OS unchanged and no compiler can enforce canonical names.
+CWE-59,yes,yes,none,open and fopen follow symbolic links unless O_NOFOLLOW is passed; checking link targets is application logic the compiler cannot enforce.
+CWE-61,yes,yes,none,"open follows UNIX symlinks by default (no O_NOFOLLOW unless requested); failing to guard is logic, not a type error."
+CWE-62,yes,yes,none,Hard links are indistinguishable from the original name at open; not checking link count/ownership is filesystem logic no compiler can verify.
+CWE-64,yes,yes,none,Following a .LNK target supplied by a user is application logic in a Windows program (shell API as stub); no language rule prevents it.
+CWE-65,yes,yes,none,"Windows hard links, like UNIX ones, are transparent to CreateFile and fopen; not detecting them is logic outside any type system."
+CWE-66,yes,yes,none,"Names like /dev/zero, /proc/self/... or CON are valid paths to open; recognising virtual resources is application logic."
+CWE-67,yes,yes,none,"CreateFile and fopen on Windows treat 'CON', 'AUX', 'COM1' as device names; filtering them is application logic no compiler performs."
+CWE-69,yes,yes,none,'file.txt::$DATA' is a valid name on NTFS; extension checks that miss the stream suffix are logic errors.
+CWE-72,yes,yes,none,'file/..namedfork/rsrc' is a valid path on macOS; extension/access checks that ignore it are logic errors any safe program can make.
+CWE-73,yes,yes,none,"Passing request data straight into fopen or open compiles; deciding which paths are allowed is policy, not typing."
+CWE-74,yes,yes,none,"Splicing input into text a downstream interpreter parses is string formatting; building it with +, % or an f-string from input runs; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-75,yes,yes,none,Failing to sanitise special elements crossing into another plane is data-flow logic; bytes carry no plane or trust marking.
+CWE-76,yes,yes,none,Missing equivalent special elements in a filter is a gap in its denylist; nothing checks filter completeness.
+CWE-77,yes,yes,none,"A command string for any interpreter (shell, Redis, SMTP) built from input runs; building it with +, % or an f-string from input runs; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-78,yes,yes,none,"os.system and subprocess with shell=True pass a string to the shell, and building it from input runs."
+CWE-79,yes,yes,none,"HTML built with an f-string is a plain str; html.escape is opt-in, and template engines escape only when configured to."
+CWE-80,yes,yes,none,Writing <script> tags from input into HTML unescaped is string handling; the compiler cannot flag it.
+CWE-81,yes,yes,none,Echoing the request into an HTML error page is ordinary string formatting; escaping is the program's responsibility.
+CWE-82,yes,yes,none,"Emitting user-controlled IMG attributes (javascript: src, onerror) unescaped is string formatting; nothing applies attribute escaping."
+CWE-83,yes,yes,none,Event-handler attributes such as onmouseover from input are written as text; the type system does not model HTML attribute contexts.
+CWE-84,yes,yes,none,"Failing to neutralise encoded URI schemes (javascript:, data:) is filter logic over strings; urllib.parse does not reject them."
+CWE-85,yes,yes,none,"Doubled-character XSS evades a filter that removes one occurrence. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-86,yes,yes,none,Browsers ignoring invalid characters inside tag names defeats a filter; the filter is program logic and the browser is outside the program.
+CWE-87,yes,yes,none,"Alternate XSS syntax bypassing a denylist is a filter-completeness bug; the compiler checks types, not denylist coverage."
+CWE-88,yes,yes,none,"subprocess with a list passes arguments without a shell, but a value starting with -- is still parsed as an option by the callee."
+CWE-89,yes,yes,none,"cursor.execute with an f-string query runs; parameter binding is opt-in, and building it with +, % or an f-string from input runs; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-90,yes,yes,none,An LDAP filter built from input runs; escaping is the program's job.
+CWE-91,yes,yes,none,Writing input into XML or an XPath without escaping is string formatting; nothing enforces escaping.
+CWE-93,yes,yes,none,"CRLF in input written into a line-based protocol (SMTP, HTTP) is plain concatenation; strings allow \r\n and nothing checks framing."
+CWE-94,yes,yes,none,"eval, exec and compile run Python source built at run time, so code injection is one call away."
+CWE-95,yes,yes,none,eval of a string containing input evaluates directives in it; it is the language's own eval.
+CWE-96,yes,yes,none,"Writing input into a configuration file, script or template that is later executed is file output; the compiler cannot see the later execution."
+CWE-97,yes,yes,none,Emitting <!--#exec ...--> from input into a page a server processes for SSI is string output; the SSI processor is outside the program.
+CWE-98,yes,yes,CWE-98.py,"importlib.import_module and __import__ load a module named at run time, and exec(open(path).read()) runs a file chosen by input: the Python form of a PHP include of an input-chosen file."
+CWE-99,yes,yes,none,"Letting input name a file, module or resource identifier is program logic; nothing checks that it is permitted."
+CWE-102,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-103,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-104,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-105,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-106,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-107,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-108,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-109,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-110,no,no,none,Python has no Struts framework; no Python program can contain it.
+CWE-111,yes,no,CWE-111.plain.py;CWE-111.py,"ctypes is Python's escape hatch to C, the counterpart of JNI: C code runs with none of Python's checks, and plain Python cannot declare or call C (the declaration does not parse)."
+CWE-112,yes,yes,none,Parsing XML without schema validation is a program choice; libxml2 validates only when asked.
+CWE-113,yes,yes,none,Writing input containing CRLF into an HTTP header is string formatting; header validation is a library or program choice.
+CWE-114,yes,yes,none,"system, exec and dlopen run or load whatever path they are given; trusting the source is policy no compiler checks."
+CWE-115,yes,yes,none,"Misinterpreting input (the type or encoding of a field) is a semantic design error; types check representation, not intended meaning."
+CWE-116,yes,yes,none,"Improper encoding of output is a mismatch between data and a downstream grammar; Python strings carry no context or taint marking, so nothing detects it."
+CWE-117,yes,yes,none,Logging a user string containing newlines forges log entries; the logging module does not escape them.
+CWE-118,yes,yes,none,"Index checks stop reads leaving a list or bytes object, not reads outside a logical sub-range of a shared buffer; reading a neighbouring record runs."
+CWE-119,yes,no,CWE-119.plain.py;CWE-119.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a write past a ctypes array compiles and runs."
+CWE-120,yes,no,CWE-120.plain.py;CWE-120.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: memmove into a fixed buffer without a length check writes past it."
+CWE-121,yes,no,CWE-121.plain.py;CWE-121.py,"Python has no stack arrays, and plain Python cannot write raw memory (the C spelling does not parse); ctypes, the escape hatch, writes any address, the stack included."
+CWE-122,yes,no,CWE-122.plain.py;CWE-122.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: writing past a malloc'd block runs."
+CWE-123,yes,no,CWE-123.plain.py;CWE-123.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: c_int.from_address at a chosen address with a chosen value is a write-what-where."
+CWE-124,yes,no,CWE-124.plain.py;CWE-124.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a write before a buffer's start runs."
+CWE-125,yes,no,CWE-125.plain.py;CWE-125.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a read at an unchecked offset runs."
+CWE-126,yes,no,CWE-126.plain.py;CWE-126.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: string_at with a length past the buffer reads beyond it."
+CWE-127,yes,no,CWE-127.plain.py;CWE-127.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a read before a buffer's start runs."
+CWE-128,yes,no,none,"Python's int has arbitrary precision, so plain arithmetic cannot wrap; fixed-width ctypes integers, the escape hatch, wrap silently."
+CWE-129,yes,yes,none,"An index from input used without a range check runs; a negative index silently counts from the end, and an out-of-range one raises IndexError."
+CWE-130,yes,yes,none,Trusting a length field inside a reused buffer returns stale bytes (the Heartbleed shape); index checks stop only reads past the object.
+CWE-131,yes,yes,none,bytearray and buffer sizes are computed by the program; a wrong calculation runs and truncates or raises.
+CWE-134,yes,yes,none,"str.format and % with a user-supplied format string run, and str.format can reach attributes ({0.__class__.__init__.__globals__}), leaking data."
+CWE-135,yes,yes,none,len() of bytes counts bytes and of str counts code points; mixing them runs and splits UTF-8 sequences.
+CWE-138,yes,yes,none,"Neutralising special elements for a downstream parser is application logic; Python strings carry no context or taint marking, so nothing models downstream grammars."
+CWE-140,yes,yes,none,Delimiters in input breaking a record format is a serialisation bug; a str accepts any delimiter and nothing checks the format.
+CWE-141,yes,yes,none,"Unescaped parameter or argument delimiters (&, ;, spaces) in input are string handling; no type distinguishes a delimited list from a value."
+CWE-142,yes,yes,none,"Value delimiters (commas, colons) in input split one value into several downstream; concatenation permits it."
+CWE-143,yes,yes,none,Record delimiters (newlines) in input create extra records in a file or stream; write does not inspect content.
+CWE-144,yes,yes,none,Line delimiters in input inject lines into line-oriented output; nothing rejects \n in a string.
+CWE-145,yes,yes,none,"Section delimiters (e.g. MIME boundaries, INI headers) in input create new sections; a formatting logic bug no compiler can see."
+CWE-146,yes,yes,none,Expression or command delimiters such as ; in input end the intended statement downstream; the compiler sees only string concatenation.
+CWE-147,yes,yes,none,"An input terminator (e.g. a lone ""."" in SMTP data) inside input ends the input early downstream; protocol framing is program logic."
+CWE-148,yes,yes,none,Leading special elements (- or !) change how a downstream parser reads the value; Python has no notion of that parser's grammar.
+CWE-149,yes,yes,none,Quotes in input closing a quoted context downstream is an escaping bug; format! inserts quotes verbatim and the compiler cannot know the quoting rules.
+CWE-150,yes,yes,none,Python strings may contain ESC and other control characters; printing them to a terminal or log passes them through.
+CWE-151,yes,yes,none,"Comment delimiters (--, /*, #) in input comment out the rest of a downstream statement; building it with +, % or an f-string from input runs; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-152,yes,yes,none,Macro symbols in input expanded by a downstream macro processor is a neutralisation bug outside the type system.
+CWE-153,yes,yes,none,"Substitution characters ($, %, {) in input trigger downstream substitution, and Python's own % formatting, str.format and string.Template treat them specially."
+CWE-154,yes,yes,none,Variable-name delimiters such as ${ } in input cause downstream variable expansion; the downstream interpreter's grammar is invisible to the compiler.
+CWE-155,yes,yes,none,"Wildcards (*, ?, %) from input in a glob, LIKE or fnmatch pattern widen matches; nothing requires escaping them."
+CWE-156,yes,yes,none,Whitespace in input changing token boundaries downstream is a neutralisation bug; whitespace is ordinary string content.
+CWE-157,yes,yes,none,"Unbalanced paired delimiters (brackets, quotes) in input break downstream parsing; it is grammar logic the compiler does not check."
+CWE-158,yes,yes,none,"Python strings may contain NUL; os functions reject it in paths, but a NUL-delimited stream or a C consumer splits on it."
+CWE-159,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-160,yes,yes,none,"Leading special elements (../, /) not neutralised is string-prefix logic; nothing constrains string contents."
+CWE-161,yes,yes,none,"Stripping only one of several leading special elements is a filter loop bug. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-162,yes,yes,none,Trailing special elements (e.g. trailing dot or slash) not neutralized is string-suffix logic outside the type system.
+CWE-163,yes,yes,none,"Removing only one of multiple trailing special elements is filter logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-164,yes,yes,none,Internal special elements not neutralised is filter logic over string content; Python cannot know which characters are special downstream.
+CWE-165,yes,yes,none,"Handling only the first of several internal special elements (str.replace with count=1) is a filter bug. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-166,yes,yes,none,"A parser that assumes a delimiter is present gets -1 from str.find when it is missing, and slicing with it silently drops the last character."
+CWE-167,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-168,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-170,yes,no,CWE-170.plain.py;CWE-170.py,"Python strings carry their length; reading an unterminated buffer as a C string needs ctypes.string_at, the escape hatch (the pointer form does not parse)."
+CWE-172,yes,yes,none,"Decoding bytes with the wrong codec, or with errors='replace' or 'ignore' so distinct inputs map to one value, runs."
+CWE-173,yes,yes,none,"Validating input before decoding alternate encodings (percent, overlong UTF-8, HTML entities) is an ordering error the compiler does not check."
+CWE-174,yes,yes,none,Decoding twice after validating once is program logic; Python runs a validate-then-decode-again sequence.
+CWE-175,yes,yes,none,"Mixing encodings across components (UTF-8, Latin-1, UTF-16) is a data-interpretation bug; bytes carry no encoding."
+CWE-176,yes,yes,none,Comparing strings without unicodedata.normalize treats equivalent forms as different; slicing encoded bytes splits characters.
+CWE-177,yes,yes,none,Validating before or without urllib.parse.unquote lets %2e%2e through; the order is program logic.
+CWE-178,yes,yes,none,"strcmp is exact and strcasecmp is not; nothing in the type system knows another component compares case-insensitively, so a case variant bypasses the check."
+CWE-179,yes,yes,none,Validating before a later transformation is an ordering decision in program logic; no compiler of any language can tell.
+CWE-180,yes,yes,none,Checking a path before realpath() is a logic order error; no type distinguishes raw from canonical paths.
+CWE-181,yes,yes,none,Filtering after validation is an ordering choice in logic; the compiler cannot know the filter can reintroduce what validation removed.
+CWE-182,yes,yes,none,A strstr-and-remove filter that collapses '....//' into '../' is ordinary string logic; no type system checks a filter's fixed point.
+CWE-183,yes,yes,none,An over-broad allowlist (a suffix match) is a policy-content error; the compiler does not judge a list's width.
+CWE-184,yes,yes,none,An incomplete denylist is a data/policy omission; no compiler of any language can know which dangerous inputs are missing.
+CWE-185,yes,yes,none,POSIX regcomp and PCRE take the pattern as a string; the compiler cannot check a pattern's meaning.
+CWE-186,yes,yes,none,POSIX regcomp and PCRE take the pattern as a string; an overly narrow one (a case-sensitive '<script') compiles.
+CWE-187,yes,yes,none,"strncmp with the input's length, or with a fixed short length, compares only a prefix; it compiles and accepts partial matches."
+CWE-188,yes,yes,none,"Code can rely on implementation details (id() values, object sizes, ctypes structure layout, CPython small-int caching with is); nothing stops it."
+CWE-190,yes,no,none,"Python's int has arbitrary precision, so plain arithmetic cannot overflow; fixed-width ctypes integers, the escape hatch, wrap silently."
+CWE-191,yes,no,none,"Python's int has arbitrary precision, so plain arithmetic cannot underflow below zero into a large value; unsigned ctypes integers, the escape hatch, wrap."
+CWE-192,yes,no,none,"int() never truncates an integer, and struct.pack raises on a value too large for its format; ctypes integer types, the escape hatch, keep only the low bits."
+CWE-193,yes,yes,none,"Off-by-one bounds (<= instead of <, range(n + 1)) run; an access then raises, and a logical boundary such as an extra allowed attempt passes silently."
+CWE-194,yes,yes,none,"int.from_bytes(..., signed=True) and struct formats such as 'b' and 'h' sign-extend; choosing the signed form for unsigned data runs."
+CWE-195,yes,yes,none,Masking a negative int to unsigned (x & 0xFFFFFFFF) or packing it with an unsigned struct format after masking maps it to a large value.
+CWE-196,yes,yes,none,"Unpacking unsigned data with a signed struct format ('i' instead of 'I') turns large values negative, defeating an upper-bound check."
+CWE-197,yes,no,none,"Plain Python's int does not truncate, and struct.pack raises on a value too large for its format; ctypes integer types, the escape hatch, truncate silently."
+CWE-198,yes,yes,none,struct and int.from_bytes take the byte order as an argument; using the wrong one runs.
+CWE-200,yes,yes,none,Exposing data to the wrong actor is an authorisation and design flaw; Python has no access control at all.
+CWE-201,yes,yes,none,Including sensitive fields in a response is a data-selection decision; no compiler knows which fields are secret.
+CWE-202,yes,yes,none,Pure logic: no compiler of any language can tell whether aggregate query results leak individual records; the type system does not model statistical inference.
+CWE-203,yes,yes,none,Different responses or timing per secret-dependent path arise from program logic; Python has no secret type or constant-time enforcement.
+CWE-204,yes,yes,none,Returning 'no such user' versus 'wrong password' is response logic; the compiler does not judge the information leak.
+CWE-205,yes,yes,none,Behaviour that differs observably by secret state (e.g. extra work for valid users) is control-flow logic; no type system tracks it.
+CWE-206,yes,yes,none,"Internal steps whose observable behaviour leaks state are a design property; the compiler checks types, not information flow."
+CWE-207,yes,yes,none,Behaving differently from equivalent products (fingerprintable) is a product-design matter outside any compiler's reach.
+CWE-208,yes,yes,none,"== on str and bytes returns at the first mismatch, so naive token checks leak timing; hmac.compare_digest is opt-in."
+CWE-209,yes,yes,none,"Formatting internal errors (strerror text, connection strings, paths) into client-visible messages is string handling; no compiler knows which data is sensitive."
+CWE-210,yes,yes,none,Self-generated error text containing secrets is an ordinary f-string; nothing classifies message content.
+CWE-211,yes,yes,none,"Forwarding an external component's error text (OS, database library) to users is a pass-through of strings; filtering it is logic."
+CWE-212,yes,yes,none,Which fields leave the process is a design decision; no type system knows a field is sensitive unless the programmer encodes it.
+CWE-213,yes,yes,none,Policy mismatch between stakeholders about what is sensitive is a requirements issue; code of any language implements whatever policy it is given.
+CWE-214,yes,yes,none,"Passing a secret as a command-line argument to exec puts it on the child's argv, visible through ps and /proc."
+CWE-215,yes,yes,none,"Printing secrets in debug output (print, logging at DEBUG, a __repr__ that includes them) runs."
+CWE-219,yes,yes,none,Writing sensitive files under a served document root is a deployment and path choice; fopen writes wherever told.
+CWE-220,yes,yes,none,Storing sensitive files under an FTP root is a path and deployment choice; the compiler cannot know exposure.
+CWE-221,yes,yes,none,Recording too little security-relevant information is a logging-design omission; no compiler can tell which events matter.
+CWE-222,yes,yes,none,Truncating a log record by slicing runs; losing the attack payload is a logging-policy error.
+CWE-223,yes,yes,none,Not recording security-relevant fields is a design omission in what is logged; no compiler can require particular log content.
+CWE-224,yes,yes,none,Logging by an alias rather than the canonical name is a naming and design choice; the code records any string it is given.
+CWE-226,yes,yes,none,"Reused bytearrays and buffers keep their previous contents until overwritten, so resending one can leak stale bytes."
+CWE-228,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-229,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-230,yes,yes,none,A missing value read as None or a default that changes meaning runs.
+CWE-231,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-232,yes,yes,none,"An undefined value (a status outside an Enum) needs explicit handling; a match without a case for it, or Enum() raising on it, runs."
+CWE-233,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-234,yes,yes,none,request.args.get returns None for a missing parameter; treating absence as a default (admin) runs.
+CWE-235,yes,yes,none,Extra or duplicated parameters (HTTP parameter pollution) handled inconsistently is parse logic; a lookup returns whichever occurrence the code finds first.
+CWE-236,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-237,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-238,yes,yes,none,"Incomplete structural elements (truncated records) are a parser concern; struct.unpack on short data raises, and slicing returns less data silently."
+CWE-239,yes,yes,none,Failing to handle an incomplete element is parse logic; nothing forces the program to check that a read returned a whole element.
+CWE-240,yes,yes,none,Parse logic: a Python parser can mishandle it exactly as one in any language; nothing checks it.
+CWE-241,yes,yes,none,"External input is untyped; int(field) raises on a non-numeric value, and catching it with a default runs."
+CWE-242,yes,no,CWE-242.plain.py;CWE-242.py,"Plain Python cannot declare or call C functions (the C declaration does not parse); ctypes, the escape hatch, reaches libc's gets."
+CWE-243,yes,yes,none,"chroot() does not change the working directory, and omitting chdir(""/"") afterwards compiles."
+CWE-244,yes,yes,none,"Memory is not cleared when objects are freed, and immutable str and bytes cannot be wiped; secrets linger in the heap."
+CWE-245,no,no,none,Python has no J2EE container contract; no Python program can contain it.
+CWE-246,no,no,none,Python has no J2EE container contract; no Python program can contain it.
+CWE-248,yes,yes,none,Python has exceptions: one that no handler catches ends the thread or program.
+CWE-250,yes,yes,none,"Process privilege is set by deployment and OS calls, not the language; no compiler restricts what privileges a program runs with."
+CWE-252,yes,yes,none,"Return values can be ignored freely, error flags included; nothing warns."
+CWE-253,yes,yes,none,"Checking write() for -1 but not for a short count, or comparing a return to the wrong value, compiles; nothing checks that the right condition is tested."
+CWE-256,yes,yes,none,Writing a password to a file unhashed is ordinary stdio; no type distinguishes secret from public strings.
+CWE-257,yes,yes,none,Pure logic: no compiler of any language can tell whether passwords are stored reversibly encrypted rather than hashed; it is an algorithm/design choice.
+CWE-258,yes,yes,none,Pure logic: no compiler of any language can tell whether an empty string from a configuration file is an acceptable password; a str admits empty values.
+CWE-259,yes,yes,none,A string literal compared with user input compiles; the compiler does not flag embedded secrets.
+CWE-260,yes,yes,none,Pure logic: no compiler of any language can tell whether a password belongs in a configuration file; reading one with fopen is ordinary code.
+CWE-261,yes,yes,none,Hex- or base64-encoding a password is plain byte manipulation; no type distinguishes encoding from encryption or hashing.
+CWE-262,yes,yes,none,"Pure logic: no compiler of any language can tell whether a password-aging policy is missing; it is an absent feature, not a language construct."
+CWE-263,yes,yes,none,Pure logic: no compiler of any language can tell whether an expiration period is too long; it is a policy constant.
+CWE-266,yes,yes,none,Pure logic: no compiler of any language can tell whether a privilege is assigned to the wrong actor; role assignment is application data.
+CWE-267,yes,yes,none,Pure logic: no compiler of any language can tell whether a privilege permits unintended unsafe actions; it is a policy-definition error.
+CWE-268,yes,yes,none,Pure logic: no compiler of any language can tell whether two privileges combine dangerously; privilege semantics are application logic.
+CWE-269,yes,yes,none,"Pure logic: no compiler of any language can tell whether privileges are assigned, tracked or checked correctly; this is application policy logic."
+CWE-270,yes,yes,none,"Pure logic: no compiler of any language can tell whether privileges are managed correctly across context switches; privilege state is runtime/OS data, not types."
+CWE-271,yes,yes,none,"fork() and exec() keep the parent's uid unless the program calls setuid first; omitting it, or calling setuid before setgid, compiles."
+CWE-272,yes,yes,none,"Continuing to run as root after the privileged step (chroot, binding a low port) compiles; nothing requires dropping privileges."
+CWE-273,yes,yes,none,"os.setuid raises on failure, but catching the exception and continuing, or dropping the group after the user, runs."
+CWE-274,yes,yes,none,Treating EACCES or EPERM as a reason to silently degrade (disabling auditing) compiles; an error code forces nothing.
+CWE-276,yes,yes,none,"open(path, O_CREAT, 0777) compiles; the mode is a plain integer the compiler does not judge."
+CWE-277,yes,yes,none,Pure logic: no compiler of any language can tell whether permissions set on a parent directory (os.makedirs's mode) are too loose for inherited objects.
+CWE-278,yes,yes,none,Pure logic: no compiler of any language can tell whether permissions preserved from an archive are insecure; extraction code choosing to keep them is ordinary safe code.
+CWE-279,yes,yes,none,Pure logic: no compiler of any language can tell whether runtime permission changes violate user intent; chmod takes any mode.
+CWE-280,yes,yes,none,A failed chmod or chown can be ignored and success reported; the return value need not be checked.
+CWE-281,yes,yes,none,"Copying a file with open, read and write drops the source's mode bits unless the program copies them with fchmod; the language does not."
+CWE-282,yes,yes,none,Pure logic: no compiler of any language can tell whether ownership is assigned or verified correctly; uid/gid values are runtime data.
+CWE-283,yes,yes,none,Pure logic: no compiler of any language can tell whether code checks a file's owner (os.stat().st_uid) before trusting it.
+CWE-284,yes,yes,none,Pure logic: no compiler of any language can tell whether access to a resource is properly restricted; access control is application policy.
+CWE-285,yes,yes,none,Pure logic: no compiler of any language can tell whether an authorization check is present and correct; it is application logic.
+CWE-286,yes,yes,none,Pure logic: no compiler of any language can tell whether users are managed correctly; account management is application logic.
+CWE-287,yes,yes,none,Pure logic: no compiler of any language can tell whether an identity claim is sufficiently proven; authentication strength is a protocol design matter.
+CWE-288,yes,yes,none,Pure logic: no compiler of any language can tell whether every path to a function requires authentication; routing is application logic.
+CWE-289,yes,yes,none,A case-sensitive deny-list comparison (strcmp) beside a case-insensitive lookup (strcasecmp) compiles; the compiler cannot know which names are equivalent.
+CWE-290,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication scheme is spoofable; it is a protocol design flaw.
+CWE-291,yes,yes,none,Comparing a peer's sockaddr against an allow-listed address to authenticate compiles; trusting source addresses is a design choice.
+CWE-293,yes,yes,none,Pure logic: no compiler of any language can tell whether a Referer header is trusted for authentication; headers are just strings.
+CWE-294,yes,yes,none,Pure logic: no compiler of any language can tell whether a protocol lacks nonces or freshness; replay resistance is protocol design.
+CWE-295,yes,yes,none,Pure logic: no compiler of any language can tell whether a certificate is validated; a verifier callback returning true is valid code in any language.
+CWE-296,yes,yes,none,Pure logic: no compiler of any language can tell whether chain-of-trust walking is correct; it is X.509 validation logic.
+CWE-297,yes,yes,none,Pure logic: no compiler of any language can tell whether the certificate's names are matched to the host; it is validation logic.
+CWE-298,yes,yes,none,Pure logic: no compiler of any language can tell whether certificate expiry is checked; time comparison omission is logic.
+CWE-299,yes,yes,none,Pure logic: no compiler of any language can tell whether revocation status is checked; it is validation logic.
+CWE-300,yes,yes,none,Pure logic: no compiler of any language can tell whether a channel authenticates both endpoints; man-in-the-middle exposure is protocol design.
+CWE-301,yes,yes,none,Pure logic: no compiler of any language can tell whether a challenge-response protocol resists reflection; it is protocol design.
+CWE-302,yes,yes,none,Trusting a client cookie's role=admin runs; nothing marks data an attacker controls.
+CWE-303,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication algorithm is implemented to specification; it is algorithmic correctness.
+CWE-304,yes,yes,none,Pure logic: no compiler of any language can tell whether a protocol step is skipped; omitted logic is not a type or memory error.
+CWE-305,yes,yes,none,"Bypass through a separate primary weakness; Python can contain logic, injection and deserialisation weaknesses, so it can contain this."
+CWE-306,yes,yes,none,Pure logic: no compiler of any language can tell whether a critical function demands authentication; it is a missing application check.
+CWE-307,yes,yes,none,Pure logic: no compiler of any language can tell whether login attempts are rate-limited; absence of a counter is a missing feature.
+CWE-308,yes,yes,none,Pure logic: no compiler of any language can tell whether single-factor authentication suffices for a context; it is a design choice.
+CWE-309,yes,yes,none,Pure logic: no compiler of any language can tell whether passwords are an adequate primary authenticator; it is a design choice.
+CWE-311,yes,yes,none,Choosing not to encrypt sensitive data is a design decision; no type distinguishes secret from public bytes.
+CWE-312,yes,yes,none,Writing a plaintext secret to storage compiles; no compiler of any language tracks data confidentiality.
+CWE-313,yes,yes,none,fwrite of a cleartext password to disk compiles; confidentiality of file contents is outside the type system.
+CWE-314,yes,yes,none,winreg writes the Windows registry and stores cleartext as given; it is a design choice.
+CWE-315,yes,yes,none,Putting a cleartext secret in a Set-Cookie header is string formatting; nothing tracks secrecy.
+CWE-316,yes,yes,none,str and bytes are immutable and cannot be wiped; secrets stay readable in memory until it is reused.
+CWE-317,yes,yes,none,Showing a secret in a GUI field is a UI design choice no compiler prevents.
+CWE-318,yes,yes,none,A string literal API key is stored in the binary's read-only data; the compiler does not flag secrets.
+CWE-319,yes,yes,none,Sending secrets over a plain socket compiles; transport security is a protocol choice outside the language.
+CWE-321,yes,yes,none,A key as a bytes literal runs; nothing detects embedded key material.
+CWE-322,yes,yes,none,Pure logic: no compiler of any language can tell whether a key exchange authenticates the peer; it is protocol design.
+CWE-323,yes,yes,none,Reusing a nonce is a value-management error in calling a cipher; the type system does not enforce nonce uniqueness.
+CWE-324,yes,yes,none,Not checking a key's expiry is missing application logic; no compiler knows a key's validity period.
+CWE-325,yes,yes,none,Omitting a cryptographic step (such as verifying a MAC) is protocol logic; any sequence of library calls compiles.
+CWE-326,yes,yes,none,Choosing a short key length is a parameter choice; no compiler of any language judges cryptographic strength.
+CWE-327,yes,yes,none,"Selecting MD5 or SHA-1 from hashlib, or DES through a library, is an algorithm choice that runs."
+CWE-328,yes,yes,none,Using MD5 or SHA-1 for security is an algorithm choice; OpenSSL still provides both.
+CWE-329,yes,yes,none,Using a constant or counter IV for CBC is a value choice; types do not mark IV unpredictability.
+CWE-330,yes,yes,none,"The random module is not cryptographic; using it for tokens runs, and secrets is opt-in."
+CWE-331,yes,yes,none,"Deriving secrets from few entropy bits (time, PID) is plain arithmetic; entropy is not a property the compiler tracks."
+CWE-332,yes,yes,none,Seeding random with too little entropy (random.seed(time.time())) runs.
+CWE-333,yes,yes,none,getrandom and reads of /dev/urandom can fail or return short; falling back to the clock on error compiles.
+CWE-334,yes,yes,none,"Generating tokens from a small range (e.g. u16) is a design choice; integer width is chosen by the programmer, not enforced."
+CWE-335,yes,yes,none,"Misusing PRNG seeds (reseeding, fixed reuse) is application logic; nothing constrains seed handling."
+CWE-336,yes,yes,none,random.seed(42) seeds with a constant and runs.
+CWE-337,yes,yes,none,"Seeding random from time.time() runs, and an attacker can enumerate the seed."
+CWE-338,yes,yes,none,"random is a Mersenne Twister, predictable from 624 outputs; using it for tokens runs."
+CWE-339,yes,yes,none,Seeding from a 16- or 32-bit value is a width choice by the programmer; the compiler does not reason about seed space.
+CWE-340,yes,yes,none,Sequential or time-based IDs are ordinary arithmetic; predictability of identifiers is a design property.
+CWE-341,yes,yes,none,"Deriving values from observable state (getpid, time) is ordinary library use; no compiler tracks observability."
+CWE-342,yes,yes,none,A linear congruential generator's next output follows from previous ones; rand() is commonly one.
+CWE-343,yes,yes,none,Outputs whose range is inferable from earlier outputs is an algorithm property; any generator compiles.
+CWE-344,yes,yes,none,"A hard-coded constant used where a per-context value is needed (fixed salt, key) is a literal; nothing checks context."
+CWE-345,yes,yes,none,Accepting data without checking its authenticity is a missing verification step that compiles.
+CWE-346,yes,yes,none,Not validating a request's Origin or source is missing application logic; no compiler requires the check.
+CWE-347,yes,yes,none,"Verification APIs that return a boolean, or raise, can be ignored or caught and continued past; it runs."
+CWE-348,yes,yes,none,"Preferring an untrusted header (X-Forwarded-For) over the socket peer is a trust decision, not something types encode."
+CWE-349,yes,yes,none,Accepting extra untrusted fields alongside signed ones is parsing logic; a Python parser can do it.
+CWE-350,yes,yes,none,Pure logic: no compiler of any language can tell whether reverse DNS results are forward-confirmed; calling getnameinfo and trusting the name is a missing check.
+CWE-351,yes,yes,none,User IDs and group IDs both as int let one pass for the other; typing.NewType is opt-in and unchecked at run time.
+CWE-352,yes,yes,none,Missing CSRF token validation is web-application logic; no compiler requires anti-forgery checks.
+CWE-353,yes,yes,none,Designing a protocol without an integrity field is a format design choice; a class can omit any field.
+CWE-354,yes,yes,none,"Computing a checksum but not comparing it, or comparing it wrongly, compiles; the compiler does not enforce the check."
+CWE-356,yes,yes,none,Not warning the user before an unsafe action is a UI design omission; no compiler requires a warning.
+CWE-357,yes,yes,none,Inadequate wording or prominence of a UI warning is product design; outside what any compiler can check.
+CWE-358,yes,yes,none,Implementing a standard security check incompletely is protocol logic; no type system knows a protocol specification.
+CWE-359,yes,yes,none,Exposing personal data to unauthorised actors is an authorisation and privacy design flaw; Python types do not encode data-subject policy.
+CWE-360,yes,yes,none,Trusting OS or UI event data as authentic is a design decision; Python cannot verify an event's source.
+CWE-362,yes,yes,none,Threads and asyncio tasks updating shared state without a lock lose updates; the GIL does not make compound operations atomic.
+CWE-363,yes,yes,none,Checking a path with lstat and then opening it are separate calls; nothing makes the pair atomic.
+CWE-364,yes,yes,CWE-364.py,"Python runs signal handlers in the main thread between bytecodes, at any point in the interrupted code, so a handler touching the same state races with it."
+CWE-366,yes,yes,none,A load-then-store on shared data loses updates whether or not it uses _Atomic; the compiler cannot see the intended atomic unit.
+CWE-367,yes,yes,none,os.path.exists then open is the classic TOCTOU; file-system state is outside the language.
+CWE-368,yes,yes,none,A process-global mode switched in steps is visible to other threads mid-switch; nothing makes the switch atomic.
+CWE-369,yes,yes,none,Integer division by zero is undefined behaviour and float division yields inf or NaN; nothing excludes a zero divisor.
+CWE-370,yes,yes,none,Pure logic: no compiler of any language can tell whether revocation is re-checked over a session's life; it is protocol logic.
+CWE-372,yes,yes,none,"Enums make states explicit, but nothing forces the programmer to model every security-relevant distinction; a conflated state compiles."
+CWE-374,yes,yes,none,"Passing a list, dict or object to untrusted code grants mutation; Python has no read-only references."
+CWE-375,yes,yes,none,Returning an internal list or dict lets the caller modify it; nothing makes the view read-only.
+CWE-377,yes,yes,none,"tempfile.mkstemp is safe; tempfile.mktemp, still in the library, returns a name another process can create first."
+CWE-378,yes,yes,none,"open(path, O_CREAT, 0666) on a temporary file, or relying on the default umask, compiles; choosing restrictive modes is the program's job."
+CWE-379,yes,yes,none,Creating temporary files in a world-writable directory without checks compiles; directory trust is environment logic.
+CWE-382,no,no,none,Python has no J2EE container; library code calling sys.exit is CWE-705; no Python program can contain it.
+CWE-383,no,no,none,Python has no J2EE container contract; no Python program can contain it.
+CWE-384,yes,yes,none,Marking an existing session id authenticated instead of rotating it compiles; session ids are ordinary strings.
+CWE-385,yes,yes,none,== on str and bytes returns early at the first difference; hmac.compare_digest is the opt-in constant-time comparison.
+CWE-386,yes,yes,none,The file API resolves path names anew on every call; the type system cannot pin a name to one file.
+CWE-390,yes,yes,none,"if (rc != 0) { } detects the error and does nothing, and compiles."
+CWE-391,yes,yes,none,"An except clause that does nothing, or an ignored error flag, runs."
+CWE-392,yes,yes,none,A function can catch a failure and return a normal value with no error indication; nothing forces reporting it.
+CWE-393,yes,yes,none,Returning a success status from a failure path runs; a status value carries no meaning the interpreter checks.
+CWE-394,yes,yes,none,"read() legitimately returns short counts, 0 or -1; ignoring the count compiles because it is a plain ssize_t."
+CWE-395,yes,yes,CWE-395.py,"Dereferencing None raises AttributeError or TypeError, and catching it to detect a None, the Python form of catching NullPointerException, runs."
+CWE-396,yes,yes,none,Python has exceptions: except Exception and a bare except: catch every failure alike.
+CWE-397,yes,yes,none,Python has exceptions: raising Exception for every failure erases the failure kind.
+CWE-400,yes,yes,none,"Python imposes no per-request quotas; sizing lists, loops or threads from input runs."
+CWE-401,yes,yes,none,"Objects kept reachable after use (in a module-level cache, a reference cycle with __del__ in old versions, a closure) are never freed."
+CWE-402,yes,yes,none,"Handing private resources (descriptors, data, sessions) to another sphere is a design decision the compiler does not check."
+CWE-403,yes,yes,CWE-403.py,"Python opens files non-inheritable (PEP 446), but os.set_inheritable and subprocess's pass_fds and close_fds=False pass descriptors to children."
+CWE-404,yes,yes,none,"Files, sockets and connections are released by close(); with is opt-in, and a missing close runs (CPython's refcounting usually closes it, other implementations may not)."
+CWE-405,yes,yes,none,Letting a cheap request trigger expensive work is a protocol-design flaw that no type system models.
+CWE-406,yes,yes,none,Replying with more traffic than requested is a network-protocol design choice beyond any compiler's view.
+CWE-407,yes,yes,none,Algorithm choice is not checked by the compiler; quadratic loops over input compile fine.
+CWE-408,yes,yes,none,Doing expensive work before authentication is an ordering decision in logic that no compiler can judge.
+CWE-409,yes,yes,none,A decompressor follows whatever lengths the input claims unless the program caps output; zlib leaves the cap to the caller.
+CWE-410,yes,yes,none,Pool sizing is a capacity-design decision; the language neither knows nor checks expected load.
+CWE-412,yes,yes,none,A lock file in a world-writable directory is file-system policy; no language controls who can create it.
+CWE-413,yes,yes,none,"A pthread mutex is associated with data only by convention, so code can touch the resource without taking it."
+CWE-414,yes,yes,none,"Nothing ties data to the mutex that guards it, so an access that skips the lock check compiles."
+CWE-415,yes,no,CWE-415.plain.py;CWE-415.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: free twice on one block runs."
+CWE-416,yes,no,CWE-416.plain.py;CWE-416.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: reading a block after free runs."
+CWE-419,yes,yes,none,Pure logic: no compiler of any language can tell whether an administrative channel is protected; it is deployment and protocol design.
+CWE-420,yes,yes,none,Pure logic: no compiler of any language can tell whether an alternate channel gets the same protection as the primary; it is design.
+CWE-421,yes,yes,none,Creating a socket or pipe and then calling chmod leaves a window where another process can open it; the language does not govern OS-level races.
+CWE-422,yes,yes,none,"A window procedure that trusts unverified window messages is logic; Python reaches Win32 messaging through pywin32 or ctypes, and the missing sender check runs."
+CWE-424,yes,yes,none,Protecting one route but not an alternate path is an access-control coverage gap; no compiler sees the set of paths.
+CWE-425,yes,yes,none,Pure logic: no compiler of any language can tell whether every restricted URL enforces authorization; it is routing logic.
+CWE-426,yes,yes,none,subprocess and os.exec*p resolve a bare command name through PATH.
+CWE-427,yes,yes,none,"setenv(""PATH"", ...) or a current-directory entry can add attacker-writable directories; search-path hygiene is application logic."
+CWE-428,yes,yes,none,Passing an unquoted path with spaces to CreateProcess or registering one as a service compiles; Windows resolves it ambiguously.
+CWE-430,yes,yes,none,Dispatching to the wrong handler is a logic choice; a match or handler dict accepts any target.
+CWE-431,yes,yes,none,"A match without case _, or a handler never registered, runs; nothing requires exhaustive handling."
+CWE-432,yes,yes,CWE-432.py,A handler installed with signal.signal stays live during sensitive operations unless the program blocks the signal (signal.pthread_sigmask); nothing requires it.
+CWE-433,yes,yes,none,Serving source or configuration files raw (http.server over the project directory) is server configuration logic.
+CWE-434,yes,yes,none,Validating uploaded file types is application logic; no language prevents storing a dangerous file.
+CWE-435,yes,yes,none,Unsafe interaction among correctly-behaving components is a system-composition property no single program's type system can see.
+CWE-436,yes,yes,none,Two components parsing the same input differently is a protocol and design issue; nothing makes parsers agree.
+CWE-437,yes,yes,none,An incomplete model of the peer's features is a design gap; no compiler knows the external endpoint's behaviour.
+CWE-439,yes,yes,none,Behaviour changing across Python versions or environments is an external-dependency matter; programs depend on it like any other.
+CWE-440,yes,yes,none,Contracts such as qsort's requirement of a consistent comparator are documentation; a comparator violating them compiles.
+CWE-441,yes,yes,none,Pure logic: no compiler of any language can tell whether a forwarded request preserves its original source; confused-deputy behaviour is design.
+CWE-444,yes,yes,none,"Request smuggling comes from inconsistent HTTP framing between parsers; two Python parsers, or Python and a proxy, can disagree."
+CWE-446,yes,yes,none,UI feedback misrepresenting a security setting is application logic; no compiler checks UI state against configuration.
+CWE-447,yes,yes,none,A UI that claims a security feature which is unimplemented (a stub that does nothing) is a product design error that compiles.
+CWE-448,yes,yes,none,Failing to warn about an obsolete UI function is product logic; no language prevents it.
+CWE-449,yes,yes,none,A UI performing the wrong action is application logic; no type system knows user intent.
+CWE-450,yes,yes,none,Choosing the less secure interpretation of ambiguous input without asking is UI logic; not a language-level property.
+CWE-451,yes,yes,none,UI misrepresentation of critical information is presentation logic; no compiler prevents it.
+CWE-453,yes,yes,none,Initialisers can set any value; the compiler cannot judge a default insecure.
+CWE-454,yes,yes,none,"Initialising trusted state from cookies, environment or files is a trust decision invisible to the type system."
+CWE-455,yes,yes,none,Ignoring a failed initialisation's return value and continuing compiles; nothing forces the error to be handled.
+CWE-456,yes,yes,CWE-456.py,"An attribute set to None in __init__, or a class attribute default, is used as is; a name never bound raises NameError, but a placeholder value runs."
+CWE-457,yes,no,CWE-457.plain.py;CWE-457.py,"Reading an unbound name raises NameError and Python has no uninitialised declaration (the C spelling does not parse); ctypes, the escape hatch, reads uninitialised malloc'd memory."
+CWE-459,yes,yes,none,Cleanup not in finally or a with block (removing a temporary file) is skipped by an exception or early return.
+CWE-460,yes,yes,none,Python has exceptions: one raised past a manual state reset skips it unless the reset is in finally.
+CWE-462,yes,yes,none,A list of key/value pairs used as an association list accepts duplicate keys; a linear lookup returns the first silently.
+CWE-463,yes,yes,none,"Overwriting a sentinel such as a string's NUL makes the next scan run past the data, and compiles."
+CWE-464,yes,yes,none,Inserting an input value equal to a sentinel (a terminating 0 or None in a list) truncates the structure; the convention is program logic.
+CWE-466,yes,no,CWE-466.plain.py;CWE-466.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: returning an address outside the buffer it came from runs."
+CWE-467,yes,no,CWE-467.plain.py;CWE-467.py,"Plain Python has no sizeof operator (the C spelling does not parse); ctypes.sizeof, the escape hatch, of a pointer gives the pointer's size, not the buffer's."
+CWE-468,yes,no,CWE-468.plain.py;CWE-468.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: scaling an index twice in address arithmetic runs."
+CWE-469,yes,no,CWE-469.plain.py;CWE-469.py,"Plain Python has no addresses to subtract (the C spelling does not parse); ctypes.addressof, the escape hatch, subtracts addresses of different objects."
+CWE-470,yes,yes,CWE-470.py,"importlib and getattr select classes and functions by name at run time, from input if the program allows it."
+CWE-471,yes,yes,none,"Data round-tripped through clients (hidden fields, cookies) is mutable by attackers, and trusting it runs."
+CWE-472,yes,yes,none,Trusting a hidden form field or URL parameter is web-application logic; Python types cannot mark client data as tamperable.
+CWE-473,no,no,none,Python has no register_globals: no framework populates program variables from request parameters by itself; writing them into globals() on purpose is CWE-621.
+CWE-474,yes,yes,none,"Library behaviour differs across platforms (os.rename over an existing file, file locking, os.chmod on Windows), and calls run on all of them."
+CWE-475,yes,no,CWE-475.plain.py;CWE-475.py,"Plain Python APIs are defined for all inputs, raising on bad ones; ctypes functions, the escape hatch, are undefined for invalid addresses."
+CWE-476,yes,yes,CWE-476.py,"None is a value of every variable's possible types; reading an attribute through it raises AttributeError, and nothing prevents the code."
+CWE-477,yes,yes,none,"Deprecated functions still run; they emit DeprecationWarning, hidden by default outside __main__."
+CWE-478,yes,yes,none,"A match statement does not need case _, and an if/elif chain needs no final else."
+CWE-479,yes,yes,CWE-479.py,"Handlers run in the main thread at a bytecode boundary inside whatever the code was doing, so calling a non-reentrant function such as print or a buffered write from one can fail (RuntimeError: reentrant call) or corrupt state."
+CWE-480,yes,yes,none,"& and | are valid on bools and do not short-circuit, and `is` where == was meant also runs; the wrong operator is accepted."
+CWE-481,yes,yes,CWE-481.py,"The assignment expression := is allowed in a condition, so `if role := 0:` assigns instead of comparing; plain = in a condition is a syntax error."
+CWE-482,yes,yes,none,"Expression statements are allowed, so `x == 0` as a statement runs and assigns nothing."
+CWE-483,no,no,none,"Indentation is the block delimiter, so what looks guarded is guarded; Python rejects mixed tabs and spaces that could mislead."
+CWE-484,no,no,none,"Python's match has no fall-through, and if/elif chains have none either, so an omitted break cannot run the next case."
+CWE-486,yes,yes,none,"Comparing type(x).__name__ or a module and class name string to decide trust runs, and two modules can define classes with the same name."
+CWE-487,yes,yes,none,"Python has no access control: a leading underscore is a convention, so code relying on module-private names for security can be reached by any importer."
+CWE-488,yes,yes,none,A module-level variable or cache shared across request threads runs; nothing separates one session's data from another's.
+CWE-489,yes,yes,none,"Leaving debug code (Flask's debug=True with its interactive debugger, a breakpoint()) in a release is a deployment choice."
+CWE-491,yes,yes,none,"Any class can be subclassed, and copy.copy or pickle create instances through __reduce_ex__ without calling __init__; a cloneable class holding invariants runs."
+CWE-492,no,no,none,"Python's nested classes gain no special access to the enclosing class, so there are no compiled accessors to expose; all attributes are reachable anyway (CWE-487)."
+CWE-493,yes,yes,none,A module-level variable is writable by any importer; Python has no final (typing.Final is a type-checker hint).
+CWE-494,yes,yes,none,"Downloading and executing code without verifying a hash/signature is a missing step; network and exec are stubbable, no compiler requires verification."
+CWE-495,yes,yes,none,A method returning an internal list or dict lets callers modify it.
+CWE-496,yes,yes,none,"Storing a caller's list in an attribute without copying keeps it aliased, so the caller can keep modifying it."
+CWE-497,yes,yes,none,"Revealing OS, version, paths or environment details to untrusted parties is an output decision; uname and getenv expose them freely."
+CWE-498,yes,yes,none,"copy.copy and pickle duplicate any object, one holding a secret included, unless the class forbids it."
+CWE-499,yes,yes,CWE-499.py,"pickle serialises every attribute in __dict__, secrets included, unless __getstate__ excludes them."
+CWE-500,yes,yes,none,A module-level or class attribute is public and writable; Python has no final.
+CWE-501,yes,yes,none,Mixing trusted and untrusted data in one structure is a design decision; types are not trust-labelled by the language.
+CWE-502,yes,yes,CWE-502.py,"pickle.loads, marshal and yaml.load with an unsafe loader instantiate arbitrary objects and run code (__reduce__), the gadget weakness in its simplest form."
+CWE-506,yes,yes,none,Malicious code is intent expressed in any Turing-complete language; no language feature constrains purpose.
+CWE-507,yes,yes,none,A trojan horse is hidden intended behaviour; any Python program can express it.
+CWE-508,yes,yes,none,Non-replicating malicious code is program intent; no language feature prevents it.
+CWE-509,yes,yes,none,"Self-replicating code needs only file and network I/O, which the standard library provides."
+CWE-510,yes,yes,none,A trapdoor is an extra authentication branch; no compiler distinguishes it from legitimate logic.
+CWE-511,yes,yes,none,A time or logic bomb is a conditional on the clock or on state; the standard library provides both.
+CWE-512,yes,yes,none,Collecting user data without consent is policy; Python has all the file and network access it needs.
+CWE-514,yes,yes,none,Covert channels arise from observable side effects of design; no compiler restricts information flow.
+CWE-515,yes,yes,none,Signalling through shared storage attributes is an information-flow property no compiler checks.
+CWE-520,no,no,none,Python has no .NET impersonation configuration; running with excess OS rights is CWE-250; no Python program can contain it.
+CWE-521,yes,yes,none,Pure logic: no compiler of any language can tell whether a password policy is strong enough; it is a policy constant.
+CWE-522,yes,yes,none,Pure logic: no compiler of any language can tell whether credentials are protected in transit or at rest; it is a design choice.
+CWE-523,yes,yes,none,Pure logic: no compiler of any language can tell whether a login form is served over TLS; sending credentials over a plain socket compiles.
+CWE-524,yes,yes,none,Caching sensitive data where others can read it is a design decision; a shared cache table compiles.
+CWE-525,yes,yes,none,Omitting Cache-Control: no-store on sensitive responses is HTTP logic in a server stub; no compiler knows which responses are sensitive.
+CWE-526,yes,yes,none,"setenv and the envp argument of exec put secrets into a process environment, readable by the process and often by others; environment exposure is policy."
+CWE-527,yes,yes,none,Serving or packaging a .git directory is deployment logic; http.server exposes it if not filtered.
+CWE-528,yes,yes,none,Core dumps landing in served or shared locations is process configuration; a crashing interpreter dumps like any process.
+CWE-529,yes,yes,none,Exposing ACL files is a file-placement or serving decision; the code serves whatever path it is given.
+CWE-530,yes,yes,none,"Leaving backup copies (.bak, ~) in served directories is deployment logic; the compiler does not know what is served."
+CWE-531,yes,yes,none,Real credentials in test code or fixtures are a development-practice issue; the compiler accepts any literal.
+CWE-532,yes,yes,none,Logging secrets with the logging module runs; nothing can tell which values are sensitive.
+CWE-535,yes,yes,none,Returning a child process's stderr (through popen) to users is string handling; filtering it is logic.
+CWE-536,no,no,none,Python has no servlet container; leaking server error details is CWE-209 and 550; no Python program can contain it.
+CWE-537,no,no,none,Python has no Java runtime; leaking a Python traceback is CWE-209 and 550; no Python program can contain it.
+CWE-538,yes,yes,none,Writing secrets into externally accessible files or directories is a path and content decision; fopen writes on request.
+CWE-539,yes,yes,none,Setting a persistent cookie (Expires/Max-Age) with sensitive data is HTTP logic in a server stub; no type system classifies cookie content.
+CWE-540,yes,yes,none,Hard-coded secrets in source are accepted as literals; keeping them out of source is development practice.
+CWE-541,yes,yes,none,Package data files and imported settings modules carry secrets into a distribution; nothing inspects their content.
+CWE-543,yes,yes,none,A singleton created behind an unsynchronised None check can be created twice; a lock is opt-in.
+CWE-544,yes,yes,none,"Mixing return codes, None, exceptions and sys.exit across a codebase runs."
+CWE-546,yes,yes,none,Comments such as FIXME or TODO hack are free text; the compiler does not inspect comment content.
+CWE-547,yes,yes,none,Hard-coding security values as literals instead of named constants is a design choice; both run.
+CWE-548,yes,yes,none,Generating directory listings from opendir/readdir for any request is server logic; no compiler knows which directories are private.
+CWE-549,yes,yes,none,Pure logic: no compiler of any language can tell whether password input is echoed; reading a password with fgets from a terminal echoes it.
+CWE-550,yes,yes,none,"Server error pages carrying internal details (strerror text, internal paths) are output choices no compiler judges."
+CWE-551,yes,yes,none,Checking a path prefix before percent-decoding compiles; the order of validation and canonicalisation is logic the compiler does not see.
+CWE-552,yes,yes,none,Making files reachable by external parties is access-control and deployment logic; the file API imposes no such policy.
+CWE-553,yes,yes,none,Placing a shell or command executor in a web-accessible location is deployment logic; nothing language-level prevents it.
+CWE-554,no,no,none,Python has no ASP.NET validation framework; the generic case is CWE-1173; no Python program can contain it.
+CWE-555,no,no,none,Python has no J2EE configuration; the generic form is CWE-260; no Python program can contain it.
+CWE-556,no,no,none,Python has no ASP.NET identity impersonation; no Python program can contain it.
+CWE-558,yes,no,CWE-558.plain.py;CWE-558.py,"Plain Python cannot declare or call C functions (the C declaration does not parse); ctypes, the escape hatch, reaches libc's getlogin and its static buffer; plain Python reads the user from os.getlogin, which calls it too but copies the result."
+CWE-560,yes,yes,none,"umask() takes a mode mask whose meaning is the inverse of chmod's, and passing a chmod-style value compiles."
+CWE-561,yes,yes,none,Functions never called and code after a return are accepted; nothing warns.
+CWE-562,no,no,none,"Python locals are not addressable, even through ctypes, so a function cannot return the address of one."
+CWE-563,yes,yes,none,Dead stores run; nothing warns.
+CWE-564,no,no,none,Hibernate is a Java ORM; SQL injection through a Python database API is CWE-89.
+CWE-565,yes,yes,none,Trusting unsigned cookie values is web-application logic; Python cannot tell client data from validated data.
+CWE-566,yes,yes,none,"A parameterised query keyed only by a caller-supplied id compiles; parameterisation stops injection, but the missing owner predicate is logic."
+CWE-567,yes,yes,CWE-567.py,"Threads share module globals, and counter += 1 is not atomic, so updates are lost; the GIL does not make compound operations atomic, and free-threaded builds have no GIL."
+CWE-568,yes,yes,CWE-568.py,A subclass __del__ that does not call the base class's __del__ skips its cleanup; it runs.
+CWE-570,yes,yes,none,Always-false expressions run; nothing warns.
+CWE-571,yes,yes,none,Always-true expressions run; nothing warns.
+CWE-572,yes,yes,CWE-572.py,"threading.Thread has run() and start() like Java's, and calling run() runs the target on the calling thread."
+CWE-573,yes,yes,none,"Protocol contracts (__hash__ consistent with __eq__, not mutating a dict while iterating, total ordering) are documentation that callers can break."
+CWE-574,no,no,none,Python has no EJB contract; no Python program can contain it.
+CWE-575,no,no,none,Python has no EJB contract; no Python program can contain it.
+CWE-576,no,no,none,Python has no EJB contract; no Python program can contain it.
+CWE-577,no,no,none,Python has no EJB contract; no Python program can contain it.
+CWE-578,no,no,none,Python has no EJB contract or class loader; no Python program can contain it.
+CWE-579,no,no,none,Python has no J2EE HttpSession; no Python program can contain it.
+CWE-580,yes,yes,CWE-580.py,A __copy__ or __deepcopy__ that builds a new instance instead of using the subclass's type returns the wrong type for subclasses; it runs.
+CWE-581,yes,yes,none,"Defining __eq__ without __hash__ makes instances unhashable, and defining __hash__ inconsistent with __eq__ breaks dicts and sets; both run."
+CWE-582,yes,yes,CWE-582.py,Python has no final: a module-level list is writable by any importer (a tuple would not be).
+CWE-583,yes,yes,none,__del__ is an ordinary method that any caller can invoke; Python has no way to make it non-public.
+CWE-584,yes,yes,CWE-584.py,"A return in finally discards the exception raised in try; since 3.14 it draws a SyntaxWarning, and it still compiles."
+CWE-585,yes,yes,none,"Python has no synchronized block, but `with lock: pass` acquires and releases with nothing in between, leaving the work unsynchronised."
+CWE-586,yes,yes,CWE-586.py,"__del__ can be called explicitly, and the interpreter calls it again when the object is collected."
+CWE-587,yes,no,CWE-587.plain.py;CWE-587.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: c_int.from_address(0x1000) runs; plain Python has no pointer types (the C spelling does not parse)."
+CWE-588,yes,no,CWE-588.plain.py;CWE-588.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: ctypes.cast of a pointer to an int into a pointer to a structure runs."
+CWE-589,yes,yes,none,"Functions that exist only on some platforms (os.fork, signal.SIGKILL on Windows, fcntl) are referenced freely and fail at run time elsewhere."
+CWE-590,yes,no,CWE-590.plain.py;CWE-590.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: free accepts the address of a buffer Python owns."
+CWE-591,yes,yes,none,Secrets in ordinary memory can be swapped to disk unless the program calls mlock; nothing requires it.
+CWE-593,yes,yes,none,"An ssl.SSLContext can be modified after sockets were created from it; Python's ssl module wraps OpenSSL, and the stale-context mistake runs."
+CWE-594,no,no,none,Python has no J2EE persistence framework; no Python program can contain it.
+CWE-595,yes,yes,none,"`is` compares identity, not value, and using it on numbers or strings runs and often passes tests because of caching."
+CWE-597,yes,yes,none,`is` on strings compares identity; it runs (a literal draws only a SyntaxWarning) and passes tests when strings are interned.
+CWE-598,yes,yes,none,Putting secrets in a GET query string is request-construction logic; building the URL runs.
+CWE-599,yes,yes,none,"ssl._create_unverified_context, verify=False in requests, or CERT_NONE disable certificate validation, and run."
+CWE-600,no,no,none,Python has no servlets; an unhandled exception in a WSGI or ASGI handler is CWE-248; no Python program can contain it.
+CWE-601,yes,yes,none,Formatting a query parameter into a Location header compiles; URLs are strings with no origin tracking.
+CWE-602,yes,yes,none,Enforcing security only in client code (e.g. a WASM front end) is an architecture error; no compiler knows the trust boundary.
+CWE-603,yes,yes,none,Pure logic: no compiler of any language can tell whether authentication runs server-side rather than in a client; it is architecture.
+CWE-605,yes,yes,none,Setting SO_REUSEADDR or SO_REUSEPORT lets a second socket bind the same port; the socket API allows it.
+CWE-606,yes,yes,none,A loop bound from input is a plain integer; loops run to any bound.
+CWE-607,yes,yes,none,A module-level or class attribute holding a list or dict leaves the data writable even when the name is not rebound.
+CWE-608,no,no,none,Python has no Struts ActionForm; no Python program can contain it.
+CWE-609,yes,yes,none,Double-checked locking with a plain or relaxed-atomic flag compiles; a reader can see the flag set before the object is initialised.
+CWE-610,yes,yes,none,"Letting input name a path, URL or resource is logic; fopen and connect accept any reference the program passes."
+CWE-611,yes,yes,none,"xml.sax with feature_external_ges enabled, or lxml with resolve_entities, resolves external entities; the parser configuration is program logic."
+CWE-612,yes,yes,none,Pure logic: no compiler of any language can tell whether a search index enforces the source documents' permissions; it is design.
+CWE-613,yes,yes,none,A session lookup that never compares the stored time with now runs; an unused attribute draws no diagnostic.
+CWE-614,yes,yes,none,Omitting the Secure attribute on a cookie is header-string content; nothing checks it.
+CWE-615,yes,yes,none,Secrets in /* */ or // comments are a development-practice issue; the compiler ignores comments.
+CWE-616,no,no,none,Python has no PHP register_globals; no Python program can contain it.
+CWE-617,yes,yes,none,assert() on attacker-controlled data aborts the process when assertions are enabled.
+CWE-618,yes,yes,none,"Exposing a dangerous method to scripts (a COM server in pywin32, a JavaScript bridge) is an interface design choice."
+CWE-619,yes,yes,none,A database cursor not closed on every path stays open; with blocks are opt-in.
+CWE-620,yes,yes,none,Pure logic: no compiler of any language can tell whether a password change asks for the old password; it is a missing step.
+CWE-621,yes,yes,CWE-621.py,"globals().update(request_data) or vars(obj).update(...) writes input into variables named at run time, the Python form of PHP's extract()."
+CWE-622,yes,yes,none,A hook (callback or decorator) that forwards user-supplied arguments without validating them is logic; Python allows trusting arguments.
+CWE-623,yes,yes,none,"Registering a COM control safe for scripting is a Windows registration choice, made from Python through pywin32; the flag is data."
+CWE-624,no,no,none,"Python's re module has no executable modifier; re.sub takes a replacement string or a function, never code to evaluate."
+CWE-625,yes,yes,none,POSIX regcomp and PCRE take the pattern as a string; an unanchored or too-broad one compiles.
+CWE-626,yes,yes,none,"A check like an extension test on a buffer with an embedded NUL, followed by a call that stops at the NUL, sees two different names."
+CWE-627,yes,yes,CWE-627.py,"globals()[name] and getattr(module, name) read a variable chosen by input."
+CWE-628,yes,yes,none,Same-typed positional arguments can be swapped; keyword arguments are opt-in.
+CWE-636,yes,yes,none,Treating an error return from an authorisation call as success fails open; any default compiles.
+CWE-637,yes,yes,none,Over-complex protection design is an architecture property; no compiler measures mechanism economy.
+CWE-638,yes,yes,none,Caching an access decision instead of re-checking each access is design logic that compiles.
+CWE-639,yes,yes,none,Using a request-supplied id to index a table without comparing the owner compiles; the type system does not encode who may read which record.
+CWE-640,yes,yes,none,Pure logic: no compiler of any language can tell whether a recovery flow is strong; security questions or guessable tokens are design.
+CWE-641,yes,yes,none,Allowing input to choose file or resource names without restriction is logic; open accepts them.
+CWE-642,yes,yes,none,"Keeping critical state in client-controlled storage (cookies, hidden fields, files) is design logic; Python types cannot mark data as attacker-controlled."
+CWE-643,yes,yes,none,An XPath expression built from input with an f-string runs; escaping is program logic.
+CWE-644,yes,yes,none,Writing input into HTTP headers that a client interprets as script is output handling; strings carry no header context.
+CWE-645,yes,yes,none,Pure logic: no compiler of any language can tell whether lockout thresholds are too strict; it is a policy constant.
+CWE-646,yes,yes,none,Trusting a file's extension to decide its type is string logic; content type is not checked by the compiler.
+CWE-647,yes,yes,none,"strncmp against a prefix on a raw, non-canonical path compiles; the compiler cannot know that //admin and /./admin resolve to /admin."
+CWE-648,yes,yes,none,Pure logic: no compiler of any language can tell whether a privileged API's preconditions are met; calling os functions in the wrong order is valid Python.
+CWE-649,yes,yes,none,Trusting decrypted or obfuscated input without an integrity check is a protocol design error that compiles.
+CWE-650,yes,yes,none,Trusting that GET/HEAD are side-effect-free while handlers mutate state is web logic in a framework stub; no compiler checks HTTP semantics.
+CWE-651,yes,yes,none,"Publishing a WSDL/service description that exposes sensitive operations is deployment/design logic, independent of implementation language."
+CWE-652,yes,yes,none,"An XQuery built from input runs; building it with +, % or an f-string from input runs; no compiler of any language can tell which characters a downstream parser treats as special."
+CWE-653,yes,yes,none,Running differently privileged functions in one process/address space is an architecture choice; the language does not compartmentalize processes.
+CWE-654,yes,yes,none,Basing a security decision on a single factor is policy logic; no compiler can require multiple factors.
+CWE-655,yes,yes,none,A protection too cumbersome to use is a usability/design property; outside any compiler's scope.
+CWE-656,yes,yes,none,Relying on secrecy of an algorithm or endpoint is a design choice; obfuscated Python runs like any other.
+CWE-657,yes,yes,none,Category-level violation of secure design principles; these are architecture decisions no compiler checks.
+CWE-662,yes,yes,none,"Separate lock acquisitions for check and act compile, as does no locking at all."
+CWE-663,yes,yes,none,Functions keeping state in module globals are non-reentrant and callable from any thread.
+CWE-664,yes,yes,none,"Memory is managed, but files, sockets, locks and threads are managed by hand and can leak or be used after close."
+CWE-665,yes,yes,none,"Automatic variables are not initialised by default, and initialisers can supply wrong values; both compile."
+CWE-666,yes,yes,none,"Nothing models lifecycle phases, so calling a function before its setup function compiles."
+CWE-667,yes,yes,none,lock.acquire() without release() in a finally lets an exception skip the release; with lock: is opt-in.
+CWE-668,yes,yes,none,Exposing a resource to the wrong control sphere is an access-control design flaw; Python has no runtime notion of spheres.
+CWE-669,yes,yes,none,Moving data or resources between trust spheres wrongly is a design error; the type system has no sphere labels.
+CWE-670,yes,yes,none,A control-flow path that never matches the algorithm is a logic error no compiler detects.
+CWE-671,yes,yes,none,Hard-coding security settings so admins cannot tune them is a configuration design choice; constants run.
+CWE-672,yes,yes,none,"Using a file, socket or cursor after close runs and raises at the point of use."
+CWE-673,yes,yes,none,Letting external actors define control spheres is an access-model design flaw with no language-level counterpart.
+CWE-674,yes,yes,none,Recursion depth driven by input runs until RecursionError; sys.setrecursionlimit can raise the limit into a real stack overflow.
+CWE-675,yes,yes,none,"Locking the same default mutex twice, or closing a descriptor twice, compiles; nothing tracks resource state."
+CWE-676,yes,yes,none,"APIs dangerous when misused (eval, pickle.loads, os.system, yaml.load, tempfile.mktemp) are part of the language and library."
+CWE-680,yes,no,CWE-680.plain.py;CWE-680.py,"Python's int has arbitrary precision, so plain arithmetic cannot wrap; with ctypes, the escape hatch, a size truncated to 32 bits allocates a small block that is then written in full."
+CWE-681,yes,yes,none,"int() of a float truncates toward zero, and float() of a large int loses precision; both run."
+CWE-682,yes,yes,none,"Wrong formulas, such as dividing before multiplying, are ordinary arithmetic the compiler accepts."
+CWE-683,yes,yes,none,"Same-typed parameters can be swapped; memset(buf, sizeof buf, 0) compiles and writes nothing."
+CWE-684,yes,yes,none,Code not matching its published specification is a logic error; no compiler knows the specification.
+CWE-685,yes,yes,CWE-685.py,"% formatting and str.format check argument counts only at run time: ""%d %d"" % (x,) raises TypeError."
+CWE-686,yes,yes,none,"Implicit conversions between arithmetic types and from void * let a wrong argument type compile, and variadic arguments are not type-checked at all."
+CWE-687,yes,yes,none,"A wrong value of the right type, such as seconds passed to usleep, type-checks."
+CWE-688,yes,yes,none,Passing the wrong variable of the right type compiles; the type system cannot tell user_key from server_key.
+CWE-689,yes,yes,none,Writing a copy and then calling chmod leaves a window with umask permissions; the language has no atomic create-with-mode for copies.
+CWE-690,yes,yes,CWE-690.py,"dict.get, re.match and many other functions return None, and using the result unchecked runs until it raises."
+CWE-691,yes,yes,none,An early return or exception that skips state restoration not in finally runs.
+CWE-692,yes,yes,none,A denylist of XSS patterns missing cases is filter logic; the compiler compiles an incomplete denylist as written.
+CWE-693,yes,yes,none,An absent or insufficient protection mechanism is a design-level gap; the language supplies no security features to be missing.
+CWE-694,yes,yes,none,"The compiler rejects duplicate names in source, but runtime resources keyed by string can collide; uniqueness checks are program logic."
+CWE-695,yes,yes,none,"A framework prohibiting low-level calls (blocking threads, raw sockets) is policy outside the language; rustc cannot see framework rules."
+CWE-696,yes,yes,none,Performing an action before its prerequisite check is statement ordering the compiler accepts.
+CWE-697,yes,yes,none,"strcmp orders version strings lexicographically ('10.0' < '9.0'), and using it to compare versions compiles."
+CWE-698,yes,yes,none,A CGI or embedded web handler that sends a redirect and keeps running compiles; a redirect is just output.
+CWE-703,yes,yes,none,Catching an exception and defaulting to 0 or None turns an exceptional condition into a normal value; nothing judges the default.
+CWE-704,yes,yes,none,"Python checks types at run time, so a value of the wrong type passed where another is expected runs until an operation fails; type hints are not enforced."
+CWE-705,yes,yes,none,exit() or longjmp in library code bypasses the caller's control flow and compiles.
+CWE-706,yes,yes,none,Name resolution against the file system or DNS happens at run time; the compiler cannot see what a name resolves to.
+CWE-707,yes,yes,none,Improper neutralisation of structured messages is a data-to-grammar mismatch; the type system does not model downstream message structure.
+CWE-708,yes,yes,none,Pure logic: no compiler of any language can tell whether the assigned owner is within the control sphere; uid values are runtime data.
+CWE-710,yes,yes,none,Coding-standard adherence is project policy; the compiler enforces only the language.
+CWE-732,yes,yes,none,"chmod(""key.pem"", 0644) on a private key compiles; modes are untyped integers."
+CWE-733,yes,yes,none,"python -O removes assert statements, so security checks written as asserts vanish in optimised runs."
+CWE-749,yes,yes,none,Exposing a dangerous API is an interface-design decision; everything in a module is public.
+CWE-754,yes,yes,none,Checking only for success and falling through on failure fails open; the compiler accepts the unhandled branch.
+CWE-755,yes,yes,none,An error branch that returns success compiles; nothing checks that errors are handled correctly.
+CWE-756,yes,yes,none,Sending internal error text to the client instead of a custom page is ordinary code; no language feature enforces a custom error page.
+CWE-757,yes,yes,none,Accepting the weakest algorithm a peer offers during negotiation is protocol logic; any selection policy compiles.
+CWE-758,yes,yes,none,"Python has unspecified and implementation-defined behaviour code can rely on: set iteration order, hash randomisation, id() values, `is` on small ints and interned strings, finaliser timing."
+CWE-759,yes,yes,none,Hashing passwords without a salt is an algorithm-usage choice; the compiler cannot require a salt.
+CWE-760,yes,yes,none,Using a username or constant as salt is a value choice; nothing marks a salt as unpredictable.
+CWE-761,yes,no,CWE-761.plain.py;CWE-761.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: free accepts an address into the middle of a block."
+CWE-762,yes,no,CWE-762.plain.py;CWE-762.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: releasing malloc'd memory with munmap runs."
+CWE-763,yes,no,CWE-763.plain.py;CWE-763.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: free accepts any integer, such as an object's id()."
+CWE-764,yes,yes,none,Locking a default pthread mutex twice on one thread compiles and deadlocks.
+CWE-765,yes,yes,none,"pthread_mutex_unlock can be called twice; for a default mutex the result is undefined, and nothing tracks lock state."
+CWE-766,yes,yes,none,"Every attribute is public; a leading underscore is a convention, so critical data is writable by any code."
+CWE-767,yes,yes,none,A public method that writes an internal attribute unchecked runs; what a method exposes is design.
+CWE-768,yes,yes,none,"&& and || short-circuit, so a side effect in the right operand is skipped; this is defined behaviour."
+CWE-770,yes,yes,none,"Python imposes no limits on threads, allocations or connections per caller; unthrottled allocation runs."
+CWE-771,yes,yes,none,"Overwriting the only reference to an object holding a resource loses it; CPython frees it immediately, but its cleanup may not run in other implementations."
+CWE-772,yes,yes,none,"A resource whose close() is never called stays open until collection, which other implementations may delay indefinitely."
+CWE-773,yes,yes,none,Overwriting the only reference to a file object loses its descriptor until collection.
+CWE-774,yes,yes,none,open() and socket() are unthrottled; holding unboundedly many descriptors compiles.
+CWE-775,yes,yes,none,A descriptor stays open until close() is called; forgetting it keeps it open for the process's life.
+CWE-776,yes,yes,none,"Recursion and expansion limits are parser logic; unbounded entity expansion compiles, and libxml2 enforces a limit only by default configuration."
+CWE-777,yes,yes,none,"regexec searches unanchored, so a validator pattern without ^...$ accepts inputs containing a match."
+CWE-778,yes,yes,none,Not logging security events is an omission; no compiler requires logging calls.
+CWE-779,yes,yes,none,How much to log is an operational design choice no compiler judges.
+CWE-780,yes,yes,none,RSA without OAEP is a padding argument in the cryptography library (padding.PKCS1v15()); choosing it runs.
+CWE-781,yes,no,CWE-781.plain.py;CWE-781.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a handler reading through a raw user address held in an int runs."
+CWE-782,yes,yes,none,"Kernel IOCTL handlers are not written in Python, but a Python device-control service exposing an operation without an access check runs; the check is logic."
+CWE-783,yes,yes,none,"Python's precedence surprises (not a == b, comparison chaining such as a < b == c, & binding tighter than ==) run silently."
+CWE-784,yes,yes,none,Making authorization decisions from unsigned cookie values is web logic; no compiler distinguishes validated from client-supplied data.
+CWE-785,yes,no,CWE-785.plain.py;CWE-785.py,"Plain Python cannot declare or call C functions (the C declaration does not parse); ctypes, the escape hatch, reaches libc's realpath with a fixed-size buffer; plain Python's os.path.realpath returns a new string."
+CWE-786,yes,no,CWE-786.plain.py;CWE-786.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: an address moved below a buffer's start runs."
+CWE-787,yes,no,CWE-787.plain.py;CWE-787.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a write at an unchecked offset runs."
+CWE-788,yes,no,CWE-788.plain.py;CWE-788.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a read one element past a buffer's end runs."
+CWE-789,yes,yes,none,"bytearray(n) and [0] * n take any size, including one from input; the allocation succeeds or raises MemoryError."
+CWE-790,yes,yes,none,"The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-791,yes,yes,none,"The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-792,yes,yes,none,"The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-793,yes,yes,none,"The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-794,yes,yes,none,"Incomplete filtering of multiple instances (non-recursive removal that turns ....// into ../) is logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-795,yes,yes,none,Filtering only at a fixed location (strip_prefix only) leaves elsewhere unfiltered; a logic choice outside the type system.
+CWE-796,yes,yes,none,"Filtering only relative to a marker is program logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-797,yes,yes,none,"Filtering only at an absolute position (index 0) is program logic. The filter is program logic over a str (replace, removeprefix, re.sub); the interpreter cannot know which elements must go and runs any filter as written."
+CWE-798,yes,yes,none,A string literal API token compiles; the compiler has no secret detection.
+CWE-799,yes,yes,none,"Missing rate limiting is an absent policy, not a construct any compiler can require."
+CWE-804,yes,yes,none,Pure logic: no compiler of any language can tell whether a CAPTCHA is machine-solvable; it is a design property.
+CWE-805,yes,no,CWE-805.plain.py;CWE-805.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: memmove with a length unrelated to the destination runs."
+CWE-806,yes,no,CWE-806.plain.py;CWE-806.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: copying with the source's size into a smaller buffer runs."
+CWE-807,yes,yes,none,Deciding authorization from a client-controlled cookie or header is a trust decision; types do not encode trust.
+CWE-820,yes,yes,none,Threads can update shared state with no synchronisation at all; Python requires none.
+CWE-821,yes,yes,none,Splitting a check and an update across two lock acquisitions compiles; the mutex is used but the critical section is wrong.
+CWE-822,yes,no,CWE-822.plain.py;CWE-822.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: dereferencing an address taken from input runs."
+CWE-823,yes,no,CWE-823.plain.py;CWE-823.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: a base address plus an untrusted offset runs."
+CWE-824,yes,no,CWE-824.plain.py;CWE-824.py,"Names are bound before use or raise NameError; with ctypes, the escape hatch, a pointer read from uninitialised memory can be dereferenced."
+CWE-825,yes,no,CWE-825.plain.py;CWE-825.py,"Plain Python checks every index, has no pointers and frees memory only through reference counting and the collector, so the C spelling does not parse; ctypes, the escape hatch, reads and writes raw memory with no check: using an address after its block is freed runs."
+CWE-826,yes,yes,none,Freeing memory or releasing a lock while other code still relies on it compiles; nothing ties a resource's lifetime to its users.
+CWE-827,yes,yes,none,Whether an XML parser loads external DTDs is library configuration; no language prevents enabling it.
+CWE-828,yes,yes,CWE-828.py,"Handlers run in the main thread at bytecode boundaries, interrupting arbitrary Python code, so a handler doing buffered I/O or taking a lock the interrupted code holds can fail or deadlock."
+CWE-829,yes,yes,none,"system(), exec and dlopen run or load any program or library path; including untrusted functionality is a trust decision."
+CWE-830,yes,yes,none,"Emitting a script tag pointing at an untrusted origin is output content, not something a compiler checks."
+CWE-831,yes,yes,CWE-831.py,"One Python function can be installed for several signals, and the second can interrupt the handler while it runs for the first."
+CWE-832,yes,yes,none,pthread_mutex_unlock on a mutex the thread does not hold compiles; for a default mutex it is undefined.
+CWE-833,yes,yes,none,Taking two locks in opposite orders in two threads runs and deadlocks; nothing checks lock order.
+CWE-834,yes,yes,none,Iteration counts taken from input compile; loops have no built-in bound.
+CWE-835,yes,yes,none,A while loop whose exit condition can never become true runs forever; nothing checks it.
+CWE-836,yes,yes,none,Comparing a client-supplied hash string with the stored hash compiles; string equality says nothing about which value should be the credential.
+CWE-837,yes,yes,none,Not marking a one-time action as used is missing state logic; Python has no type that a value can be consumed through.
+CWE-838,yes,yes,none,Using HTML escaping in a JavaScript or URL context is an encoding-context mismatch; strings carry no context.
+CWE-839,yes,yes,none,Checking only amount <= MAX on a signed integer lets negatives through; no check fires.
+CWE-841,yes,yes,none,Workflow steps not enforced by state checks compile; nothing in the language models a protocol's order.
+CWE-842,yes,yes,none,Pure logic: no compiler of any language can tell whether a user is placed in the correct group; group membership is data.
+CWE-843,yes,no,CWE-843.plain.py;CWE-843.py,"Python checks types at run time and has no reinterpreting cast (the C spelling does not parse); ctypes.cast, the escape hatch, reads one type's bytes as another."
+CWE-862,yes,yes,none,A handler that deletes any account without checking the caller compiles; an unused parameter draws a warning at most.
+CWE-863,yes,yes,none,Pure logic: no compiler of any language can tell whether an authorization predicate is correct; it is application logic.
+CWE-908,yes,no,CWE-908.plain.py;CWE-908.py,"Every Python object is initialised by its constructor; malloc through ctypes, the escape hatch, returns uninitialised memory that can be read."
+CWE-909,yes,yes,none,"A critical resource can be left uninitialised or at an empty value (an unloaded rule table), and code that then trusts it compiles."
+CWE-910,yes,yes,CWE-910.py,"A file object's descriptor is a plain int from fileno(); os.close on it behind the object's back, or on a stale copy, runs, and the number can be reused by the next open."
+CWE-911,yes,yes,none,Hand-written reference counts are plain ints; a missing increment or an extra decrement runs (CPython's own counts are managed for Python code).
+CWE-912,yes,yes,none,Undocumented functionality is a design and disclosure issue; any language can implement it.
+CWE-913,yes,yes,none,"getattr, setattr, importlib and exec let input reach code and attributes by name."
+CWE-914,yes,yes,CWE-914.py,setattr and globals()[name] = value write a variable or attribute chosen by name at run time.
+CWE-915,yes,yes,none,"obj.__dict__.update(data) or a setattr loop over request fields sets every attribute, privileged ones included."
+CWE-916,yes,yes,none,Using a fast hash or low iteration count for passwords is a parameter choice; the compiler does not reason about work factor.
+CWE-917,yes,yes,none,"Feeding input-built expressions to an expression evaluator (Jinja2 templates, eval-based rule engines) runs. No compiler can tell which characters a downstream parser treats as special."
+CWE-918,yes,yes,none,connect() to a request-supplied host and port compiles; no type distinguishes internal from external destinations.
+CWE-920,yes,yes,none,"Power budgeting (busy-waiting, polling) is a design property no compiler models."
+CWE-921,yes,yes,none,"Pure logic: no compiler of any language can tell whether storage (e.g. removable media, FAT) lacks access control; it is a deployment choice."
+CWE-922,yes,yes,none,"Where and how secrets are stored (plain files, default permissions) is a design decision; fwrite writes whatever it is given."
+CWE-923,yes,yes,none,Pure logic: no compiler of any language can tell whether the endpoint is authenticated; it is protocol design.
+CWE-924,yes,yes,none,Sending messages without a MAC or integrity-protected channel is a protocol design choice; a plain socket allows it.
+CWE-925,yes,yes,none,An Android broadcast receiver in Python (through Kivy or Chaquopy) that acts without checking the sender is logic; the missing check runs.
+CWE-926,yes,yes,none,Pure logic: no compiler of any language can tell whether an Android component is exported; the manifest is the same for Python apps.
+CWE-927,yes,yes,none,"Pure logic: no compiler of any language can tell whether an intent is implicit; native code can send intents through JNI, and choosing an implicit one is design."
+CWE-939,yes,yes,none,Pure logic: no compiler of any language can tell whether a custom URL scheme handler restricts callers; it is a missing check.
+CWE-940,yes,yes,none,Pure logic: no compiler of any language can tell whether an incoming channel's origin is verified; it is a missing check.
+CWE-941,yes,yes,none,Pure logic: no compiler of any language can tell whether an outgoing destination is specified correctly; addresses are runtime data.
+CWE-942,yes,yes,none,Pure logic: no compiler of any language can tell whether a CSP or cross-domain policy lists untrusted domains; the policy is a string the server emits.
+CWE-943,yes,yes,none,"Query logic for any data store (SQL, NoSQL JSON filters) built from input is string formatting; the compiler cannot see query semantics."
+CWE-1004,yes,yes,none,A Set-Cookie string without HttpOnly compiles; header text has no typed attributes.
+CWE-1007,yes,yes,none,Rendering identifiers without distinguishing homoglyphs is UI logic; the compiler cannot know display intent.
+CWE-1021,yes,yes,none,Pure logic: no compiler of any language can tell whether frame-ancestor/X-Frame-Options headers are emitted; it is missing response configuration.
+CWE-1022,yes,yes,none,Pure logic: no compiler of any language can tell whether emitted HTML links carry rel=noopener; a Python server generating markup can omit it.
+CWE-1023,yes,yes,none,"An __eq__ that ignores an attribute (the tenant) runs; dataclasses generate one over every field, plain classes do not."
+CWE-1024,yes,yes,none,Comparing values of incompatible types returns False for == (an int and a str) and raises only for ordering; the silent False runs.
+CWE-1025,yes,yes,none,Comparing token lengths instead of contents is a wrong-factor comparison of two size_t values; types cannot catch it.
+CWE-1037,n/a,n/a,none,"MITRE introduces it only in processor design: the CPU's optimization removes a software check. The software-reachable case, a bounds check speculated past, is CWE-1420."
+CWE-1038,yes,yes,none,"python -O strips assert statements and __debug__ blocks, so security checks written that way disappear in optimised runs."
+CWE-1039,yes,yes,none,An ML recognizer without adversarial-input handling is a model and design property; a Python inference program can embody it.
+CWE-1041,yes,yes,none,Duplicated code is a maintenance issue; the compiler does not detect it.
+CWE-1042,yes,yes,CWE-1042.py,Class attributes are shared by every instance of a class that is not a singleton.
+CWE-1043,yes,yes,none,A class with many non-primitive attributes runs; nothing imposes a limit.
+CWE-1044,yes,yes,none,Architectural layering is design; packages do not enforce a layer count.
+CWE-1045,no,no,none,"Python has no destructors in the C++ sense and every method is virtual, so no destructor can be non-virtual."
+CWE-1046,yes,yes,none,"str is immutable, so s += piece in a loop can copy the whole text each time (CPython optimises some cases); it runs."
+CWE-1047,yes,yes,none,Translation units can call each other cyclically through headers; nothing forbids it.
+CWE-1048,yes,yes,none,High fan-out is a complexity metric; the compiler imposes no limit.
+CWE-1049,yes,yes,none,Query patterns against large tables are data-access design; the database is external to the language.
+CWE-1050,yes,yes,none,Acquiring platform resources inside loops is a performance design choice no compiler flags.
+CWE-1051,yes,yes,none,"Hard-coding addresses or hostnames in source is a configuration practice, legal in any language."
+CWE-1052,yes,yes,none,Literal-heavy initialisation is a maintainability style issue no compiler forbids.
+CWE-1053,n/a,n/a,none,"Missing design documentation is a process artifact, not program code."
+CWE-1054,yes,yes,none,Calls that skip architectural layers are design; every module-level name is importable.
+CWE-1055,yes,yes,CWE-1055.py,"Python supports multiple inheritance from concrete classes, resolved by the method resolution order."
+CWE-1056,yes,yes,CWE-1056.py,*args and **kwargs take any number of arguments of any type.
+CWE-1057,yes,yes,none,Bypassing a designated data-manager component is architecture; nothing in Python prevents direct access.
+CWE-1058,yes,yes,CWE-1058.py,A function called from several threads can modify a module global; nothing requires a lock.
+CWE-1059,n/a,n/a,none,"Insufficient technical documentation is a process artifact, not code."
+CWE-1060,yes,yes,none,Issuing many inefficient queries is application design; no language prevents it.
+CWE-1061,yes,yes,none,Every attribute is accessible from outside; Python has no encapsulation beyond convention and name mangling.
+CWE-1062,yes,yes,none,"A parent class can name a specific subclass in its methods, and it runs."
+CWE-1063,yes,yes,CWE-1063.py,"Module-level code and class bodies run when the module is imported, and can create instances there."
+CWE-1064,yes,yes,none,Functions with many parameters run; Python imposes no limit (since 3.7).
+CWE-1065,yes,yes,none,An app-server-style framework forbidding direct resource management is policy outside the language; rustc cannot see it.
+CWE-1066,yes,yes,none,pickle serialises every attribute unless __getstate__ or __reduce__ controls it; there is no serialisation control by default.
+CWE-1067,yes,yes,none,Repeated linear searches are an algorithm choice; the compiler does not check query efficiency.
+CWE-1068,yes,yes,none,Implementation diverging from design documentation is a process issue; no compiler reads the design.
+CWE-1069,yes,yes,none,Python has exceptions: `except: pass` swallows every failure.
+CWE-1070,yes,yes,CWE-1070.py,"pickle accepts any object at compile time and fails at run time on an attribute it cannot pickle (a lambda, a socket)."
+CWE-1071,yes,yes,none,Empty blocks (pass) run; nothing warns.
+CWE-1072,yes,yes,none,Whether database connections are pooled is architecture; DB-API connect opens a new one per call.
+CWE-1073,yes,yes,none,Counting data-resource accesses per function is a design metric outside any type system.
+CWE-1074,yes,yes,none,Class hierarchies can be arbitrarily deep; nothing imposes a limit.
+CWE-1075,yes,yes,none,"break, continue, return and raise transfer control unconditionally out of loops and blocks."
+CWE-1076,yes,yes,none,Expected conventions are project policy; the compiler does not enforce them.
+CWE-1077,yes,yes,none,"== on floats runs, and precision loss makes exact equality wrong."
+CWE-1078,yes,yes,none,Formatting beyond indentation is unconstrained; PEP 8 and formatters are optional.
+CWE-1079,no,no,none,"Every Python method, __del__ included, is looked up dynamically, so a parent cannot have a non-virtual destructor."
+CWE-1080,yes,yes,none,The compiler imposes no limit on file length.
+CWE-1082,no,no,none,"Python has no explicit object destruction: del unbinds a name, and an object is freed only when nothing references it."
+CWE-1083,yes,yes,none,Accessing data outside the designated data manager is architecture; no language prevents it.
+CWE-1084,yes,yes,none,Excessive file or data accesses in one function is a design-quality issue no compiler checks.
+CWE-1085,yes,yes,none,Commented-out code is free text; the compiler ignores comments.
+CWE-1086,yes,yes,none,A class can have any number of subclasses; nothing imposes a limit.
+CWE-1087,no,no,none,"Every Python method is looked up dynamically, so there is no non-virtual destructor."
+CWE-1088,yes,yes,none,connect() and read() on a blocking socket wait indefinitely unless the program sets SO_RCVTIMEO or uses poll.
+CWE-1089,yes,yes,none,"Index count on a database table is schema design, issued from Python like any other DDL."
+CWE-1090,yes,yes,none,Any function can read any object's attributes; Python has no per-class access control.
+CWE-1091,yes,yes,none,"An object whose close() is never called is collected without its cleanup unless __del__ or a finalizer does it, which is not guaranteed to run at exit."
+CWE-1092,yes,yes,none,Reusing one function across layers is design; Python permits it.
+CWE-1093,yes,yes,none,Overly complex data representations compile; this is design.
+CWE-1094,yes,yes,none,Index range scan cost is a query-design property of the external database.
+CWE-1095,yes,yes,none,"A while-loop variable can be modified in the body; a for loop's variable can be rebound too, without effect on the iteration."
+CWE-1096,yes,yes,none,A singleton created on first use behind an unsynchronised None check can be created twice; nothing requires a lock.
+CWE-1097,yes,yes,CWE-1097.py,"A class that does not define __eq__ compares by identity, so stored records compare by reference."
+CWE-1098,yes,yes,CWE-1098.py,"copy.copy copies attributes shallowly, so the copy shares lists, dicts and other mutable members with the original."
+CWE-1099,yes,yes,none,Mixed naming conventions compile.
+CWE-1100,yes,yes,none,Scattering sys.platform checks throughout instead of isolating them is design; it runs.
+CWE-1101,yes,yes,none,Generated code can depend on a runtime support library; this is a build design choice.
+CWE-1102,yes,yes,none,"sys.byteorder, struct's native formats ('@'), and platform-dependent sizes (ctypes types, array typecodes) vary by target, and code can persist them."
+CWE-1103,yes,yes,none,Depending on crates without equivalent support on all platforms is a dependency choice; no language prevents it.
+CWE-1104,n/a,n/a,none,"Not about code: depending on unmaintained components is a supply-chain process issue, independent of what the language allows."
+CWE-1105,yes,yes,none,"Machine-dependent code (sys.platform checks, native struct formats) can be scattered unencapsulated."
+CWE-1106,yes,yes,none,Literal constants instead of named constants run; this is style.
+CWE-1107,yes,yes,none,Scattering constant definitions across modules is code organisation; it runs.
+CWE-1108,yes,yes,none,Module-level variables are globals; Python has no restriction on global state.
+CWE-1109,yes,yes,none,A variable can be reused for unrelated values of the same type.
+CWE-1110,n/a,n/a,none,"Incomplete design documentation is a process artifact, not code."
+CWE-1111,n/a,n/a,none,"Incomplete I/O documentation is a process artifact, not code."
+CWE-1112,n/a,n/a,none,"Incomplete documentation of program execution is a process artifact, not code."
+CWE-1113,yes,yes,none,Comment style is source text; the compiler does not check it.
+CWE-1114,yes,yes,none,Whitespace style is source text; the compiler ignores it.
+CWE-1115,yes,yes,none,A missing standard file prologue is source text; the compiler does not require headers.
+CWE-1116,yes,yes,none,Inaccurate comments are source text; the compiler does not check comments against code.
+CWE-1117,yes,yes,none,A function's prototype can under-describe its behaviour; nothing requires documentation.
+CWE-1118,n/a,n/a,none,"Error-handling documentation is a process artifact, not code."
+CWE-1119,yes,yes,none,"break, continue and raise are unconditional jumps; nothing limits their use."
+CWE-1120,yes,yes,none,Code complexity is a metric; the compiler does not limit it.
+CWE-1121,yes,yes,none,Cyclomatic complexity is a metric; the compiler does not limit it.
+CWE-1122,yes,yes,none,Halstead complexity is a metric; the compiler does not limit it.
+CWE-1123,yes,yes,none,"exec, types.FunctionType and monkey-patching let a program rewrite its own functions and classes at run time."
+CWE-1124,yes,yes,none,"Deep nesting runs until the parser's nesting limit, which is high; nothing warns."
+CWE-1125,yes,yes,none,Attack surface size is a design measure; no language bounds it.
+CWE-1126,yes,yes,none,Declaring a variable wider than its use (file scope instead of block scope) compiles.
+CWE-1127,yes,yes,none,Warnings are not errors and -W ignore silences them; Python runs code that a linter would reject.
+CWE-1164,yes,yes,none,Expression statements with no effect run; nothing warns.
+CWE-1173,yes,yes,none,"Not using, or misusing, a validation library is a design choice; nothing can require one."
+CWE-1174,no,no,none,Python has no ASP.NET MVC model validation; no Python program can contain it.
+CWE-1176,yes,yes,none,Inefficient computation is an algorithm choice; the compiler optimises but does not reject it.
+CWE-1177,yes,yes,none,Using a prohibited function or library is project policy; the compiler does not know the prohibition.
+CWE-1188,yes,yes,none,Initialisers can choose insecure defaults; the type system cannot judge a value's security.
+CWE-1189,n/a,n/a,none,SoC hardware design: shared resources between trusted and untrusted agents on the chip; not a property of program code.
+CWE-1190,n/a,n/a,none,"SoC hardware design: which IP blocks power up DMA-capable before boot firmware runs is decided in silicon and boot architecture, not in program code."
+CWE-1191,n/a,n/a,none,n/a: hardware/SoC design weakness (chip debug/test interface access control); not about program code in any software language.
+CWE-1192,n/a,n/a,none,SoC hardware design: lack of unique immutable identifiers for IP blocks; not a property of program code.
+CWE-1193,n/a,n/a,none,"SoC hardware boot architecture: enabling untrusted cores before fabric access control is a hardware design weakness, not source code."
+CWE-1204,yes,yes,none,"Using a constant, counter or time-derived IV is a value choice; types do not mark IV quality."
+CWE-1209,n/a,n/a,none,"Reserved bits in a hardware design are a silicon/HDL issue, not software code."
+CWE-1220,yes,yes,none,"Pure logic: no compiler of any language can tell whether an access-control policy is fine-grained enough; MITRE frames it for hardware, but coarse software policies (one permission for read and write) are the same flaw."
+CWE-1221,n/a,n/a,none,"Hardware design: register defaults in HDL code, not software any programming language governs."
+CWE-1222,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bits covering too large an address region).
+CWE-1223,n/a,n/a,none,Hardware register design: write-once register programmability ordering between trusted and untrusted agents is silicon behaviour.
+CWE-1224,n/a,n/a,none,n/a: hardware/SoC design weakness (write-once/sticky bit fields implemented in RTL).
+CWE-1229,yes,yes,none,"Emergent resources arise from system behaviour design, not from any construct a compiler checks."
+CWE-1230,yes,yes,none,"Pure logic: no compiler of any language can tell whether derived metadata (indices, statistics, sizes) is protected like the source; it is design."
+CWE-1231,n/a,n/a,none,n/a: hardware/SoC design weakness (lock bit modifiable after being set).
+CWE-1232,n/a,n/a,none,Hardware: lock bits that become writable after power-state transitions are a register/power-management design weakness.
+CWE-1233,n/a,n/a,none,n/a: hardware/SoC design weakness (register lock bit not covering security-sensitive controls).
+CWE-1234,n/a,n/a,none,Hardware: debug or internal modes overriding lock protection is a hardware design weakness.
+CWE-1235,no,no,none,"Python has no primitive values to box: every int is already an object, so there is no autoboxing to misuse."
+CWE-1236,yes,yes,none,csv.writer writes a leading = from input verbatim; it does not neutralise spreadsheet formulas.
+CWE-1239,n/a,n/a,none,Hardware design: clearing built-in registers when a hardware block changes user is a property of the hardware.
+CWE-1240,yes,yes,none,Implementing a crypto primitive with a weak component (an LFSR instead of a DRBG) is plain arithmetic; correctness of crypto is not type-checked.
+CWE-1241,yes,yes,none,random is a predictable Mersenne Twister; using it where a CSPRNG is needed runs.
+CWE-1242,n/a,n/a,none,n/a: hardware/SoC design weakness (chicken bits and undocumented device features).
+CWE-1243,n/a,n/a,none,n/a: hardware/SoC design weakness (fuse contents exposed during debug).
+CWE-1244,n/a,n/a,none,n/a: hardware/SoC design weakness (debug access levels assigned to internal assets).
+CWE-1245,n/a,n/a,none,"Faulty finite state machines in hardware logic are an HDL/silicon issue, not software code."
+CWE-1246,yes,yes,none,Wear levelling can be implemented in software (a flash translation layer); omitting or botching it is logic no compiler checks.
+CWE-1247,n/a,n/a,none,"Physical/hardware: protection against voltage and clock glitches is circuit design, not code."
+CWE-1248,n/a,n/a,none,"Semiconductor manufacturing defects in hardware logic; physical, not code."
+CWE-1249,yes,yes,none,An admin tool's model diverging from OS state is a design-completeness issue that any language can have.
+CWE-1250,yes,yes,none,Keeping distributed copies consistent is a protocol-design property no compiler checks.
+CWE-1251,n/a,n/a,none,Hardware design: mirrored memory or register regions in a chip architecture.
+CWE-1252,n/a,n/a,none,"n/a: hardware/SoC design weakness (CPU lacks configured W^X support); a CPU property, not program code."
+CWE-1253,n/a,n/a,none,"Hardware fuse logic where the secure state depends on an unblown fuse; a silicon design choice, not program code."
+CWE-1254,yes,yes,none,"Comparing in chunks with an early exit (==, a loop) runs; hmac.compare_digest is opt-in."
+CWE-1255,yes,yes,none,Firmware in MicroPython comparing tokens with data-dependent branches leaks through power draw; nothing models power side channels.
+CWE-1256,n/a,n/a,none,n/a: hardware/SoC design weakness (software-reachable power/clock controls not restricted by the device design).
+CWE-1257,n/a,n/a,none,n/a: hardware/SoC design weakness (mirrored/aliased memory regions with inconsistent hardware permissions).
+CWE-1258,n/a,n/a,none,Hardware design: the hardware clearing key material on debug-mode entry.
+CWE-1259,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security-token protection).
+CWE-1260,n/a,n/a,none,n/a: hardware/SoC design weakness (overlapping protected memory ranges in hardware protection units).
+CWE-1261,n/a,n/a,none,Physical/hardware: single event upsets are radiation-induced bit flips handled by hardware design.
+CWE-1262,n/a,n/a,none,n/a: hardware/SoC design weakness (access control on memory-mapped register interfaces is enforced by the SoC design).
+CWE-1263,n/a,n/a,none,n/a: physical access control to a device or facility; not a property of code.
+CWE-1264,n/a,n/a,none,Hardware logic forwarding data before the security check completes is an RTL design weakness.
+CWE-1265,yes,yes,none,"A callback can re-enter an object midway through updating its state; threading.RLock is reentrant, so it does not stop it."
+CWE-1266,yes,yes,none,"A missing or incomplete data-scrubbing feature for decommissioning is product logic, writable in any language."
+CWE-1267,n/a,n/a,none,n/a: hardware/SoC design weakness (obsolete encoding of SoC transaction source identifiers).
+CWE-1268,n/a,n/a,none,n/a: hardware/SoC design weakness (hardware-enforced control vs write policy privilege mismatch).
+CWE-1269,yes,yes,none,"Shipping with debug features enabled (a DEBUG setting, an interactive debugger, test keys) is a build and configuration choice."
+CWE-1270,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC generates incorrect security tokens).
+CWE-1271,n/a,n/a,none,Hardware design: security logic and registers not set to known values on reset.
+CWE-1272,n/a,n/a,none,Hardware design: clearing sensitive state across power or debug state transitions of the device.
+CWE-1273,n/a,n/a,none,"Not about code: sharing device-unlock credentials among multiple parties (vendors, integrators) is an organizational/process decision."
+CWE-1274,n/a,n/a,none,n/a: hardware/SoC design weakness (secure-boot volatile memory lacks hardware access control).
+CWE-1275,yes,yes,none,Pure logic: no compiler of any language can tell whether a Set-Cookie header carries SameSite=Strict/Lax; it is header text.
+CWE-1276,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block signals wired incorrectly to the parent design).
+CWE-1277,yes,yes,none,Firmware lacking an update path is a product-design omission; MicroPython firmware can omit it.
+CWE-1278,n/a,n/a,none,"Physical reverse engineering of an IC by imaging; a physical hardware property, not code."
+CWE-1279,yes,yes,none,"Using crypto before its inputs (e.g. entropy) are ready is sequencing logic, with the hardware a stub."
+CWE-1280,n/a,n/a,none,"Describes hardware-based access control logic checking after the asset is accessed: a hardware design (RTL) weakness, not program code."
+CWE-1281,n/a,n/a,none,"Processor ISA/microarchitecture design weakness: instruction combinations locking the CPU are a property of the hardware, not of programs."
+CWE-1282,n/a,n/a,none,"Not about code: whether bootloaders and IDs sit in ROM or re-programmable memory is a hardware/memory-map design choice, not source-level behaviour."
+CWE-1283,n/a,n/a,none,n/a: hardware/SoC design weakness (attestation/measurement registers writable by adversary).
+CWE-1284,yes,yes,none,"bytearray(n) or a list of n elements from input allocates whatever it says, or raises MemoryError."
+CWE-1285,yes,yes,none,"An unvalidated index from input selects the wrong element (negative indices count from the end), or raises IndexError."
+CWE-1286,yes,yes,none,Not validating input syntax (JSON well-formedness) before use is program logic; nothing forces validation of byte input.
+CWE-1287,yes,yes,none,Input arrives as bytes; interpreting it as a number or date without checking compiles (atoi returns 0 for garbage).
+CWE-1288,yes,yes,none,Not checking consistency between input fields (e.g. totals versus items) is business logic; types cannot express cross-field invariants on wire data.
+CWE-1289,yes,yes,none,"Validating before case-folding or normalisation (== versus casefold, unicodedata.normalize) is logic."
+CWE-1290,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-transaction decoding to security identifiers).
+CWE-1291,yes,yes,none,A boot or update verifier in Python can trust one public key for both debug and production images; key policy is not type-checked.
+CWE-1292,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-signal conversion to security identifiers).
+CWE-1293,yes,yes,none,Relying on one data source without cross-checking is design logic; no compiler requires correlation of independent sources.
+CWE-1294,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC security identifier mechanism).
+CWE-1295,yes,yes,none,"Debug messages that over-share (repr dumps, tracebacks with local variables) run; content choice is beyond any compiler."
+CWE-1296,n/a,n/a,none,n/a: hardware/SoC design weakness (debug component chaining and granularity).
+CWE-1297,n/a,n/a,none,n/a: supply-chain/process weakness (confidential data accessible to OSAT vendors); not a property of code.
+CWE-1298,n/a,n/a,none,"Race conditions in hardware logic are a circuit/RTL design weakness, not program code."
+CWE-1299,n/a,n/a,none,n/a: hardware/SoC design weakness (unprotected shadow registers and alternate hardware paths).
+CWE-1300,n/a,n/a,none,"Not about code: protection against physical power, EM and acoustic side channels is a hardware/physical design property."
+CWE-1301,n/a,n/a,none,Hardware design: incomplete data removal inside hardware components.
+CWE-1302,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC transactions sent without a security identifier).
+CWE-1303,n/a,n/a,none,"Microarchitectural shared structures (caches, predictors) across contexts; a CPU design weakness, not program code."
+CWE-1304,n/a,n/a,none,n/a: hardware/SoC design weakness (IP block configuration state integrity across power save/restore).
+CWE-1310,n/a,n/a,none,Hardware design: ROM code patchability is fixed in silicon.
+CWE-1311,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge translation of security attributes).
+CWE-1312,n/a,n/a,none,n/a: hardware/SoC design weakness (on-chip fabric firewall missing mirrored regions).
+CWE-1313,n/a,n/a,none,n/a: hardware/SoC design weakness (test/debug logic activatable at runtime).
+CWE-1314,n/a,n/a,none,n/a: hardware/SoC design weakness (sensor parametric data not write-protected by the device).
+CWE-1315,n/a,n/a,none,n/a: hardware/SoC design weakness (bus-controller capability bits in fabric end-points).
+CWE-1316,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric address map allows overlapping protected regions).
+CWE-1317,n/a,n/a,none,n/a: hardware/SoC design weakness (fabric bridge lacks access checks between IP blocks).
+CWE-1318,n/a,n/a,none,"On-chip fabric/bus lacking privilege separation; hardware interconnect design, not program code."
+CWE-1319,n/a,n/a,none,"Susceptibility to electromagnetic fault injection; physical hardware property, not code."
+CWE-1320,n/a,n/a,none,n/a: hardware/SoC design weakness (alert/sensor signal response disableable by untrusted agents).
+CWE-1321,yes,yes,CWE-1321.py,"setattr on a class, or on an object's __class__, changes an attribute for every instance; input choosing the attribute name is class pollution, Python's form of prototype pollution."
+CWE-1322,yes,yes,none,A blocking read or sleep inside an event-loop callback compiles; nothing marks blocking calls.
+CWE-1323,n/a,n/a,none,n/a: hardware/SoC design weakness (SoC trace data stored or routed to untrusted agents).
+CWE-1325,yes,yes,none,Python imposes no aggregate allocation limit; per-item caps without a total cap run.
+CWE-1326,n/a,n/a,none,"Missing immutable hardware root of trust; silicon/boot ROM hardware design, not program code."
+CWE-1327,yes,yes,none,Binding to INADDR_ANY (0.0.0.0) compiles; choosing the bind address is configuration logic.
+CWE-1328,n/a,n/a,none,n/a: hardware/SoC design weakness (security version number mutable in hardware).
+CWE-1329,yes,yes,none,Building a product around a non-updatable component is an architecture decision no language prevents.
+CWE-1330,n/a,n/a,none,Physical/hardware: data remanence in memory circuits after erase.
+CWE-1331,n/a,n/a,none,"Network-on-Chip isolation of fabric resources; hardware design, not program code."
+CWE-1332,n/a,n/a,none,Hardware: missing circuitry or sensors to detect instruction skips is a chip design weakness.
+CWE-1333,yes,yes,none,"The re module is a backtracking engine, so a pattern with nested quantifiers is exponential on some inputs."
+CWE-1334,n/a,n/a,none,n/a: hardware/SoC design weakness (error injection into redundant hardware blocks).
+CWE-1335,no,no,none,"Python's ints have no fixed width, so shifting by a large count just grows the value, and a negative count raises ValueError; there is no shift past the width."
+CWE-1336,yes,yes,none,Putting input into a template's source rather than its context lets the engine evaluate it; the template engine is a library and the compiler sees only a string.
+CWE-1338,n/a,n/a,none,"Missing hardware overheating protection; physical/hardware design, not code."
+CWE-1339,yes,yes,none,"float follows IEEE 754; summing money in floats runs and loses precision, and decimal.Decimal is opt-in."
+CWE-1341,yes,yes,none,"os.close on the same descriptor twice runs and can close whatever reused the number; closing a file object twice is harmless, hand-written resources need not be."
+CWE-1342,n/a,n/a,none,Hardware design: the processor failing to clear microarchitectural state after transient execution.
+CWE-1351,n/a,n/a,none,Physical/hardware: behaviour in exceptionally cold environments is a hardware property.
+CWE-1357,yes,yes,none,Depending on an insufficiently trusted library or component is a supply-chain choice; no language prevents it.
+CWE-1384,n/a,n/a,none,Physical/hardware: handling physical or environmental conditions is a hardware design weakness.
+CWE-1385,yes,yes,none,Not checking the Origin header on a WebSocket upgrade is handler logic; no compiler requires the check.
+CWE-1386,yes,yes,none,The Windows file API follows junctions and mount points by path; check-then-use on a path compiles.
+CWE-1389,yes,yes,none,"strtol with base 0 reads a leading 0 as octal and 0x as hex, so components disagreeing on radix compile; sscanf(""%i"") does the same."
+CWE-1390,yes,yes,none,Pure logic: no compiler of any language can tell whether an authentication mechanism proves identity strongly enough; it is design.
+CWE-1391,yes,yes,none,Pure logic: no compiler of any language can tell whether credentials are guessable or derivable; credential values are data.
+CWE-1392,yes,yes,none,Pure logic: no compiler of any language can tell whether shipped default credentials exist; they are data/configuration.
+CWE-1393,yes,yes,none,Pure logic: no compiler of any language can tell whether a default password ships; it is a constant like any other.
+CWE-1394,yes,yes,none,Pure logic: no compiler of any language can tell whether a default cryptographic key ships; key bytes are data.
+CWE-1395,yes,yes,none,A Python project can depend on a package version with known vulnerabilities; the interpreter does not check it (pip-audit is separate).
+CWE-1419,yes,yes,none,"Initialisation is optional for automatic objects, and a resource initialised to a wrong value compiles."
+CWE-1420,yes,yes,none,"Bounds checks in the interpreter are ordinary branches, and a speculative load past them (Spectre v1) leaks via cache timing."
+CWE-1421,yes,yes,none,MITRE names system software that skips state-sanitizing operations at context switches. Omitting a barrier is writable in any language; no compiler requires it.
+CWE-1422,n/a,n/a,none,Hardware design: stale-data forwarding to transient operations is a processor property.
+CWE-1423,yes,yes,none,"Omitting a predictor barrier when switching contexts is a system-software choice; a Python service can omit it, and nothing requires it."
+CWE-1426,yes,yes,none,Acting on generative-AI output without validating it is design logic; the model output is untyped text no compiler can vet.
+CWE-1427,yes,yes,none,Concatenating untrusted text into an LLM prompt is string formatting; the instruction/data boundary exists only in the model.
+CWE-1428,yes,yes,none,Using http:// instead of https:// URLs is a string and configuration choice; the compiler does not inspect URLs.
+CWE-1429,yes,yes,none,MITRE's example is code: an interrupt handler silently discarding lower-priority events; the same early return runs in Python.
+CWE-1431,n/a,n/a,none,Not about code: a hardware crypto module driving intermediate state onto its output wires is an RTL/hardware design flaw.
+CWE-1434,yes,yes,none,Configuring a model's inference parameters badly is application configuration; no compiler checks it.
