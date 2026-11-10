@@ -29,7 +29,7 @@ pub fn check<P, A, K>(who: &Authenticated<P>, action: A, key: K, policy: &impl P
     -> Result<Authorized<A, K>, Denied>;                  // logged either way (principle 3)
 ```
 
-- **No public constructor** for `Authenticated` or `Authorized`; private fields make a hand-built proof a compile error (E0451/E0423), and a `corten-driver` lint refuses any other route the way `corten_direct_template` does.
+- **No public constructor** for `Authenticated` or `Authorized`; private fields make a hand-built proof a compile error (E0451 for a struct literal, E0603 for a tuple-struct constructor; measured on rustc 1.99.1), and a `corten-driver` lint refuses any other route the way `corten_direct_template` does.
 - **Proofs are not `Clone` and carry the key.** A protected lookup (`store.get(&proof)`) reads the key from the proof, so a check on resource 1 cannot open resource 2 (CWE-639, 566).
 - **Every check is logged** with principal, action, key and outcome before data flows (principle 3), and a denied check is an error, never a weaker default (principle 2).
 
