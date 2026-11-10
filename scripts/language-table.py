@@ -5,8 +5,10 @@ audit/applicability/table.csv and against the verdicts its programs produce
 (scripts/language-check.sh <lang>, read from standard input or a file).
 
 A row may say yes (writable) or no (not writable) or n/a (not a weakness of
-code). A CWE whose programs compile must say yes; one whose only programs are
-rejected must say no in both columns. Every evidence file must exist.
+code), with and without the escape hatch. A CWE with a program that compiles
+without the hatch must say yes in both columns; one written only through the
+hatch (scripts/language-check.sh: hatch-only) must say yes, no; one whose only
+programs are rejected must say no in both. Every evidence file must exist.
 
 Usage:
   scripts/language-check.sh c > verdicts.tsv
@@ -18,7 +20,7 @@ import csv
 import sys
 from pathlib import Path
 
-LANGS = {"c": ("C", ".c"), "cpp": ("C++", ".cpp")}
+LANGS = {"c": ("C", ".c"), "cpp": ("C++", ".cpp"), "java": ("Java", ".java")}
 TABLE = Path("audit/applicability/table.csv")
 
 
@@ -59,8 +61,10 @@ def main():
         v = verdicts.get(c)
         if ev and v is None:
             errors.append(f"{c}: has evidence but no verdict from the check")
-        if v == "writable" and wh != "yes":
-            errors.append(f"{c}: a program compiles, so the row must say yes")
+        if v == "writable" and (wh, woh) != ("yes", "yes"):
+            errors.append(f"{c}: a program compiles without the escape hatch, so both columns must say yes")
+        if v == "hatch-only" and (wh, woh) != ("yes", "no"):
+            errors.append(f"{c}: only the escape hatch writes it, so the row must say yes, no")
         if v == "rejected" and (wh, woh) != ("no", "no"):
             errors.append(f"{c}: its programs are all rejected, so the row must say no")
         if v == "undecided":
