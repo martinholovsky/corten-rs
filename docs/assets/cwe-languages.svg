@@ -63,7 +63,7 @@
     <rect x="72" y="832" width="760" height="30" rx="4" fill="#3A2C25"/>
     <rect x="72" y="832" width="511.2" height="30" rx="4" fill="#D2702A"><title>Safe Rust under Corten: 635 CWEs</title></rect>
     <text x="848" y="854" font-size="20" font-weight="800" fill="#F6EBDD">635</text>
-    <text x="900" y="854" font-size="15" font-weight="500" fill="#E8873A">−94 eliminated, verified</text>
+    <text x="900" y="854" font-size="15" font-weight="500" fill="#E8873A">−94 eliminated so far, each verified</text>
     <line x1="72" y1="898" x2="1128" y2="898" stroke="#3A2E28" stroke-width="1"/>
     <g font-size="13" font-weight="500" fill="#A89A90">
       <text x="72" y="924">Hatched: only through the escape hatch (Java: JNI, sun.misc; Go: unsafe, cgo; Python: ctypes). Dashed line: what MITRE's language tags would count.</text>
