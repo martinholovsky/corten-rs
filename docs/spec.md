@@ -67,7 +67,7 @@ Every CWE gets exactly one bucket:
 
 Corten is a hardened Rust profile plus compiler extensions, not a new language. It keeps Rust syntax, ownership and borrowing, Cargo, LLVM targets, debuggers and IDEs, and replaces Rust's ambient standard library with a closed, capability-oriented prelude.
 
-In the blind round, A, B and F chose a Rust profile, while C ("Hart") and D ("Aegis") chose a new language in the Rust lineage. By round 3 all five had moved to a Rust profile. The deciding argument was adoption: a language nobody can use mitigates nothing, and the properties needed (capabilities, context-typed sinks) can be delivered by a closed prelude rather than new syntax.
+In the blind round, A, B and F chose a Rust profile, while C ("Hart") and D ("Aegis") chose a new language in the Rust lineage. Both moved to a Rust profile in round 2, for different reasons. C accepted that a second compiler adds no mitigation that `rustc` with a closed standard library does not: the properties it wanted (capabilities, context-typed sinks) come from removing ambient `std` and string sinks, not from new syntax. D accepted the adoption argument: a language nobody can use mitigates nothing, and a profile is the realistic path to users. Both kept one condition, which this design keeps: the profile is not source-compatible with ordinary Rust (see below).
 
 ```rust
 #![corten]
