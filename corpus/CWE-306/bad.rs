@@ -1,6 +1,6 @@
 //@ kind: language
 //@ deps: corten-std
-//@ expect: is private
+//@ expect: E0451
 // CWE-306: a principal the program makes up instead of authenticating.
 // `Authenticated` has private fields; only a manifest authenticator returns one.
 use corten_std::authz::{Authenticated, Authorized, DirKey, Policy, Read, Token, check};
