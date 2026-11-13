@@ -29,6 +29,10 @@ pub enum FsError {
     /// name, possibly outside the intended set, refers to the same file
     /// (CWE-62, 65).
     HardLink,
+    /// A file that must not be writable by the program (a password store)
+    /// lies beneath a directory the manifest grants, or is not a regular
+    /// file (Phase 6, strategy 2).
+    Exposed,
 }
 
 impl fmt::Display for FsError {
@@ -42,6 +46,9 @@ impl fmt::Display for FsError {
             Self::HardLink => {
                 f.write_str("the file has more than one hard link; a single-link open refuses it")
             }
+            Self::Exposed => f.write_str(
+                "the file is not a regular file, or lies beneath a granted directory the program can write",
+            ),
         }
     }
 }
@@ -284,6 +291,73 @@ mod imp {
         rustix::io::read(&file.fd, buf).map_err(map)
     }
 
+    /// The `(device, inode)` of an open descriptor.
+    fn identity(fd: &rustix::fd::OwnedFd) -> Result<(u64, u64), FsError> {
+        let st = rustix::fs::fstat(fd).map_err(map)?;
+        Ok((st.st_dev, st.st_ino))
+    }
+
+    /// Opens a file the program must be able to read but never write: no
+    /// symbolic link anywhere in `path`, a regular file with one link, and
+    /// no directory in `writable` among its ancestors. Ancestors are
+    /// compared by device and inode, so a granted path that reaches the
+    /// same directory through a symbolic link or a bind mount is caught.
+    pub(super) fn open_store(
+        path: &std::path::Path,
+        writable: &[&DirCap],
+    ) -> Result<CapFile, FsError> {
+        let no_links = ResolveFlags::NO_SYMLINKS.union(ResolveFlags::NO_MAGICLINKS);
+        let fd = rustix::fs::openat2(
+            rustix::fs::CWD,
+            path,
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+            no_links,
+        )
+        .map_err(map)?;
+        let st = rustix::fs::fstat(&fd).map_err(map)?;
+        if rustix::fs::FileType::from_raw_mode(st.st_mode) != rustix::fs::FileType::RegularFile {
+            return Err(FsError::Exposed);
+        }
+        // A second name could sit beneath a writable grant.
+        if st.st_nlink != 1 {
+            return Err(FsError::HardLink);
+        }
+        let parent = path.parent().ok_or(FsError::Exposed)?;
+        let mut dir = rustix::fs::openat2(
+            rustix::fs::CWD,
+            parent,
+            OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+            no_links,
+        )
+        .map_err(map)?;
+        let mut ancestors = Vec::new();
+        // A path has far fewer than 4096 components; the bound only stops a
+        // loop on a filesystem whose `..` never reaches a fixed point.
+        for _ in 0..4096 {
+            let here = identity(&dir)?;
+            ancestors.push(here);
+            let up = rustix::fs::openat(
+                &dir,
+                "..",
+                OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(map)?;
+            if identity(&up)? == here {
+                break;
+            }
+            dir = up;
+        }
+        for grant in writable {
+            if ancestors.contains(&identity(&grant.fd)?) {
+                return Err(FsError::Exposed);
+            }
+        }
+        Ok(CapFile { fd })
+    }
+
     pub(super) fn write(file: &CapFile, buf: &[u8]) -> Result<usize, FsError> {
         rustix::io::write(&file.fd, buf).map_err(map)
     }
@@ -317,6 +391,12 @@ mod imp {
         Err(FsError::Unsupported)
     }
     pub(super) fn read(_file: &CapFile, _buf: &mut [u8]) -> Result<usize, FsError> {
+        Err(FsError::Unsupported)
+    }
+    pub(super) fn open_store(
+        _path: &std::path::Path,
+        _writable: &[&DirCap],
+    ) -> Result<CapFile, FsError> {
         Err(FsError::Unsupported)
     }
     pub(super) fn write(_file: &CapFile, _buf: &[u8]) -> Result<usize, FsError> {
@@ -454,6 +534,18 @@ impl CapFile {
         }
         Ok(())
     }
+}
+
+/// Reads a file the program may read but must not be able to write (a
+/// password store, `crate::authz`): refused unless it is a regular file with
+/// one link, reached with no symbolic link, and beneath none of `writable`.
+/// Crate-private: a public form would let a program probe arbitrary paths.
+pub(crate) fn read_store(
+    path: &std::path::Path,
+    writable: &[&DirCap],
+    limit: usize,
+) -> Result<Vec<u8>, FsError> {
+    imp::open_store(path, writable)?.read_to_end(limit)
 }
 
 /// Convenience: a one-segment path from text.

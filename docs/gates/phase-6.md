@@ -17,7 +17,7 @@ A strategy that only strengthens C moves no bucket.
 | 1 | Decision 3: the ledger's `strategy` column, checked by `corten-ledger check` | **done** (2026-11-01, below) | |
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
 | 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | strategy 8 **built** (2026-11-02, remaining-work table), CWE-276, 689 and 708 E and verified (2026-11-06, below); 4 and 3 not started | |
-| 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | not started | |
+| 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | step 1 **built** (2026-11-13, below): `corten_std::authz`, manifest authenticators, protected directories; corpus cases not started | |
 | 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 **built** (2026-11-02, below): `NetCap` core, then resolution, DNS logging and the opt-in fallback ([`../netcap.md`](../netcap.md)) | |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
 | — | 1 the independent encoder review (26 ledger rows; 25 of them writable in Rust, CWE-564 is not) | blocked | An external audit being engaged (owner decision 2026-11-03, remaining-work table; AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
@@ -363,6 +363,54 @@ Owner decision 2026-11-06: the three E candidates of [`fs-caps-e-proposal.md`](f
 - Corpus, all phases (`docs/gates/corpus-report.md` regenerated): 180 of 180 detected, 0 of 180 falsely rejected, 0 failed controls, 0 broken.
 
 **Totals** (`corten-ledger totals`): E 180 / C 721 / O 26 / N 17; 149 of the 180 E rows verified, 31 awaiting the external audit. Written in Rust (787): E 157 / C 604 / O 26. Remaining under Rust and Corten: 635 (`scripts/applicability-table.py`).
+
+## Batch 4, step 1: proof types, authenticators and protected directories (2026-11-13)
+
+Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E candidates need corpus cases and a full corpus run at 0 false rejections first (question 14).
+
+**Owner decisions (2026-11-13):**
+- **Authenticators: signed tokens and a manifest password store** (recommended: tokens only, passwords later). Q2 said a program cannot mint a principal, but `crypto::password::hash` and `PasswordHash::from_stored` accept whatever the program supplies, so a password check over program-held hashes would let it mint any principal. The password store is therefore a file the manifest names and the program cannot write. The owner gave no reason for choosing it over tokens only.
+- **Token format: Corten's own** (the recommendation; rejected: PASETO `v4.public` through `pasetors` 0.8.1, which adds `orion`, `serde_json`, `time` and `regex`, and JWT through `jsonwebtoken` 11.1.0). One line, `corten-token-1.KEY.AUDIENCE.SUBJECT.NOTAFTER.SIG`, an Ed25519 signature over everything before the last `.`, with no algorithm field: the same pattern as the signed manifest, and a documented departure from "no hand-rolled token formats" in exchange for no new dependency (design principle 6).
+- **CWE-566 stays on the chart as planned** (recommended: drop it from the chart). The prototype cannot cover it: `corten-std` has no database capability (`sql.rs` is an encoder), so nothing makes an SQL lookup take its key from a proof. It waits for a database capability, which no scheduled item builds yet. The owner gave no reason.
+
+**Built:**
+- **`corten_std::authz`.**
+  - `Authenticated` and `Authorized<A, K>` have private fields and no public constructor. `Authorized` is not `Clone`, and each protected operation consumes one.
+  - `check(who, action, key, policy, log)` asks the program's `Policy` and logs `authz.allowed` or `authz.denied` (principal, action, key) before it returns.
+  - No `corten-driver` lint: the lint the design note sketched would have nothing to catch, since nothing public constructs a proof (design principle 9).
+- **Manifest.**
+  - `dir NAME PATH protected` is taken only with `take_protected_dir`, and `take_dir` no longer returns it (CWE-288).
+  - `authn NAME token ID:HEX,...` and `authn NAME password PATH` are taken with `take_token_authenticator` and `take_password_authenticator`.
+- **Tokens.**
+  - The key is chosen only among the grant's keys, and the key identifier is checked before use.
+  - The audience must equal the grant's name, and `NOTAFTER` must be in the future (the prelude's own clock) and at most 15 minutes away (`MAX_TOKEN_LIFETIME`).
+  - At most 512 bytes. The token is never logged.
+- **Passwords.**
+  - The store is opened with no symbolic link in its path, as a regular file with one link. It is refused at load (`FsError::Exposed`) when any `dir` grant, protected or not, is the store's directory or an ancestor of it, compared by device and inode.
+  - "No such user", "wrong password" and "delayed" return the same `AuthnRefused` after the same Argon2id work (a decoy hash).
+  - Names follow the token field grammar, and a password over 1,024 bytes is refused before hashing.
+  - After 5 failures within 15 minutes, an account answers only after a delay that starts at 1 s and doubles to at most 15 minutes. It is never a permanent lock, and a success clears it.
+  - `authn.delayed` and `authn.rehash` are logged.
+- **`corten-sandbox`.** A password store becomes a read-only Landlock rule. Before Landlock, the sandbox refuses to start (exit 3) when the store is not a single-link regular file at its canonical path, or when any read-write path, a manifest `dir` or an operator `--rw`, is the store or its ancestor (device and inode).
+
+**Evidence.**
+- **macOS:**
+  - Clippy `-D warnings` on the workspace: clean.
+  - `corten-std` tests: 94 of 94.
+  - `corten-sandbox` unit tests: 7 of 7.
+  - Rustdoc with warnings denied: clean.
+- **Mutations on macOS:** 14 of 14 caught.
+  - Token checks (signature, key selection, audience, expiry, lifetime cap), `check` allowing, the unknown-user decoy (by timing ratio), the delay, the failure window and refusal logging.
+  - The `protected` flag on another grant kind.
+  - The sandbox's ancestor, hard-link and symlink checks.
+  - Two first attempts proved nothing: one mutant did not compile, and the window test passed against its mutant, because the delay cap equals the window. Both were rewritten, then caught against a passing baseline. The delay test had also depended on Argon2id speed (a 1 s delay), and now uses a 32 s one.
+- **Linux: not yet run.** The container run stopped when the Podman VM went down. Still to run: the store and `ProtectedDir` tests and their six mutants (ancestor, hard link, symbolic link, regular file, cross-directory proof, `take_dir` on a protected grant), Clippy on the Linux-only code, and the corpus.
+
+**Not covered, and why.**
+- **Per-client-address login limits:** the caller sees the address; there is no listener in `corten-std` until batch 6.
+- **Token revocation before expiry:** remove the key from the manifest.
+- **Re-reading the password store without a restart.**
+- **Issuing tools for tokens and stores (design principle 10):** next, with the corpus cases.
 
 ## Safe Rust through a crate (2026-11-04)
 

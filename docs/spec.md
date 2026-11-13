@@ -233,6 +233,8 @@ fn delete_account(
 
 The compiler ensures a declared permission is present. It cannot decide who should hold it, whether MFA is required, or whether the workflow is right: **C** when the policy is supplied, otherwise residue.
 
+Phase 6, strategy 2 builds this as `corten_std::authz` (question 14; [`gates/authz-proposal.md`](gates/authz-proposal.md)): `Authenticated` comes only from an authenticator the signed manifest names, `Authorized<A, K>` only from `check` against the program's `Policy`, and a `dir` grant marked `protected` acts only on the path a consumed proof names.
+
 ### 4.12 Resource control
 
 Resource-consuming APIs take quota capabilities, for example `decode_archive(input, budget: &mut DecompressionBudget)`. The runtime provides allocation quotas, fuel counters, recursion and nesting limits, deadlines, bounded queues, query budgets, rate limits, decompression ratios and per-component CPU and memory limits. Termination and complexity are not decided in general, so these are **C**. The panel required budgets to be mandatory parameters (section 5).
