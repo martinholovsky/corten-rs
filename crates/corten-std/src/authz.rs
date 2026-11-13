@@ -604,9 +604,14 @@ mod tests {
             ),
             (token(&kp(1), "corten-token-1.k1.api.alice.1000"), "expired"),
             (
+                // A minute past the cap, so a clock tick between building
+                // the token and checking it cannot bring it back under.
                 token(
                     &kp(1),
-                    &format!("corten-token-1.k1.api.alice.{}", in_secs(901)),
+                    &format!(
+                        "corten-token-1.k1.api.alice.{}",
+                        in_secs(MAX_TOKEN_LIFETIME.checked_add(60).unwrap())
+                    ),
                 ),
                 "lifetime too long",
             ),
