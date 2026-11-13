@@ -53,3 +53,13 @@ pub fn check<P, A, K>(who: &Authenticated<P>, action: A, key: K, policy: &impl P
 3. Detection and false rejection with totals on the full corpus (AGENTS.md rule 2); adopt only at 0 false rejections (question 14). The ledger changes only after that run.
 
 A blocker to name now: there is no listener or request type in `corten-std` (`gates/phase-6.md`, the missing-capabilities row), so the prototype exercises protected *operations*, not request handlers. A handler-level claim waits for batch 6's web types.
+
+## Step 1 built (2026-11-13)
+
+`corten_std::authz`, the manifest's `protected` flag and `authn` grants, and the sandbox's password-store check are built ([`phase-6.md`](phase-6.md), "Batch 4, step 1"). Three changes against the sketch above, each an owner decision of 2026-11-13 or a consequence of one:
+
+- **Q2's authenticators.** A password check over hashes the program holds would let the program mint a principal (`crypto::password::hash` accepts anything), so passwords are checked against a store the manifest names and no `dir` grant can write. Tokens use keys from the manifest only.
+- **The token format** is Corten's own, one signed line with no algorithm field, rather than PASETO or JWT, so no dependency is added.
+- **No `corten-driver` lint.** Private fields and the absence of any public constructor leave no other route for a lint to refuse.
+
+**CWE-566 is not covered by the prototype**: `corten-std` has no database capability, so nothing makes a lookup take its key from a proof. It stays on the chart as planned (owner decision 2026-11-13) and waits for one.

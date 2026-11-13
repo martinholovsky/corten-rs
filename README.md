@@ -141,7 +141,7 @@ $ cargo build -p cargo-corten && cargo run -p corten-corpus -- --checker target/
 Phase 6 is under way; its open items, with what starts each one, are in [`docs/gates/phase-6.md`](docs/gates/phase-6.md) ("Remaining work"). The ones where outside help counts most:
 
 - **Review the encoders and `corten_std::crypto`.** 31 eliminations (26 encoder rows, 5 cryptography rows) pass their corpus cases and wait for a review by someone other than their author before they count as verified (AGENTS.md rule 1). The owner decided on one external audit covering all of them; the hand-over starts at [`docs/gates/encoder-prereview.md`](docs/gates/encoder-prereview.md).
-- **Authorization and authentication as proof types** (strategy 2), the next strategy: the design note is [`docs/gates/authz-proposal.md`](docs/gates/authz-proposal.md), and six of its rows are elimination candidates.
+- **Authorization and authentication as proof types** (strategy 2), in progress: `corten_std::authz` and protected directories are built, and corpus cases come next ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), batch 4). The design note is [`docs/gates/authz-proposal.md`](docs/gates/authz-proposal.md), and six of its rows are elimination candidates.
 - **The batches not started**: labels on errors and logs (strategy 9), resource budgets and safe deserialization (strategies 3 and 4), and web types, credentials and strict parsers (batch 6), each listed in [`docs/residual-mitigation.md`](docs/residual-mitigation.md).
 - **Corpus cases**: a program that exhibits a weakness Corten claims to eliminate and still builds is the most useful bug report there is ([`corpus/README.md`](corpus/README.md)).
 

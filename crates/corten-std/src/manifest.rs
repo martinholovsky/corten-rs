@@ -10,8 +10,11 @@
 //! not-after 1767225600
 //! program sha256 3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b
 //! dir uploads /srv/app/uploads
+//! dir records /srv/app/records protected
 //! exec tar /usr/bin/tar
 //! declassify report
+//! authn api token deploy-2026-11:5d7f...(64 hex digits),next:9a1c...
+//! authn staff password /etc/app/users
 //! ```
 //!
 //! The first five lines are required, in this order (spec section 8,
@@ -36,7 +39,13 @@
 //! Formats 1 and 2, which lacked these lines, are refused. Names follow the `PathSeg`
 //! grammar; paths are absolute. `declassify NAME` (Phase 4) grants the right
 //! to release a labelled value as public (`crate::label`); it names no path.
-//! The deployer signs the exact bytes with Ed25519. The key ID is read before
+//! A `dir` grant marked `protected` (Phase 6, strategy 2) is taken only as a
+//! [`ProtectedDir`], whose every operation consumes an authorization proof.
+//! `authn NAME token ID:HEX,...` names the Ed25519 keys whose tokens the
+//! [`TokenAuthenticator`] accepts; `authn NAME password PATH` names a password
+//! store, refused at load if it is not a regular file with one link reached
+//! with no symbolic link, or if any `dir` grant could write it
+//! (`crate::authz`). The deployer signs the exact bytes with Ed25519. The key ID is read before
 //! the signature is checked, only to choose the key; nothing else is parsed
 //! before then. [`Capabilities::load`] refuses a manifest over
 //! [`MAX_MANIFEST`] bytes and opens every directory up front, so a missing
@@ -47,6 +56,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use crate::authz::{PasswordAuthenticator, ProtectedDir, StoreError, TokenAuthenticator};
 use crate::label::DeclassifyCap;
 use crate::net::{DnsFallback, Host, NetCap};
 
@@ -95,6 +105,14 @@ pub enum ManifestError {
         /// Why.
         error: FsError,
     },
+    /// A password store was refused: unreadable, malformed, or writable
+    /// through a `dir` grant.
+    Store {
+        /// The authenticator's name.
+        name: String,
+        /// Why.
+        error: StoreError,
+    },
 }
 
 impl fmt::Display for ManifestError {
@@ -116,6 +134,9 @@ impl fmt::Display for ManifestError {
             }
             Self::Clock => f.write_str("the system clock could not be read"),
             Self::Dir { name, error } => write!(f, "cannot open directory {name:?}: {error}"),
+            Self::Store { name, error } => {
+                write!(f, "password store of {name:?} refused: {error}")
+            }
         }
     }
 }
@@ -133,6 +154,9 @@ impl std::error::Error for ManifestError {}
 )]
 pub struct Capabilities {
     dirs: BTreeMap<String, DirCap>,
+    protected_dirs: BTreeMap<String, ProtectedDir>,
+    tokens: BTreeMap<String, TokenAuthenticator>,
+    passwords: BTreeMap<String, PasswordAuthenticator>,
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
     nets: BTreeMap<String, NetCap>,
@@ -146,12 +170,27 @@ pub struct Capabilities {
 /// rules; [`Capabilities::load`] turns them into capabilities.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Grant {
-    /// `dir NAME PATH`: read and write beneath `PATH`.
+    /// `dir NAME PATH [protected]`: read and write beneath `PATH`. A
+    /// `protected` grant is taken only as a [`ProtectedDir`], whose
+    /// operations each need an [`Authorized`](crate::authz::Authorized)
+    /// proof (Phase 6, strategy 2).
     Dir {
         /// Manifest name.
         name: String,
         /// Absolute path.
         path: PathBuf,
+        /// Whether every operation needs a proof.
+        protected: bool,
+    },
+    /// `authn NAME token ID:HEX[,ID:HEX...]` or `authn NAME password PATH`:
+    /// an authenticator the program may use to obtain an
+    /// [`Authenticated`](crate::authz::Authenticated) principal. The program
+    /// cannot construct one any other way.
+    Authn {
+        /// Manifest name; a token's audience must equal it.
+        name: String,
+        /// How it authenticates.
+        method: AuthnMethod,
     },
     /// `exec NAME PATH`: run the program at `PATH`.
     Exec {
@@ -185,12 +224,31 @@ pub enum Grant {
     },
 }
 
+/// How a manifest authenticator checks a credential.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthnMethod {
+    /// Signed tokens ([`crate::authz::TokenAuthenticator`]), verified with
+    /// these Ed25519 public keys, by key identifier.
+    Token {
+        /// `(key identifier, public key)`, in manifest order.
+        keys: Vec<(String, [u8; 32])>,
+    },
+    /// Argon2id hashes in the file at this absolute path
+    /// ([`crate::authz::PasswordAuthenticator`]). The file must not be
+    /// writable through any `dir` grant.
+    Password {
+        /// The password store.
+        path: PathBuf,
+    },
+}
+
 impl Grant {
     fn name(&self) -> &str {
         match self {
             Self::Dir { name, .. }
             | Self::Exec { name, .. }
             | Self::Declassify { name }
+            | Self::Authn { name, .. }
             | Self::Net { name, .. } => name,
             // At most one: a second is a duplicate.
             Self::DnsFallback { .. } => "dns fallback",
@@ -431,11 +489,25 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
             entries.push(parse_net(rest).ok_or(ManifestError::Syntax(number))?);
             continue;
         }
+        if let Some(rest) = line.strip_prefix("authn ") {
+            entries.push(parse_authn(rest).ok_or(ManifestError::Syntax(number))?);
+            continue;
+        }
         let mut parts = line.split(' ');
-        let (Some(kind), Some(name), path, None) =
-            (parts.next(), parts.next(), parts.next(), parts.next())
-        else {
+        let (Some(kind), Some(name), path, flag, None) = (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ) else {
             return Err(ManifestError::Syntax(number));
+        };
+        // Only `dir` takes a flag, and only `protected`.
+        let protected = match (kind, flag) {
+            (_, None) => false,
+            ("dir", Some("protected")) => true,
+            (_, Some(_)) => return Err(ManifestError::Syntax(number)),
         };
         if PathSeg::parse(name).is_err() {
             return Err(ManifestError::Syntax(number));
@@ -459,6 +531,7 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
             "dir" => Grant::Dir {
                 name: name.to_owned(),
                 path: path.to_path_buf(),
+                protected,
             },
             "exec" => Grant::Exec {
                 name: name.to_owned(),
@@ -493,9 +566,59 @@ fn parse_net(rest: &str) -> Option<Grant> {
     })
 }
 
+/// `NAME token ID:HEX[,ID:HEX...]` or `NAME password PATH` after `authn `.
+/// The name and key identifiers use the token field grammar
+/// ([`crate::authz::token_field`]), since a token carries them.
+fn parse_authn(rest: &str) -> Option<Grant> {
+    let mut parts = rest.split(' ');
+    let (Some(name), Some(kind), Some(value), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return None;
+    };
+    PathSeg::parse(name).ok()?;
+    if !crate::authz::token_field(name) {
+        return None;
+    }
+    let method = match kind {
+        "token" => {
+            let mut keys: Vec<(String, [u8; 32])> = Vec::new();
+            for entry in value.split(',') {
+                let (id, hex) = entry.split_once(':')?;
+                if !crate::authz::token_field(id) || keys.iter().any(|(k, _)| k == id) {
+                    return None;
+                }
+                let key = sha256_hex(hex, 0).ok()?;
+                ed25519_compact::PublicKey::from_slice(&key).ok()?;
+                keys.push((id.to_owned(), key));
+            }
+            AuthnMethod::Token { keys }
+        }
+        "password" => {
+            // Checked on the text: `Path::components` drops an interior `.`.
+            let rest = value.strip_prefix('/')?;
+            let plain = rest
+                .split('/')
+                .all(|seg| !seg.is_empty() && seg != "." && seg != "..");
+            if !plain || value.contains('\0') {
+                return None;
+            }
+            let path = Path::new(value);
+            AuthnMethod::Password {
+                path: path.to_path_buf(),
+            }
+        }
+        _ => return None,
+    };
+    Some(Grant::Authn {
+        name: name.to_owned(),
+        method,
+    })
+}
+
 /// The current time from the system clock, Unix seconds. The prelude reads
 /// the clock here; application code still has no clock authority.
-fn now() -> Result<UnixTime, ManifestError> {
+pub(crate) fn now() -> Result<UnixTime, ManifestError> {
     let t = rustix::time::clock_gettime(rustix::time::ClockId::Realtime);
     u64::try_from(t.tv_sec)
         .map(UnixTime)
@@ -521,19 +644,48 @@ impl Capabilities {
             serial: verified.serial,
             ..Self::default()
         };
+        // Password stores are opened last, once every directory the program
+        // could write is open to compare against.
+        let mut stores = Vec::new();
         for grant in verified.grants {
             match grant {
-                Grant::Dir { name, path } => {
+                Grant::Dir {
+                    name,
+                    path,
+                    protected,
+                } => {
                     let dir = DirCap::open_root(&path).map_err(|error| ManifestError::Dir {
                         name: name.clone(),
                         error,
                     })?;
                     // verify() refused duplicate names; a second insert
-                    // would mean it did not.
-                    if caps.dirs.insert(name.clone(), dir).is_some() {
+                    // would mean it did not. A protected grant goes only
+                    // into its own map, so `take_dir` cannot reach it.
+                    let duplicate = if protected {
+                        caps.protected_dirs
+                            .insert(name.clone(), ProtectedDir::new(name.clone(), dir))
+                            .is_some()
+                    } else {
+                        caps.dirs.insert(name.clone(), dir).is_some()
+                    };
+                    if duplicate {
                         return Err(ManifestError::Duplicate(name));
                     }
                 }
+                Grant::Authn {
+                    name,
+                    method: AuthnMethod::Token { keys },
+                } => {
+                    let auth = TokenAuthenticator::new(name.clone(), &keys)
+                        .ok_or(ManifestError::Signature)?;
+                    if caps.tokens.insert(name.clone(), auth).is_some() {
+                        return Err(ManifestError::Duplicate(name));
+                    }
+                }
+                Grant::Authn {
+                    name,
+                    method: AuthnMethod::Password { path },
+                } => stores.push((name, path)),
                 Grant::Exec { name, path } => {
                     if caps
                         .execs
@@ -569,7 +721,41 @@ impl Capabilities {
                 }
             }
         }
+        for (name, path) in stores {
+            let writable: Vec<&DirCap> = caps
+                .dirs
+                .values()
+                .chain(caps.protected_dirs.values().map(ProtectedDir::dir))
+                .collect();
+            let auth =
+                PasswordAuthenticator::load(name.clone(), &path, &writable).map_err(|error| {
+                    ManifestError::Store {
+                        name: name.clone(),
+                        error,
+                    }
+                })?;
+            if caps.passwords.insert(name.clone(), auth).is_some() {
+                return Err(ManifestError::Duplicate(name));
+            }
+        }
         Ok(caps)
+    }
+
+    /// Takes the protected directory named `name`, once. A `dir` grant not
+    /// marked `protected` is not returned here, and a protected one is not
+    /// returned by [`Capabilities::take_dir`].
+    pub fn take_protected_dir(&mut self, name: &str) -> Option<ProtectedDir> {
+        self.protected_dirs.remove(name)
+    }
+
+    /// Takes the token authenticator named `name`, once.
+    pub fn take_token_authenticator(&mut self, name: &str) -> Option<TokenAuthenticator> {
+        self.tokens.remove(name)
+    }
+
+    /// Takes the password authenticator named `name`, once.
+    pub fn take_password_authenticator(&mut self, name: &str) -> Option<PasswordAuthenticator> {
+        self.passwords.remove(name)
     }
 
     /// Takes the directory capability named `name`, once.
@@ -1013,5 +1199,146 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().fold(String::new(), |mut s, b| {
+            std::fmt::Write::write_fmt(&mut s, format_args!("{b:02x}")).unwrap();
+            s
+        })
+    }
+
+    fn grants(body: &str) -> Result<Vec<Grant>, ManifestError> {
+        let kp = keys();
+        let m = manifest("k1", 1, LATER, body);
+        verify(
+            m.as_bytes(),
+            Signature(&sign(&kp, m.as_bytes())),
+            &trusted("k1", &kp),
+            UnixTime(0),
+            MinSerial(0),
+        )
+        .map(|v| v.grants)
+    }
+
+    #[test]
+    fn protected_is_a_dir_flag_only() {
+        assert_eq!(
+            grants("dir a /srv/a protected\ndir b /srv/b\n").unwrap(),
+            [
+                Grant::Dir {
+                    name: "a".into(),
+                    path: "/srv/a".into(),
+                    protected: true
+                },
+                Grant::Dir {
+                    name: "b".into(),
+                    path: "/srv/b".into(),
+                    protected: false
+                },
+            ]
+        );
+        for bad in [
+            "exec t /usr/bin/tar protected\n",
+            "dir a /srv/a private\n",
+            "dir a /srv/a protected extra\n",
+            "declassify r protected\n",
+        ] {
+            assert!(
+                matches!(grants(bad), Err(ManifestError::Syntax(6))),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn authn_grants_parse_and_refuse_malformed_lines() {
+        let kp = keys();
+        let hex = hex(kp.pk.as_ref());
+        let g = grants(&format!(
+            "authn api token k1:{hex},k2:{hex}\nauthn staff password /etc/app/users\n"
+        ))
+        .unwrap();
+        assert_eq!(
+            g,
+            [
+                Grant::Authn {
+                    name: "api".into(),
+                    method: AuthnMethod::Token {
+                        keys: vec![("k1".into(), *kp.pk), ("k2".into(), *kp.pk)]
+                    },
+                },
+                Grant::Authn {
+                    name: "staff".into(),
+                    method: AuthnMethod::Password {
+                        path: "/etc/app/users".into()
+                    },
+                },
+            ]
+        );
+        for bad in [
+            format!("authn api token k1:{hex},k1:{hex}"),
+            format!("authn api token k.1:{hex}"),
+            format!("authn api token k1:{}", hex.to_uppercase()),
+            format!("authn api token k1:{}", hex.get(..62).unwrap()),
+            format!("authn a.b token k1:{hex}"),
+            "authn api token".to_owned(),
+            "authn api oauth x".to_owned(),
+            "authn staff password etc/users".to_owned(),
+            "authn staff password /etc/../users".to_owned(),
+            "authn staff password /etc/./users".to_owned(),
+            "authn staff password /etc/app/".to_owned(),
+            "authn staff password /etc/users extra".to_owned(),
+        ] {
+            assert!(
+                matches!(grants(&format!("{bad}\n")), Err(ManifestError::Syntax(6))),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_protected_dir_and_authenticators_are_taken_only_by_their_own_kind() {
+        let kp = keys();
+        let hex = hex(kp.pk.as_ref());
+        let m = manifest("k1", 1, LATER, &format!("authn api token k1:{hex}\n"));
+        let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
+        assert!(caps.take_password_authenticator("api").is_none());
+        assert!(caps.take_dir("api").is_none());
+        assert_eq!(
+            caps.take_token_authenticator("api")
+                .map(|a| a.name().to_owned()),
+            Some("api".to_owned())
+        );
+        assert!(caps.take_token_authenticator("api").is_none());
+    }
+
+    /// A protected `dir` grant is reachable only as a `ProtectedDir`
+    /// (CWE-288: no alternate path to the same directory).
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_protected_dir_is_not_a_plain_dir() {
+        let dir = std::env::temp_dir().join(format!("corten-pdir-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let kp = keys();
+        let m = manifest(
+            "k1",
+            1,
+            LATER,
+            &format!(
+                "dir p {} protected\ndir q {}\n",
+                dir.display(),
+                dir.display()
+            ),
+        );
+        let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
+        assert!(caps.take_dir("p").is_none());
+        assert!(caps.take_protected_dir("q").is_none());
+        assert_eq!(
+            caps.take_protected_dir("p").map(|d| d.name().to_owned()),
+            Some("p".into())
+        );
+        assert!(caps.take_dir("q").is_some());
+        let _ignored = std::fs::remove_dir_all(&dir);
     }
 }

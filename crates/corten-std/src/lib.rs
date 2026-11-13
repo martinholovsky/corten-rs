@@ -15,6 +15,9 @@
 //! - [`secret::Secret`]: wiped, locked, non-printable secret bytes.
 //! - [`thread::spawn`] and [`thread::Handle::join`]: threads whose panic
 //!   propagates to the joiner instead of coming back as a value.
+//! - [`authz`]: principals only from manifest-named authenticators, and
+//!   proofs of authorization that protected operations consume (Phase 6,
+//!   strategy 2).
 //! - [`crypto`] and [`random`]: authenticated encryption with
 //!   library-managed nonces, Argon2id password hashes with a cost floor,
 //!   signature checks that return [`crypto::Verified`], and operating-system
@@ -28,6 +31,7 @@
 //! unchecked arithmetic and no banned `std` API, and the compile-fail corpus
 //! builds it as a path dependency under `cargo corten check`.
 
+pub mod authz;
 pub mod crypto;
 pub mod csv;
 pub mod fs;
