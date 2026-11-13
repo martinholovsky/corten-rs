@@ -1,6 +1,6 @@
 # Strategy 2: authorization and authentication as proof types (design note, 2026-11-10)
 
-Status: **Q1 and Q2 decided (owner, 2026-11-10, the recommendation on both): manifest-flagged `protected` grants; prelude authenticators only.** Q3 (policy in Rust, Cedar weighed later) stands as proposed. Owner decision 2026-11-10: this is the next Phase 6 strategy (`gates/phase-6.md`, batch 4). Question 14 (spec section 8) already decided the gate: prototype on the corpus, adopt only at 0 false rejections. Nothing here is built.
+Status: **Q1 and Q2 decided (owner, 2026-11-10, the recommendation on both): manifest-flagged `protected` grants; prelude authenticators only.** **Q3 decided (owner, 2026-11-13, the recommendation):** the policy is the program's Rust `Policy`, and Cedar is weighed against the measured prototype, after it. Owner decision 2026-11-10: this is the next Phase 6 strategy (`gates/phase-6.md`, batch 4); 2026-11-13: it goes before the prebuilt driver. Question 14 (spec section 8) already decided the gate: prototype on the corpus, adopt only at 0 false rejections. Nothing here is built.
 
 ## What it can and cannot claim
 
