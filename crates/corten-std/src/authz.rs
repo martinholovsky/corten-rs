@@ -1098,9 +1098,10 @@ mod tests {
         fn a_malformed_store_is_refused_with_its_line() {
             let s = Scratch::new("syntax");
             let path = s.0.join("etc/users");
+            let twice = format!("{STORE}{STORE}");
             for (text, line) in [
                 ("alice\n", 1),
-                (&format!("{STORE}{STORE}") as &str, 2),
+                (twice.as_str(), 2),
                 ("\nbad.name $argon2id$x\n", 2),
             ] {
                 std::fs::write(&path, text).unwrap();
