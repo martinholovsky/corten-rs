@@ -399,6 +399,7 @@ Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E can
   - `corten-sandbox` unit tests: 6 of 6.
 - **Mutations on macOS:** 8 of 8 caught. They disabled each token check (signature, key selection, audience, expiry, lifetime cap), `check` allowing, refusal logging, and the `protected` flag's restriction to `dir`.
   - The first draft's runs found two defects in the instruments: a mutant that did not compile, and a vacuous window test. Both concerned the password code, now removed.
+  - CI found a third: the lifetime-cap case built its token 901 s ahead, so a clock tick between building and checking it brought it back to 900 s, within the cap. It failed once in CI (run 43517046511). It now uses the cap plus 60 s, and the cap's mutant is still caught.
 - **Linux** (`--rm` `rust:1.99.1-slim-bookworm` container, 12 GiB memory cap, 4 build jobs):
   - Clippy `-D warnings` on the workspace: clean.
   - `corten-std`: 113 passed, 2 ignored (both existing), including `ProtectedDir`'s cross-directory refusal and `take_dir` refusing a protected grant.
