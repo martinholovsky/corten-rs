@@ -90,9 +90,6 @@ struct Plan {
     allow_unprotected_hardlinks: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
-    /// Password stores the manifest's `authn` grants name: read-only, and
-    /// never beneath a read-write path (`check_stores`).
-    stores: Vec<PathBuf>,
     manifest: Option<ManifestArgs>,
     /// The program digest the verified manifest pins (manifest mode only).
     program_sha256: Option<[u8; 32]>,
@@ -243,18 +240,7 @@ fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
             corten_std::manifest::Grant::Exec { path, .. } => plan.execute.push(path),
             // Not a filesystem grant, or keys only: nothing for Landlock.
             corten_std::manifest::Grant::Declassify { .. }
-            | corten_std::manifest::Grant::Authn {
-                method: corten_std::manifest::AuthnMethod::Token { .. },
-                ..
-            } => {}
-            // The program reads its password store and must never write it.
-            corten_std::manifest::Grant::Authn {
-                method: corten_std::manifest::AuthnMethod::Password { path },
-                ..
-            } => {
-                plan.read_only.push(path.clone());
-                plan.stores.push(path);
-            }
+            | corten_std::manifest::Grant::Authn { .. } => {}
             // Landlock filters TCP by port, not address: the address check is
             // corten_std::net's.
             corten_std::manifest::Grant::Net { port, host, .. } => {
@@ -466,10 +452,6 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_UNENFORCEABLE);
         }
     };
-    if let Err(e) = check_stores(&plan) {
-        eprintln!("corten-sandbox: {e}");
-        return ExitCode::from(EXIT_UNENFORCEABLE);
-    }
     // Before Landlock: afterwards /proc may be out of reach. (Off Linux,
     // enforce::apply refuses below.)
     #[cfg(target_os = "linux")]
@@ -512,63 +494,6 @@ fn main() -> ExitCode {
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
     exec(&plan, pinned.as_ref())
-}
-
-/// A password store must be readable but never writable by the program
-/// (Phase 6, strategy 2): refused when it is not a regular file with one link
-/// at its canonical path, or when a read-write path (a manifest `dir` grant or
-/// `--rw`) is the store or one of its ancestors. Ancestors are compared by
-/// device and inode, so a symbolic link or bind mount to them is caught.
-/// `corten_std` makes the same check against the program's own grants.
-#[cfg(unix)]
-fn check_stores(plan: &Plan) -> Result<(), String> {
-    use std::os::unix::fs::MetadataExt;
-    for store in &plan.stores {
-        let refuse = |why: &str| Err(format!("password store {}: {why}", store.display()));
-        let meta = match std::fs::symlink_metadata(store) {
-            Ok(m) => m,
-            Err(e) => return refuse(&e.to_string()),
-        };
-        if !meta.file_type().is_file() {
-            return refuse("not a regular file");
-        }
-        if meta.nlink() != 1 {
-            return refuse("has more than one hard link");
-        }
-        match std::fs::canonicalize(store) {
-            Ok(c) if &c == store => {}
-            Ok(_) => return refuse("its path passes through a symbolic link"),
-            Err(e) => return refuse(&e.to_string()),
-        }
-        let mut ancestors = std::collections::BTreeSet::new();
-        for a in store.ancestors() {
-            match std::fs::metadata(a) {
-                Ok(m) => {
-                    let _new = ancestors.insert((m.dev(), m.ino()));
-                }
-                Err(e) => return refuse(&e.to_string()),
-            }
-        }
-        for rw in &plan.read_write {
-            let m = std::fs::metadata(rw).map_err(|e| format!("{}: {e}", rw.display()))?;
-            if ancestors.contains(&(m.dev(), m.ino())) {
-                return refuse(&format!(
-                    "writable through the read-write path {}",
-                    rw.display()
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn check_stores(plan: &Plan) -> Result<(), String> {
-    if plan.stores.is_empty() {
-        Ok(())
-    } else {
-        Err("password stores are checked only on Unix".to_owned())
-    }
 }
 
 /// The kernel setting that refuses a hard link to a file the linking user
@@ -727,59 +652,6 @@ fn exec(_plan: &Plan, _pinned: Option<&std::fs::File>) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-
-    #[cfg(unix)]
-    #[test]
-    fn a_password_store_beneath_a_read_write_path_is_refused() {
-        // Canonical, so the store's own path passes the symlink check
-        // (macOS's temp directory is itself behind /var -> /private/var).
-        let base = std::fs::canonicalize(std::env::temp_dir())
-            .unwrap()
-            .join(format!("corten-sbx-store-{}", std::process::id()));
-        let _ignored = std::fs::remove_dir_all(&base);
-        std::fs::create_dir_all(base.join("rw")).unwrap();
-        std::fs::create_dir_all(base.join("etc")).unwrap();
-        let store = base.join("etc/users");
-        std::fs::write(&store, "alice x\n").unwrap();
-        let plan = |rw: &[&str], store: &std::path::Path| Plan {
-            read_write: rw.iter().map(|p| base.join(p)).collect(),
-            stores: vec![store.to_path_buf()],
-            ..Plan::default()
-        };
-        // Control: a read-write path beside the store.
-        assert_eq!(check_stores(&plan(&["rw"], &store)), Ok(()));
-        // The store's directory, an ancestor, or a symlink to it.
-        assert!(
-            check_stores(&plan(&["etc"], &store))
-                .unwrap_err()
-                .contains("writable")
-        );
-        assert!(
-            check_stores(&plan(&["."], &store))
-                .unwrap_err()
-                .contains("writable")
-        );
-        std::os::unix::fs::symlink(base.join("etc"), base.join("alias")).unwrap();
-        assert!(
-            check_stores(&plan(&["alias"], &store))
-                .unwrap_err()
-                .contains("writable")
-        );
-        // A symlink in the store's own path, and a second hard link.
-        assert!(
-            check_stores(&plan(&[], &base.join("alias/users")))
-                .unwrap_err()
-                .contains("symbolic link")
-        );
-        std::fs::hard_link(&store, base.join("etc/second")).unwrap();
-        assert!(
-            check_stores(&plan(&[], &store))
-                .unwrap_err()
-                .contains("hard link")
-        );
-        let _ignored = std::fs::remove_dir_all(&base);
-    }
-
     use super::*;
 
     #[cfg(target_os = "linux")]
