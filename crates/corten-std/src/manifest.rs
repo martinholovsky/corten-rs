@@ -14,7 +14,6 @@
 //! exec tar /usr/bin/tar
 //! declassify report
 //! authn api token deploy-2026-11:5d7f...(64 hex digits),next:9a1c...
-//! authn staff password /etc/app/users
 //! ```
 //!
 //! The first five lines are required, in this order (spec section 8,
@@ -42,10 +41,9 @@
 //! A `dir` grant marked `protected` (Phase 6, strategy 2) is taken only as a
 //! [`ProtectedDir`], whose every operation consumes an authorization proof.
 //! `authn NAME token ID:HEX,...` names the Ed25519 keys whose tokens the
-//! [`TokenAuthenticator`] accepts; `authn NAME password PATH` names a password
-//! store, refused at load if it is not a regular file with one link reached
-//! with no symbolic link, or if any `dir` grant could write it
-//! (`crate::authz`). The deployer signs the exact bytes with Ed25519. The key ID is read before
+//! [`TokenAuthenticator`] accepts (`crate::authz`). There is no password
+//! authenticator: only phishing-resistant authentication is accepted (owner
+//! decision 2026-11-13). The deployer signs the exact bytes with Ed25519. The key ID is read before
 //! the signature is checked, only to choose the key; nothing else is parsed
 //! before then. [`Capabilities::load`] refuses a manifest over
 //! [`MAX_MANIFEST`] bytes and opens every directory up front, so a missing
@@ -56,7 +54,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::authz::{PasswordAuthenticator, ProtectedDir, StoreError, TokenAuthenticator};
+use crate::authz::{ProtectedDir, TokenAuthenticator};
 use crate::label::DeclassifyCap;
 use crate::net::{DnsFallback, Host, NetCap};
 
@@ -105,14 +103,6 @@ pub enum ManifestError {
         /// Why.
         error: FsError,
     },
-    /// A password store was refused: unreadable, malformed, or writable
-    /// through a `dir` grant.
-    Store {
-        /// The authenticator's name.
-        name: String,
-        /// Why.
-        error: StoreError,
-    },
 }
 
 impl fmt::Display for ManifestError {
@@ -134,9 +124,6 @@ impl fmt::Display for ManifestError {
             }
             Self::Clock => f.write_str("the system clock could not be read"),
             Self::Dir { name, error } => write!(f, "cannot open directory {name:?}: {error}"),
-            Self::Store { name, error } => {
-                write!(f, "password store of {name:?} refused: {error}")
-            }
         }
     }
 }
@@ -156,7 +143,6 @@ pub struct Capabilities {
     dirs: BTreeMap<String, DirCap>,
     protected_dirs: BTreeMap<String, ProtectedDir>,
     tokens: BTreeMap<String, TokenAuthenticator>,
-    passwords: BTreeMap<String, PasswordAuthenticator>,
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
     nets: BTreeMap<String, NetCap>,
@@ -182,8 +168,7 @@ pub enum Grant {
         /// Whether every operation needs a proof.
         protected: bool,
     },
-    /// `authn NAME token ID:HEX[,ID:HEX...]` or `authn NAME password PATH`:
-    /// an authenticator the program may use to obtain an
+    /// `authn NAME token ID:HEX[,ID:HEX...]`: an authenticator the program may use to obtain an
     /// [`Authenticated`](crate::authz::Authenticated) principal. The program
     /// cannot construct one any other way.
     Authn {
@@ -232,13 +217,6 @@ pub enum AuthnMethod {
     Token {
         /// `(key identifier, public key)`, in manifest order.
         keys: Vec<(String, [u8; 32])>,
-    },
-    /// Argon2id hashes in the file at this absolute path
-    /// ([`crate::authz::PasswordAuthenticator`]). The file must not be
-    /// writable through any `dir` grant.
-    Password {
-        /// The password store.
-        path: PathBuf,
     },
 }
 
@@ -566,7 +544,7 @@ fn parse_net(rest: &str) -> Option<Grant> {
     })
 }
 
-/// `NAME token ID:HEX[,ID:HEX...]` or `NAME password PATH` after `authn `.
+/// `NAME token ID:HEX[,ID:HEX...]` after `authn `.
 /// The name and key identifiers use the token field grammar
 /// ([`crate::authz::token_field`]), since a token carries them.
 fn parse_authn(rest: &str) -> Option<Grant> {
@@ -593,20 +571,6 @@ fn parse_authn(rest: &str) -> Option<Grant> {
                 keys.push((id.to_owned(), key));
             }
             AuthnMethod::Token { keys }
-        }
-        "password" => {
-            // Checked on the text: `Path::components` drops an interior `.`.
-            let rest = value.strip_prefix('/')?;
-            let plain = rest
-                .split('/')
-                .all(|seg| !seg.is_empty() && seg != "." && seg != "..");
-            if !plain || value.contains('\0') {
-                return None;
-            }
-            let path = Path::new(value);
-            AuthnMethod::Password {
-                path: path.to_path_buf(),
-            }
         }
         _ => return None,
     };
@@ -644,9 +608,6 @@ impl Capabilities {
             serial: verified.serial,
             ..Self::default()
         };
-        // Password stores are opened last, once every directory the program
-        // could write is open to compare against.
-        let mut stores = Vec::new();
         for grant in verified.grants {
             match grant {
                 Grant::Dir {
@@ -682,10 +643,6 @@ impl Capabilities {
                         return Err(ManifestError::Duplicate(name));
                     }
                 }
-                Grant::Authn {
-                    name,
-                    method: AuthnMethod::Password { path },
-                } => stores.push((name, path)),
                 Grant::Exec { name, path } => {
                     if caps
                         .execs
@@ -721,23 +678,6 @@ impl Capabilities {
                 }
             }
         }
-        for (name, path) in stores {
-            let writable: Vec<&DirCap> = caps
-                .dirs
-                .values()
-                .chain(caps.protected_dirs.values().map(ProtectedDir::dir))
-                .collect();
-            let auth =
-                PasswordAuthenticator::load(name.clone(), &path, &writable).map_err(|error| {
-                    ManifestError::Store {
-                        name: name.clone(),
-                        error,
-                    }
-                })?;
-            if caps.passwords.insert(name.clone(), auth).is_some() {
-                return Err(ManifestError::Duplicate(name));
-            }
-        }
         Ok(caps)
     }
 
@@ -751,11 +691,6 @@ impl Capabilities {
     /// Takes the token authenticator named `name`, once.
     pub fn take_token_authenticator(&mut self, name: &str) -> Option<TokenAuthenticator> {
         self.tokens.remove(name)
-    }
-
-    /// Takes the password authenticator named `name`, once.
-    pub fn take_password_authenticator(&mut self, name: &str) -> Option<PasswordAuthenticator> {
-        self.passwords.remove(name)
     }
 
     /// Takes the directory capability named `name`, once.
@@ -1255,26 +1190,15 @@ mod tests {
     fn authn_grants_parse_and_refuse_malformed_lines() {
         let kp = keys();
         let hex = hex(kp.pk.as_ref());
-        let g = grants(&format!(
-            "authn api token k1:{hex},k2:{hex}\nauthn staff password /etc/app/users\n"
-        ))
-        .unwrap();
+        let g = grants(&format!("authn api token k1:{hex},k2:{hex}\n")).unwrap();
         assert_eq!(
             g,
-            [
-                Grant::Authn {
-                    name: "api".into(),
-                    method: AuthnMethod::Token {
-                        keys: vec![("k1".into(), *kp.pk), ("k2".into(), *kp.pk)]
-                    },
+            [Grant::Authn {
+                name: "api".into(),
+                method: AuthnMethod::Token {
+                    keys: vec![("k1".into(), *kp.pk), ("k2".into(), *kp.pk)]
                 },
-                Grant::Authn {
-                    name: "staff".into(),
-                    method: AuthnMethod::Password {
-                        path: "/etc/app/users".into()
-                    },
-                },
-            ]
+            },]
         );
         for bad in [
             format!("authn api token k1:{hex},k1:{hex}"),
@@ -1284,11 +1208,9 @@ mod tests {
             format!("authn a.b token k1:{hex}"),
             "authn api token".to_owned(),
             "authn api oauth x".to_owned(),
-            "authn staff password etc/users".to_owned(),
-            "authn staff password /etc/../users".to_owned(),
-            "authn staff password /etc/./users".to_owned(),
-            "authn staff password /etc/app/".to_owned(),
-            "authn staff password /etc/users extra".to_owned(),
+            // No password authenticator: only phishing-resistant
+            // authentication is accepted (owner decision 2026-11-13).
+            "authn staff password /etc/app/users".to_owned(),
         ] {
             assert!(
                 matches!(grants(&format!("{bad}\n")), Err(ManifestError::Syntax(6))),
@@ -1303,7 +1225,6 @@ mod tests {
         let hex = hex(kp.pk.as_ref());
         let m = manifest("k1", 1, LATER, &format!("authn api token k1:{hex}\n"));
         let mut caps = load(&m, &kp, &trusted("k1", &kp), 0).unwrap();
-        assert!(caps.take_password_authenticator("api").is_none());
         assert!(caps.take_dir("api").is_none());
         assert_eq!(
             caps.take_token_authenticator("api")

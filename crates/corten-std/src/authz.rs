@@ -2,10 +2,13 @@
 //! `docs/gates/authz-proposal.md`).
 //!
 //! - An [`Authenticated`] principal comes only from an authenticator the
-//!   signed manifest names: a [`TokenAuthenticator`] (`authn NAME token ...`)
-//!   or a [`PasswordAuthenticator`] (`authn NAME password PATH`). Neither type
-//!   has a public constructor, so a program cannot mint a principal (CWE-306,
-//!   288).
+//!   signed manifest names, today a [`TokenAuthenticator`]
+//!   (`authn NAME token ...`). It has no public constructor, so a program
+//!   cannot mint a principal (CWE-306, 288). There is no password
+//!   authenticator: only phishing-resistant authentication is accepted
+//!   (owner decision 2026-11-13). Users sign in with passkeys at an identity
+//!   provider, and an exchange gateway turns its assertion into a Corten
+//!   token (`docs/gates/phase-6.md`, batch 4).
 //! - An [`Authorized`] proof comes only from [`check`], which asks the
 //!   program's [`Policy`] and logs the outcome before returning (CWE-862).
 //!   It names the action and the resource key it was checked for, it is not
@@ -30,11 +33,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::crypto::password::{self, Check, PasswordHash};
 use crate::fs::{CapFile, DirCap, FileMode, FsError, OpenMode};
 use crate::log::LogWriter;
 use crate::path::RelPath;
-use crate::secret::Secret;
 
 /// The longest a token may still be valid for when it is presented, in
 /// seconds (15 minutes: an access token's lifetime, since a token cannot be
@@ -43,20 +44,6 @@ use crate::secret::Secret;
 pub const MAX_TOKEN_LIFETIME: u64 = 900;
 /// The longest token accepted, in bytes.
 pub const MAX_TOKEN: usize = 512;
-/// The longest password accepted, in bytes; longer input is refused before
-/// any hashing.
-pub const MAX_PASSWORD: usize = 1024;
-/// The largest password store read, in bytes.
-pub const MAX_STORE: usize = 1 << 20;
-/// Consecutive failures for one account before attempts are delayed.
-pub const LOCKOUT_THRESHOLD: u32 = 5;
-/// Failures older than this, in seconds, are forgotten.
-pub const LOCKOUT_WINDOW: u64 = 900;
-/// The longest delay between attempts on one account, in seconds. The delay
-/// starts at one second at the threshold and doubles with each further
-/// failure; it never becomes a permanent lock.
-pub const LOCKOUT_MAX_DELAY: u64 = 900;
-
 const TOKEN_PREFIX: &str = "corten-token-1";
 
 /// Whether `text` is a valid token field (a key identifier, an
@@ -72,8 +59,8 @@ pub fn token_field(text: &str) -> bool {
 
 /// A principal an authenticator the manifest names has vouched for.
 ///
-/// No public constructor: only [`TokenAuthenticator::authenticate`] and
-/// [`PasswordAuthenticator::authenticate`] return one.
+/// No public constructor: only [`TokenAuthenticator::authenticate`] returns
+/// one.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Authenticated {
     principal: String,
@@ -280,203 +267,6 @@ impl TokenAuthenticator {
     }
 }
 
-/// A principal's name as typed at login: a label, as [`Token`].
-#[derive(Debug, Clone, Copy)]
-pub struct UserName<'a>(pub &'a str);
-
-#[derive(Debug, Clone, Copy, Default)]
-struct Failures {
-    count: u32,
-    last: u64,
-}
-
-impl Failures {
-    /// Seconds after `last` before the next attempt is heard.
-    fn delay(self) -> u64 {
-        let Some(over) = self.count.checked_sub(LOCKOUT_THRESHOLD) else {
-            return 0;
-        };
-        1u64.checked_shl(over)
-            .unwrap_or(LOCKOUT_MAX_DELAY)
-            .min(LOCKOUT_MAX_DELAY)
-    }
-}
-
-/// Checks passwords against the Argon2id hashes in the file an
-/// `authn NAME password PATH` grant names. The manifest loader refuses the
-/// file if any `dir` grant could write it, so the program cannot add a user
-/// or replace a hash. Taken from [`crate::manifest::Capabilities`].
-///
-/// File format: one `NAME HASH` line per principal, `NAME` in the
-/// [`token_field`] grammar and `HASH` an Argon2id PHC string; blank lines
-/// are skipped.
-pub struct PasswordAuthenticator {
-    name: String,
-    users: BTreeMap<String, PasswordHash>,
-    failures: BTreeMap<String, Failures>,
-    /// Checked against when the user is unknown, so "no such user" takes as
-    /// long as "wrong password" (CWE-204, 208).
-    decoy: PasswordHash,
-}
-
-impl fmt::Debug for PasswordAuthenticator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PasswordAuthenticator")
-            .field("name", &self.name)
-            .field("users", &self.users.len())
-            .finish_non_exhaustive()
-    }
-}
-
-/// Why a password store was refused at load.
-#[derive(Debug)]
-pub enum StoreError {
-    /// The file could not be read safely ([`FsError::Exposed`] when a `dir`
-    /// grant could write it).
-    Fs(FsError),
-    /// A malformed or duplicate line (1-based).
-    Syntax(usize),
-    /// The decoy hash could not be made.
-    Decoy,
-}
-
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Fs(e) => write!(f, "{e}"),
-            Self::Syntax(line) => write!(f, "password store line {line} is malformed"),
-            Self::Decoy => f.write_str("could not prepare the password check"),
-        }
-    }
-}
-
-impl std::error::Error for StoreError {}
-
-impl PasswordAuthenticator {
-    pub(crate) fn load(
-        name: String,
-        path: &std::path::Path,
-        writable: &[&DirCap],
-    ) -> Result<Self, StoreError> {
-        let bytes = crate::fs::read_store(path, writable, MAX_STORE).map_err(StoreError::Fs)?;
-        let text = std::str::from_utf8(&bytes).map_err(|_| StoreError::Syntax(1))?;
-        let mut users = BTreeMap::new();
-        for (number, line) in (1usize..).zip(text.lines()) {
-            if line.is_empty() {
-                continue;
-            }
-            let Some((user, hash)) = line.split_once(' ') else {
-                return Err(StoreError::Syntax(number));
-            };
-            if !token_field(user) || hash.contains(' ') {
-                return Err(StoreError::Syntax(number));
-            }
-            if users
-                .insert(user.to_owned(), PasswordHash::from_stored(hash.to_owned()))
-                .is_some()
-            {
-                return Err(StoreError::Syntax(number));
-            }
-        }
-        let decoy_secret = crate::random::array::<32>()
-            .ok()
-            .and_then(|b| Secret::new(b.to_vec()).ok())
-            .ok_or(StoreError::Decoy)?;
-        let decoy = password::hash(&decoy_secret).map_err(|_| StoreError::Decoy)?;
-        Ok(Self {
-            name,
-            users,
-            failures: BTreeMap::new(),
-            decoy,
-        })
-    }
-
-    /// The authenticator's manifest name.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Checks `password` for `user`. "No such user", "wrong password" and
-    /// "delayed after repeated failures" return the same error after the
-    /// same Argon2id work; the reason is logged (`authn.refused`), and a
-    /// delay that starts or a hash that should be replaced is logged too
-    /// (`authn.delayed`, `authn.rehash`).
-    ///
-    /// After [`LOCKOUT_THRESHOLD`] consecutive failures within
-    /// [`LOCKOUT_WINDOW`] the account answers only after a delay that
-    /// doubles with each failure, up to [`LOCKOUT_MAX_DELAY`]; a success
-    /// clears it. Limits per client address belong to the caller, which
-    /// sees the address.
-    ///
-    /// # Errors
-    ///
-    /// [`AuthnRefused`].
-    pub fn authenticate(
-        &mut self,
-        UserName(user): UserName<'_>,
-        password: &Secret,
-        log: &mut dyn LogWriter,
-    ) -> Result<Authenticated, AuthnRefused> {
-        let name = self.name.clone();
-        if password.is_empty() || password.len() > MAX_PASSWORD || !token_field(user) {
-            // Same work as a real check.
-            let _decoy_outcome = password::verify(password, &self.decoy).is_ok();
-            return Err(refused(&name, "password", "malformed", log));
-        }
-        let Some(now) = now() else {
-            return Err(refused(&name, "password", "no clock", log));
-        };
-        let failures = self.failures.get(user).copied().unwrap_or_default();
-        let fresh = now
-            .checked_sub(failures.last)
-            .is_some_and(|age| age <= LOCKOUT_WINDOW);
-        let failures = if fresh { failures } else { Failures::default() };
-        let waiting = failures
-            .last
-            .checked_add(failures.delay())
-            .is_none_or(|until| now < until);
-        let stored = self.users.get(user).unwrap_or(&self.decoy);
-        let outcome = password::verify(password, stored);
-        let known = self.users.contains_key(user);
-        let reason = match (known, waiting, &outcome) {
-            (false, _, _) => Some("unknown user"),
-            (true, true, _) => Some("delayed"),
-            (true, false, Ok(_)) => None,
-            (true, false, Err(_)) => Some("wrong password or unusable hash"),
-        };
-        if let Some(reason) = reason {
-            if known {
-                let count = failures.count.saturating_add(1);
-                let next = Failures { count, last: now };
-                if next.delay() > 0 && failures.delay() == 0 {
-                    log.write(&crate::log_record!(
-                        "authn.delayed",
-                        authenticator = name,
-                        principal = user,
-                        failures = count
-                    ));
-                }
-                let _previous = self.failures.insert(user.to_owned(), next);
-            }
-            return Err(refused(&name, "password", reason, log));
-        }
-        let _cleared = self.failures.remove(user);
-        if matches!(outcome, Ok(Check::Rehash)) {
-            log.write(&crate::log_record!(
-                "authn.rehash",
-                authenticator = name,
-                principal = user
-            ));
-        }
-        accepted(&name, "password", user, log);
-        Ok(Authenticated {
-            principal: user.to_owned(),
-            authenticator: name,
-        })
-    }
-}
-
 /// An action a proof is for. The prelude's protected operations use
 /// [`Read`], [`Create`], [`Append`] and [`Remove`]; a program may define its
 /// own for its own resources.
@@ -664,10 +454,6 @@ impl ProtectedDir {
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub(crate) fn dir(&self) -> &DirCap {
-        &self.dir
     }
 
     /// The key to check before acting on `path` in this directory.
@@ -905,134 +691,9 @@ mod tests {
         );
     }
 
-    fn secret(text: &str) -> Secret {
-        Secret::new(text.as_bytes().to_vec()).unwrap()
-    }
-
-    fn passwords() -> PasswordAuthenticator {
-        let mut users = BTreeMap::new();
-        let _none = users.insert(
-            "alice".to_owned(),
-            password::hash(&secret("right")).unwrap(),
-        );
-        PasswordAuthenticator {
-            name: "staff".into(),
-            users,
-            failures: BTreeMap::new(),
-            decoy: password::hash(&secret("decoy")).unwrap(),
-        }
-    }
-
-    #[test]
-    fn unknown_user_and_wrong_password_look_the_same_to_the_caller() {
-        let mut p = passwords();
-        let mut log = Collect::default();
-        let unknown = p.authenticate(UserName("mallory"), &secret("right"), &mut log);
-        let wrong = p.authenticate(UserName("alice"), &secret("wrong"), &mut log);
-        assert_eq!(unknown, Err(AuthnRefused));
-        assert_eq!(wrong, Err(AuthnRefused));
-        // The decoy is a real hash, so "no such user" runs Argon2id too.
-        assert!(password::verify(&secret("decoy"), &p.decoy).is_ok());
-        assert!(log.0[0].contains("reason=\"unknown user\""));
-        // "No such user" costs a full Argon2id check, as a wrong password
-        // does: an early return would take microseconds, not a share of it.
-        let timed = |p: &mut PasswordAuthenticator, user: &str| {
-            let start = std::time::Instant::now();
-            let _refused = p.authenticate(UserName(user), &secret("x"), &mut Collect::default());
-            start.elapsed()
-        };
-        let (slow_nobody, slow_alice) = (timed(&mut p, "nobody"), timed(&mut p, "alice"));
-        assert!(
-            slow_nobody.saturating_mul(4) > slow_alice,
-            "unknown {slow_nobody:?} vs wrong {slow_alice:?}"
-        );
-        assert!(log.0[1].contains("reason=\"wrong password or unusable hash\""));
-        for bad in ["", "a b", "a.b"] {
-            assert_eq!(
-                p.authenticate(UserName(bad), &secret("right"), &mut log),
-                Err(AuthnRefused)
-            );
-        }
-        let oversized = "x".repeat(MAX_PASSWORD.checked_add(1).unwrap());
-        assert_eq!(
-            p.authenticate(UserName("alice"), &secret(&oversized), &mut log),
-            Err(AuthnRefused)
-        );
-        let who = p
-            .authenticate(UserName("alice"), &secret("right"), &mut log)
-            .unwrap();
-        assert_eq!((who.principal(), who.authenticator()), ("alice", "staff"));
-    }
-
-    #[test]
-    fn repeated_failures_delay_the_account_and_a_success_clears_it() {
-        assert_eq!(
-            [4, 5, 6, 7, 20, 40].map(|count| Failures { count, last: 0 }.delay()),
-            [0, 1, 2, 4, LOCKOUT_MAX_DELAY, LOCKOUT_MAX_DELAY]
-        );
-        let mut p = passwords();
-        let mut log = Collect::default();
-        for _ in 0..LOCKOUT_THRESHOLD {
-            assert!(
-                p.authenticate(UserName("alice"), &secret("wrong"), &mut log)
-                    .is_err()
-            );
-        }
-        assert!(log.0.iter().any(|l| l.starts_with("authn.delayed")));
-        assert_eq!(
-            p.failures.get("alice").map(|f| f.count),
-            Some(LOCKOUT_THRESHOLD)
-        );
-        // A delay far longer than any test run (32 s), so this does not
-        // depend on how fast Argon2id is on this machine.
-        let _deep = p.failures.insert(
-            "alice".into(),
-            Failures {
-                count: LOCKOUT_THRESHOLD + 5,
-                last: now().unwrap(),
-            },
-        );
-        // Within the delay even the right password is refused, the same way.
-        assert_eq!(
-            p.authenticate(UserName("alice"), &secret("right"), &mut log),
-            Err(AuthnRefused)
-        );
-        assert!(log.0.last().unwrap().contains("reason=\"delayed\""));
-        // Once the delay has passed, the right password works and clears it.
-        let f = p.failures.get_mut("alice").unwrap();
-        f.last = f.last.saturating_sub(LOCKOUT_MAX_DELAY.saturating_add(1));
-        assert!(
-            p.authenticate(UserName("alice"), &secret("right"), &mut log)
-                .is_ok()
-        );
-        assert!(!p.failures.contains_key("alice"));
-        // Failures older than the window are forgotten: after an old burst,
-        // one fresh failure counts as the first, so it starts no delay and
-        // the right password works at once. (Were the burst remembered,
-        // that failure would be the 31st and delay the account.)
-        let mut q = passwords();
-        let _old = q.failures.insert(
-            "alice".into(),
-            Failures {
-                count: 30,
-                last: now().unwrap() - LOCKOUT_WINDOW - 1,
-            },
-        );
-        assert!(
-            q.authenticate(UserName("alice"), &secret("wrong"), &mut log)
-                .is_err()
-        );
-        assert_eq!(q.failures.get("alice").map(|f| f.count), Some(1));
-        assert!(
-            q.authenticate(UserName("alice"), &secret("right"), &mut log)
-                .is_ok()
-        );
-    }
-
     #[cfg(target_os = "linux")]
     mod linux {
         use super::*;
-        use crate::fs::FsError;
 
         struct Scratch(std::path::PathBuf);
         impl Scratch {
@@ -1048,70 +709,6 @@ mod tests {
         impl Drop for Scratch {
             fn drop(&mut self) {
                 let _ignored = std::fs::remove_dir_all(&self.0);
-            }
-        }
-
-        const STORE: &str = "alice $argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g\n";
-
-        #[test]
-        fn a_store_under_a_writable_grant_or_behind_a_link_is_refused() {
-            let s = Scratch::new("store");
-            let rw = DirCap::open_root(&s.0.join("rw")).unwrap();
-            let outside = s.0.join("etc/users");
-            std::fs::write(&outside, STORE).unwrap();
-            // Control: beside the grant, not beneath it, it loads.
-            let p = PasswordAuthenticator::load("staff".into(), &outside, &[&rw]).unwrap();
-            assert_eq!(p.users.len(), 1);
-            // Beneath the writable grant.
-            let inside = s.0.join("rw/users");
-            std::fs::write(&inside, STORE).unwrap();
-            assert!(matches!(
-                PasswordAuthenticator::load("staff".into(), &inside, &[&rw]),
-                Err(StoreError::Fs(FsError::Exposed))
-            ));
-            // A grant that reaches the store's directory through a symlink.
-            std::os::unix::fs::symlink(s.0.join("etc"), s.0.join("alias")).unwrap();
-            let alias = DirCap::open_root(&s.0.join("alias")).unwrap();
-            assert!(matches!(
-                PasswordAuthenticator::load("staff".into(), &outside, &[&alias]),
-                Err(StoreError::Fs(FsError::Exposed))
-            ));
-            // A symlink in the store's own path.
-            assert!(matches!(
-                PasswordAuthenticator::load("staff".into(), &s.0.join("alias/users"), &[&rw]),
-                Err(StoreError::Fs(FsError::Os(_)))
-            ));
-            // Not a regular file.
-            assert!(matches!(
-                PasswordAuthenticator::load("staff".into(), &s.0.join("etc"), &[&rw]),
-                Err(StoreError::Fs(FsError::Exposed))
-            ));
-            // A second hard link (which could sit beneath a writable grant).
-            std::fs::hard_link(&outside, s.0.join("etc/second")).unwrap();
-            assert!(matches!(
-                PasswordAuthenticator::load("staff".into(), &outside, &[&rw]),
-                Err(StoreError::Fs(FsError::HardLink))
-            ));
-        }
-
-        #[test]
-        fn a_malformed_store_is_refused_with_its_line() {
-            let s = Scratch::new("syntax");
-            let path = s.0.join("etc/users");
-            let twice = format!("{STORE}{STORE}");
-            for (text, line) in [
-                ("alice\n", 1),
-                (twice.as_str(), 2),
-                ("\nbad.name $argon2id$x\n", 2),
-            ] {
-                std::fs::write(&path, text).unwrap();
-                assert!(
-                    matches!(
-                        PasswordAuthenticator::load("staff".into(), &path, &[]),
-                        Err(StoreError::Syntax(l)) if l == line
-                    ),
-                    "{text:?}"
-                );
             }
         }
 

@@ -56,10 +56,10 @@ A blocker to name now: there is no listener or request type in `corten-std` (`ga
 
 ## Step 1 built (2026-11-13)
 
-`corten_std::authz`, the manifest's `protected` flag and `authn` grants, and the sandbox's password-store check are built ([`phase-6.md`](phase-6.md), "Batch 4, step 1"). Three changes against the sketch above, each an owner decision of 2026-11-13 or a consequence of one:
+`corten_std::authz`, the manifest's `protected` flag and `authn ... token` grants are built ([`phase-6.md`](phase-6.md), "Batch 4, step 1"). Changes against the sketch above, each an owner decision of 2026-11-13 (spec section 8, questions 23 and 24) or a consequence of one:
 
-- **Q2's authenticators.** A password check over hashes the program holds would let the program mint a principal (`crypto::password::hash` accepts anything), so passwords are checked against a store the manifest names and no `dir` grant can write. Tokens use keys from the manifest only.
-- **The token format** is Corten's own, one signed line with no algorithm field, rather than PASETO or JWT, so no dependency is added.
+- **Q2's authenticators: no passwords.** A password check over hashes the program holds would let the program mint a principal (`crypto::password::hash` accepts anything). A store the program cannot write was built, then removed: the owner decided Corten accepts only phishing-resistant authentication (question 23). Users sign in with passkeys at an identity provider; an exchange gateway, not yet built, turns its assertion into a Corten token, and programs accept only that token, verified with keys from the manifest. TLS client certificates follow as a second authenticator.
+- **The token format** is Corten's own, one signed line with no algorithm field, rather than PASETO or JWT, so the prelude adds no dependency. The gateway, outside the prelude, reads the identity provider's format.
 - **No `corten-driver` lint.** Private fields and the absence of any public constructor leave no other route for a lint to refuse.
 
-**CWE-566 is not covered by the prototype**: `corten-std` has no database capability, so nothing makes a lookup take its key from a proof. It stays on the chart as planned (owner decision 2026-11-13) and waits for one.
+**CWE-566 is not covered by step 1**: `corten-std` has no database capability. A data capability is now scheduled for it (question 24): a database grant whose protected queries take the row key from a proof, with row-level security underneath. CWE-566 stays planned on the chart because that item delivers it.

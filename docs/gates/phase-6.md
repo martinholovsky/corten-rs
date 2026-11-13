@@ -17,7 +17,7 @@ A strategy that only strengthens C moves no bucket.
 | 1 | Decision 3: the ledger's `strategy` column, checked by `corten-ledger check` | **done** (2026-11-01, below) | |
 | 2 | 15 lints; 9 labels on errors, logs and debug output | lints **done** (2026-11-01, below); labels not started | |
 | 3 | 4 budgets and timeouts; 3 safe deserialization and `ConfigCap`; 8 DirCap extensions | strategy 8 **built** (2026-11-02, remaining-work table), CWE-276, 689 and 708 E and verified (2026-11-06, below); 4 and 3 not started | |
-| 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | step 1 **built** (2026-11-13, below): `corten_std::authz`, manifest authenticators, protected directories; corpus cases not started | |
+| 4 | 2 authorization and authentication proof types: prototype, adopt only at 0 false rejections (question 14) | step 1 **built** (2026-11-13, below): `corten_std::authz`, the token authenticator, protected directories; next the exchange gateway, then corpus cases | |
 | 5 | 10 cryptography and randomness; 7 TLS and network capabilities (question 13) | strategy 10 **done** (2026-11-01, below): `corten_std::crypto`, `corten_std::random`, weak-primitive bans; strategy 7 **built** (2026-11-02, below): `NetCap` core, then resolution, DNS logging and the opt-in fallback ([`../netcap.md`](../netcap.md)) | |
 | 6 | 6 web types; 11 credentials; 12 strict parsers; 13 contracts; 5 runtime; 14 supply chain | not started | |
 | — | 1 the independent encoder review (26 ledger rows; 25 of them writable in Rust, CWE-564 is not) | blocked | An external audit being engaged (owner decision 2026-11-03, remaining-work table; AGENTS.md rule 1: not the encoders' author; the AI pre-review is not the review of record) |
@@ -280,6 +280,8 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Spec section 5: every explicit wipe observable (CWE-14, 244, 733; ledger strategy `secrets`) | Not started; part of strategy 11 (`../residual-mitigation.md`) | With batch 6 (credentials) |
 | Spec section 5: secret spill control (CWE-316; ledger strategy `secrets`) | Partly done (Phase 2): `Secret<T>` is `mlock`ed and the process non-dumpable on Linux. **Deferred (owner decision 2026-11-04)** for per-page `MADV_DONTDUMP`: the process-wide non-dumpable flag (`secret.rs`, `set_dumpable_behavior(NotDumpable)`, with a test) already keeps the process out of core dumps, so a per-page flag would add protection only to a dumpable process. memmap2 0.9 offers it with no `unsafe` on an anonymous mapping it owns (`MmapMut::map_anon`, then `advise(Advice::DontDump)`; memmap2 0.9.12, MIT OR Apache-2.0, depends on libc and stable_deref_trait), but adopting it adds a dependency to the trusted base (principle 6), costs at least one locked page per secret (`Secret<T>` is a `region`-locked `Box<[u8]>` today), so programs reach the locked-memory limit sooner (creation already fails closed when the lock fails), for a debuggability gain rather than a CWE-316 one. The flag holds whatever `fs.suid_dumpable` says: the kernel skips the dump when the task's dumpable state is off at dump time, which is what `prctl` sets (`coredump_skip` in `fs/coredump.c`, read on Linux `master` 2026-11-04). Register and stack spills stay blocked: no LLVM attribute forbids spilling, and neither option touches them | Per-page no-dump: an operator needs core dumps of a Corten program; then review memmap2 against `deny.toml` and design a page-backed `Secret<T>` with its per-secret memory cost stated. Spills: an LLVM attribute that forbids them |
 | Spec section 5: arithmetic ergonomics, a `strict_math!` block instead of `checked_add` chains (CWE-190, 191; ledger strategy `contracts`) | Not started; needs an API design (a macro that propagates `?` through `+`, `-`, `*`) | With batch 6 (contracts, strategy 13); propose against design principle 1 |
+| Exchange gateway (spec section 8, question 23): accepts an identity provider's OIDC assertion only when it states a phishing-resistant method (passkeys, FIDO2/WebAuthn), and issues the short-lived Corten tokens programs accept (`corten_std::authz::TokenAuthenticator`). TLS client certificates as a second authenticator for services and managed devices | Not started; design note first: which assertion claims prove a phishing-resistant method, issuer and audience checks, where the gateway runs and holds its signing key, and its token library through the Phase 5 review (design principle 6). Corten does not build an identity provider | Next in batch 4, after step 1 merges |
+| Data capability (spec section 8, question 24): a Postgres-first database grant whose protected queries take the row key from an `Authorized` proof, with row-level security set from the authenticated principal underneath; covers CWE-566, which stays planned on the chart because of this row | Not started; design note first, then the client dependency through the Phase 5 review | With batch 6 (the web types need a listener, a database and authentication together) |
 
 ### Developer friction (proposal reviewed 2026-11-03)
 
@@ -364,14 +366,17 @@ Owner decision 2026-11-06: the three E candidates of [`fs-caps-e-proposal.md`](f
 
 **Totals** (`corten-ledger totals`): E 180 / C 721 / O 26 / N 17; 149 of the 180 E rows verified, 31 awaiting the external audit. Written in Rust (787): E 157 / C 604 / O 26. Remaining under Rust and Corten: 635 (`scripts/applicability-table.py`).
 
-## Batch 4, step 1: proof types, authenticators and protected directories (2026-11-13)
+## Batch 4, step 1: proof types, the token authenticator and protected directories (2026-11-13)
 
 Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E candidates need corpus cases and a full corpus run at 0 false rejections first (question 14).
 
-**Owner decisions (2026-11-13):**
-- **Authenticators: signed tokens and a manifest password store** (recommended: tokens only, passwords later). Q2 said a program cannot mint a principal, but `crypto::password::hash` and `PasswordHash::from_stored` accept whatever the program supplies, so a password check over program-held hashes would let it mint any principal. The password store is therefore a file the manifest names and the program cannot write. The owner gave no reason for choosing it over tokens only.
-- **Token format: Corten's own** (the recommendation; rejected: PASETO `v4.public` through `pasetors` 0.8.1, which adds `orion`, `serde_json`, `time` and `regex`, and JWT through `jsonwebtoken` 11.1.0). One line, `corten-token-1.KEY.AUDIENCE.SUBJECT.NOTAFTER.SIG`, an Ed25519 signature over everything before the last `.`, with no algorithm field: the same pattern as the signed manifest, and a documented departure from "no hand-rolled token formats" in exchange for no new dependency (design principle 6).
-- **CWE-566 stays on the chart as planned** (recommended: drop it from the chart). The prototype cannot cover it: `corten-std` has no database capability (`sql.rs` is an encoder), so nothing makes an SQL lookup take its key from a proof. It waits for a database capability, which no scheduled item builds yet. The owner gave no reason.
+**Owner decisions (2026-11-13; spec section 8, questions 23 and 24):**
+- **No password authenticator; phishing-resistant authentication only** (question 23). The owner's reason: passwords are phishable, and Corten should accept only phishing-resistant factors.
+  - Users sign in with passkeys at an identity provider, which Corten does not build. An exchange gateway (remaining-work table) turns that provider's assertion into a Corten token, the only credential programs accept. TLS client certificates follow for services and managed devices.
+  - A first draft of this step also had a password authenticator against a store the manifest names, refused when any `dir` grant could write it. It was built, verified on macOS and Linux (10 mutants caught) and removed before merge. Q2's premise had already failed: `crypto::password::hash` and `PasswordHash::from_stored` accept whatever a program supplies, so a password check over program-held hashes would let a program mint any principal.
+- **Token format: Corten's own** (the recommendation). One line, `corten-token-1.KEY.AUDIENCE.SUBJECT.NOTAFTER.SIG`: an Ed25519 signature over everything before the last `.`, with no algorithm field. It follows the same pattern as the signed manifest and adds no dependency to the prelude (design principle 6).
+  - Rejected: PASETO `v4.public` through `pasetors` 0.8.1, which adds `orion`, `serde_json`, `time` and `regex`, and JWT through `jsonwebtoken` 11.1.0. The gateway, outside the prelude, reads the identity provider's format.
+- **CWE-566: a data capability is scheduled** (question 24, the recommendation; remaining-work table). The owner's reason: do it properly from the start rather than take the cheap option. `corten-std` has no database capability yet, so step 1 cannot cover CWE-566. It stays planned on the chart because the scheduled item delivers it.
 
 **Built:**
 - **`corten_std::authz`.**
@@ -379,43 +384,32 @@ Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E can
   - `check(who, action, key, policy, log)` asks the program's `Policy` and logs `authz.allowed` or `authz.denied` (principal, action, key) before it returns.
   - No `corten-driver` lint: the lint the design note sketched would have nothing to catch, since nothing public constructs a proof (design principle 9).
 - **Manifest.**
-  - `dir NAME PATH protected` is taken only with `take_protected_dir`, and `take_dir` no longer returns it (CWE-288).
-  - `authn NAME token ID:HEX,...` and `authn NAME password PATH` are taken with `take_token_authenticator` and `take_password_authenticator`.
+  - `dir NAME PATH protected` is taken only with `take_protected_dir`, and `take_dir` does not return it (CWE-288).
+  - `authn NAME token ID:HEX,...` is taken with `take_token_authenticator`.
+  - `authn NAME password PATH` is a syntax error.
 - **Tokens.**
   - The key is chosen only among the grant's keys, and the key identifier is checked before use.
   - The audience must equal the grant's name, and `NOTAFTER` must be in the future (the prelude's own clock) and at most 15 minutes away (`MAX_TOKEN_LIFETIME`).
-  - At most 512 bytes. The token is never logged.
-- **Passwords.**
-  - The store is opened with no symbolic link in its path, as a regular file with one link. It is refused at load (`FsError::Exposed`) when any `dir` grant, protected or not, is the store's directory or an ancestor of it, compared by device and inode.
-  - "No such user", "wrong password" and "delayed" return the same `AuthnRefused` after the same Argon2id work (a decoy hash).
-  - Names follow the token field grammar, and a password over 1,024 bytes is refused before hashing.
-  - After 5 failures within 15 minutes, an account answers only after a delay that starts at 1 s and doubles to at most 15 minutes. It is never a permanent lock, and a success clears it.
-  - `authn.delayed` and `authn.rehash` are logged.
-- **`corten-sandbox`.** A password store becomes a read-only Landlock rule. Before Landlock, the sandbox refuses to start (exit 3) when the store is not a single-link regular file at its canonical path, or when any read-write path, a manifest `dir` or an operator `--rw`, is the store or its ancestor (device and inode).
+  - At most 512 bytes. The token is never logged, and every refusal is logged with its reason.
 
 **Evidence.**
 - **macOS:**
   - Clippy `-D warnings` on the workspace: clean.
-  - `corten-std` tests: 94 of 94.
-  - `corten-sandbox` unit tests: 7 of 7.
-  - Rustdoc with warnings denied: clean.
-- **Mutations on macOS:** 14 of 14 caught.
-  - Token checks (signature, key selection, audience, expiry, lifetime cap), `check` allowing, the unknown-user decoy (by timing ratio), the delay, the failure window and refusal logging.
-  - The `protected` flag on another grant kind.
-  - The sandbox's ancestor, hard-link and symlink checks.
-  - Two first attempts proved nothing: one mutant did not compile, and the window test passed against its mutant, because the delay cap equals the window. Both were rewritten, then caught against a passing baseline. The delay test had also depended on Argon2id speed (a 1 s delay), and now uses a 32 s one.
+  - `corten-std` tests: 92 of 92.
+  - `corten-sandbox` unit tests: 6 of 6.
+- **Mutations on macOS:** 8 of 8 caught. They disabled each token check (signature, key selection, audience, expiry, lifetime cap), `check` allowing, refusal logging, and the `protected` flag's restriction to `dir`.
+  - The first draft's runs found two defects in the instruments: a mutant that did not compile, and a vacuous window test. Both concerned the password code, now removed.
 - **Linux** (`--rm` `rust:1.99.1-slim-bookworm` container, 12 GiB memory cap, 4 build jobs):
-  - Clippy `-D warnings` on the workspace: clean, after one fix in a Linux-only test (an `as` conversion macOS Clippy cannot see).
-  - `corten-std`: 117 passed, 2 ignored (both existing). This includes the store tests (refused beneath a writable grant, through a symlinked grant, behind a symlink in its own path, as a directory and with a second hard link, against a control beside the grant that loads; malformed lines refused with their line number), `ProtectedDir`'s cross-directory refusal, and `take_dir` refusing a protected grant.
-  - `corten-sandbox` unit tests: 8 of 8.
-- **Mutations on Linux:** 6 of 6 caught. They disabled the store's ancestor, hard-link, symbolic-link and regular-file checks, `ProtectedDir`'s directory check, and the separation of protected grants from `take_dir`.
+  - Clippy `-D warnings` on the workspace: clean.
+  - `corten-std`: 113 passed, 2 ignored (both existing), including `ProtectedDir`'s cross-directory refusal and `take_dir` refusing a protected grant.
+  - `corten-sandbox` unit tests: 7 of 7.
+- **Mutations on Linux:** 2 of 2 caught: `ProtectedDir`'s directory check, and the separation of protected grants from `take_dir`.
 - **Not run here:** the corpus, which also builds `corten-std` under its own profile. CI runs it.
 
 **Not covered, and why.**
-- **Per-client-address login limits:** the caller sees the address; there is no listener in `corten-std` until batch 6.
+- **Issuing tokens:** the exchange gateway (next).
 - **Token revocation before expiry:** remove the key from the manifest.
-- **Re-reading the password store without a restart.**
-- **Issuing tools for tokens and stores (design principle 10):** next, with the corpus cases.
+- **Rate limits on authentication attempts:** they belong where credentials are presented, which is the gateway and the identity provider, not the prelude.
 
 ## Safe Rust through a crate (2026-11-04)
 
