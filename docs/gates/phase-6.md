@@ -404,7 +404,12 @@ Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E can
   - The `protected` flag on another grant kind.
   - The sandbox's ancestor, hard-link and symlink checks.
   - Two first attempts proved nothing: one mutant did not compile, and the window test passed against its mutant, because the delay cap equals the window. Both were rewritten, then caught against a passing baseline. The delay test had also depended on Argon2id speed (a 1 s delay), and now uses a 32 s one.
-- **Linux: not yet run.** The container run stopped when the Podman VM went down. Still to run: the store and `ProtectedDir` tests and their six mutants (ancestor, hard link, symbolic link, regular file, cross-directory proof, `take_dir` on a protected grant), Clippy on the Linux-only code, and the corpus.
+- **Linux** (`--rm` `rust:1.99.1-slim-bookworm` container, 12 GiB memory cap, 4 build jobs):
+  - Clippy `-D warnings` on the workspace: clean, after one fix in a Linux-only test (an `as` conversion macOS Clippy cannot see).
+  - `corten-std`: 117 passed, 2 ignored (both existing). This includes the store tests (refused beneath a writable grant, through a symlinked grant, behind a symlink in its own path, as a directory and with a second hard link, against a control beside the grant that loads; malformed lines refused with their line number), `ProtectedDir`'s cross-directory refusal, and `take_dir` refusing a protected grant.
+  - `corten-sandbox` unit tests: 8 of 8.
+- **Mutations on Linux:** 6 of 6 caught. They disabled the store's ancestor, hard-link, symbolic-link and regular-file checks, `ProtectedDir`'s directory check, and the separation of protected grants from `take_dir`.
+- **Not run here:** the corpus, which also builds `corten-std` under its own profile. CI runs it.
 
 **Not covered, and why.**
 - **Per-client-address login limits:** the caller sees the address; there is no listener in `corten-std` until batch 6.
