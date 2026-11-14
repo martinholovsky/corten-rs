@@ -93,7 +93,7 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 ## Prototype plan (after the answers)
 
 1. **Phase 5 review of the chosen library** (licences under `deny.toml`, advisories, maintenance, package count), recorded in `phase-6.md`.
-2. **`corten-gateway` crate, outside the prelude.** ID-token validation is **built** (2026-11-14: 7 tests, 15 of 15 mutations caught; `phase-6.md`). The rest covers:
+2. **`corten-gateway` crate, outside the prelude.** ID-token validation and the authorization-code flow are **built** (2026-11-14: 15 tests, 34 of 34 mutations caught; `phase-6.md`). The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
    - the sign-in flow with `acr` enforcement, the session, token minting, and the forwarding proxy;
    - unit tests for each refusal (missing or unrequested `acr`, bad `nonce`, `state`, `aud` or `iss`, expired);
    - a mutation per control, shown to fail a test.

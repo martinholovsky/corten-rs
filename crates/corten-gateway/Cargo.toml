@@ -24,6 +24,7 @@ rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs
 serde = { version = "1.0.229", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1.0.154", default-features = false, features = ["std"] }
 tokio = { version = "1.54.1", default-features = false, features = ["rt", "net", "io-util", "time", "macros"] }
+url = "2.5.8"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
 
 [lints]
