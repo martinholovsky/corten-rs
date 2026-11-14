@@ -77,7 +77,18 @@ The "unlicensed" error for the scratch crate itself is the fixture's missing lic
 - **The advisory** leaks an RSA **private** key through timing. The gateway would only verify RS256 signatures with a provider's public key, so it would not be exposed. Still, the policy fails, and the fix (`rsa` 0.10) is outside what 4.1.0 accepts (`rsa = "0.9.2"`).
 - **Upstream** (`ramosbugs/openidconnect-rs`, read 2026-11-14): `main` still pins `rsa` 0.9.2, `hmac` 0.12 and `sha2` 0.10. Open pull requests #244 ("bump crypto dependencies to newly released versions") and #214 (an RSA update for RUSTSEC-2023-0071) would resolve both findings. Neither is merged.
 
-Q2's premise (adopt after a passing review) does not hold today, so Q2 goes back to the owner (`phase-6.md`, gateway row).
+Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the owner.
+
+**Q2 decided again (owner, 2026-11-14): option C**, against the recommendation (A: wait for upstream #244 and #214). The gateway implements the relying-party steps itself on a small set. The owner gave no reason; it is to be recorded here when given. Rejected: A, waiting on an upstream schedule; B, `deny.toml` exceptions that would also loosen the prelude's policy.
+
+**Phase 5 review of the chosen set (2026-11-14).** The `corten-gateway` crate in the workspace, against the shared lockfile and `deny.toml`:
+- **Reused from the trusted base, no new code:** signatures (RS256, ES256, Ed25519) and SHA-256 through `aws-lc-rs` 1.19.0; TLS through `rustls` 0.23.46 and `tokio-rustls` 0.26.6; `tokio`, `http`, `base64`, `serde`, `ed25519-compact`.
+- **New:** 10 packages, the lockfile going from 240 to 251.
+  - `hyper` 1.12.0 (HTTP/1 only, server and client), `hyper-util` 0.1.21, `http-body` 1.1.0, `http-body-util` 0.1.5, `httparse` 1.10.1, `httpdate` 1.0.3, `want` 0.3.2, `try-lock` 0.2.5;
+  - `serde_json` 1.0.154 and `zmij` 1.0.23, its float formatter.
+  - All MIT or MIT/Apache-2.0, released between 2023-08 and 2026-10, with no C or assembly sources. `httparse`, `serde_json` and `zmij` have build scripts.
+- **`cargo deny check advisories bans licenses sources`:** all four pass, with no new `skip` or exception.
+- **The cost of C:** the protocol steps are hand-written (Authorization Code with PKCE, `state`, `nonce`, ID-token validation, discovery, JWKS handling). The secure-coding rules count that as a finding until reviewed. So every step gets a refusal test and a mutation, and the code is listed for the independent review beside the encoders.
 
 ## Prototype plan (after the answers)
 
