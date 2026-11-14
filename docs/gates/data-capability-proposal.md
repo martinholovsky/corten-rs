@@ -1,6 +1,6 @@
 # Data capability: a database grant whose lookups are checked (design note, 2026-11-14)
 
-Status: **proposed; owner decisions needed on Q1 to Q4** (below). Spec section 8, question 24 schedules it with batch 6. It is the item that delivers CWE-566 (authorization bypass through a user-controlled SQL primary key), which stays planned on the chart because of it. Nothing here is built.
+Status: **Q1 to Q4 decided (owner, 2026-11-14, the recommendation on all four):** (1) row-level security in the database, made unavoidable by the prelude; (2) `postgres` / `tokio-postgres`, after the Phase 5 review; (3) the program authenticates by TLS client certificate only; (4) PostgreSQL first and only for the prototype. Spec section 8, question 24 schedules it with batch 6. It is the item that delivers CWE-566 (authorization bypass through a user-controlled SQL primary key), which stays planned on the chart because of it. Nothing here is built.
 
 ## What it is for
 

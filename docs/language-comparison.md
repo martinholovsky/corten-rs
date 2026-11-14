@@ -12,7 +12,7 @@ How many of MITRE CWE 4.20's 944 weaknesses a program can contain, per language,
 | [Go](go-applicability.md) | 790 | 749 | 64 | 90 | 68 | go1.27.4 (cgo with gcc) |
 | [Python](python-applicability.md) | 802 | 756 | 52 | 90 | 77 | Python 3.15.2 compile() |
 | [Rust](rust-applicability.md) | 787 | 729 (safe Rust) | 67 | 90 | 362 | rustc (`rust-toolchain.toml`) |
-| Safe Rust + Corten | 635 | | | | | 94 eliminations verified by the corpus |
+| Safe Rust + Corten | 630 | | | | | 99 eliminations verified by the corpus |
 
 C and C++ have no safe subset their compiler enforces, so both columns are equal for them.
 

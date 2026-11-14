@@ -1,10 +1,10 @@
-Corpus run (all phases): 180 cases for 180 E rows; 0 E rows have no case yet.
+Corpus run (all phases): 185 cases for 185 E rows; 0 E rows have no case yet.
 
-- Detection: 180 of 180 cases had every bad program rejected for the expected reason
-- False rejection: 0 of 180 matched good programs failed to build (limit: 5%)
+- Detection: 185 of 185 cases had every bad program rejected for the expected reason
+- False rejection: 0 of 185 matched good programs failed to build (limit: 5%)
 - Controls failed (plain cargo did not build a checker case's bad program): 0
 - Broken cases: 0
-- Passed: 180 of 180; of those, 12 rest only on syntax Rust does not have (weakest evidence)
+- Passed: 185 of 185; of those, 12 rest only on syntax Rust does not have (weakest evidence)
 
 - Passed but left unverified until the prelude code behind them (encoders, cryptography) is independently reviewed: 31
 
@@ -45,8 +45,10 @@ Corpus run (all phases): 180 cases for 180 E rows; 0 E rows have no case yet.
 | CWE-27 | checker | pass |  |
 | CWE-276 | checker | pass |  |
 | CWE-28 | checker | pass |  |
+| CWE-288 | language | pass |  |
 | CWE-29 | checker | pass |  |
 | CWE-30 | checker | pass |  |
+| CWE-306 | language | pass |  |
 | CWE-31 | checker | pass |  |
 | CWE-319 | checker | pass |  |
 | CWE-32 | checker | pass |  |
@@ -135,6 +137,8 @@ Corpus run (all phases): 180 cases for 180 E rows; 0 E rows have no case yet.
 | CWE-626 | checker | pass |  |
 | CWE-627 | language | pass (construct absent) |  |
 | CWE-628 | language | pass |  |
+| CWE-638 | language | pass |  |
+| CWE-639 | language | pass |  |
 | CWE-64 | checker | pass |  |
 | CWE-643 | language | pass (awaiting independent review) |  |
 | CWE-644 | language | pass (awaiting independent review) |  |
@@ -174,6 +178,7 @@ Corpus run (all phases): 180 cases for 180 E rows; 0 E rows have no case yet.
 | CWE-843 | checker | pass |  |
 | CWE-85 | language | pass (awaiting independent review) |  |
 | CWE-86 | language | pass (awaiting independent review) |  |
+| CWE-862 | language | pass |  |
 | CWE-87 | language | pass (awaiting independent review) |  |
 | CWE-89 | language | pass (awaiting independent review) |  |
 | CWE-90 | language | pass (awaiting independent review) |  |
