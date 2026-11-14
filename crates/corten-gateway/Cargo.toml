@@ -14,6 +14,7 @@ publish.workspace = true
 # SHA-256 use aws-lc-rs, already in the trusted base through rustls.
 [dependencies]
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["aws-lc-sys"] }
+corten-std = { path = "../corten-std" }
 base64 = { version = "0.23.1", default-features = false, features = ["alloc"] }
 ed25519-compact = { version = "2.6.0", default-features = false, features = ["std"] }
 http = "1.5.0"

@@ -307,6 +307,7 @@ version = "0.0.0"
 dependencies = [
  "aws-lc-rs",
  "base64",
+ "corten-std",
  "ed25519-compact",
  "http",
  "http-body-util",
