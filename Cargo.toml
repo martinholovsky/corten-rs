@@ -3,6 +3,7 @@ members = [
     "crates/cargo-corten",
     "crates/corten-broker",
     "crates/corten-corpus",
+    "crates/corten-gateway",
     "crates/corten-ledger",
     "crates/corten-manifest",
     "crates/corten-runtime",
