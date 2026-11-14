@@ -1,6 +1,6 @@
 # Exchange gateway: phishing-resistant sign-in for Corten programs (design note, 2026-11-14)
 
-Status: **proposed; owner decisions needed on Q1 to Q4** (below). Phase 6, batch 4, the item after step 1 (`phase-6.md`, remaining work). It implements spec section 8, question 23: Corten accepts only phishing-resistant authentication, users sign in with passkeys at an identity provider Corten does not build, and programs accept only a Corten token (`corten_std::authz::TokenAuthenticator`). Nothing here is built.
+Status: **Q1 to Q4 decided (owner, 2026-11-14, the recommendation on all four):** (1) a separate `corten-gateway` as an identity-aware reverse proxy; (2) `openidconnect`, after the Phase 5 review; (3) `acr` `phr` by default, with a per-grant option to require `phrh`, and the signing key in a 0600 file, rotated through the manifest; (4) Kanidm as the reference provider, Keycloak if Kanidm does not return `acr` `phr`. Phase 6, batch 4, the item after step 1 (`phase-6.md`, remaining work). It implements spec section 8, question 23: Corten accepts only phishing-resistant authentication, users sign in with passkeys at an identity provider Corten does not build, and programs accept only a Corten token (`corten_std::authz::TokenAuthenticator`). Nothing here is built.
 
 ## What it is for
 
@@ -61,6 +61,23 @@ The gateway is part of the trusted base and close to tier 0. Whoever holds its s
 - **A. Kanidm (recommended to try first):** written in Rust, self-hosted, passkeys and OIDC. Whether it returns `acr` = `phr`/`phrh` is not verified; if it does not, Q4 falls to B.
 - B. Keycloak: widely deployed; it maps authentication flows to `acr` levels.
 - Either way the gateway is provider-neutral; the reference is the one the tests run against.
+
+## Phase 5 review of `openidconnect` 4.1.0 (2026-11-14): fails the policy as is
+
+Two scratch crates were checked with the repository's `deny.toml` (cargo-deny 0.20.2, rustc 1.99.1):
+
+| Set | Packages | Advisories | Duplicate versions | Licences |
+| --- | ---: | --- | --- | --- |
+| (a) `default-features = false` (the gateway brings its own HTTP client) | 195 | **RUSTSEC-2023-0071** (`rsa` 0.9.10, Marvin attack) | **14 crates** twice | pass |
+| (b) default (`reqwest`, `rustls`) | 252 | the same | 15 | **refused**: `webpki-roots` is CDLA-Permissive-2.0 (question 13) |
+
+The "unlicensed" error for the scratch crate itself is the fixture's missing licence field, not a finding.
+
+- **Duplicates.** `openidconnect` mixes current RustCrypto crates (`ed25519-dalek` 3, `p256` 0.14) with older ones (`rsa` 0.9, which needs `sha2` 0.10, `hmac` 0.12, `digest` 0.10 and others). `multiple-versions = "deny"` refuses this before the gateway even joins the workspace.
+- **The advisory** leaks an RSA **private** key through timing. The gateway would only verify RS256 signatures with a provider's public key, so it would not be exposed. Still, the policy fails, and the fix (`rsa` 0.10) is outside what 4.1.0 accepts (`rsa = "0.9.2"`).
+- **Upstream** (`ramosbugs/openidconnect-rs`, read 2026-11-14): `main` still pins `rsa` 0.9.2, `hmac` 0.12 and `sha2` 0.10. Open pull requests #244 ("bump crypto dependencies to newly released versions") and #214 (an RSA update for RUSTSEC-2023-0071) would resolve both findings. Neither is merged.
+
+Q2's premise (adopt after a passing review) does not hold today, so Q2 goes back to the owner (`phase-6.md`, gateway row).
 
 ## Prototype plan (after the answers)
 
