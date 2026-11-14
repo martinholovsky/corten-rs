@@ -289,7 +289,12 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
     - Callbacks: `state` single-use, consumed even on refusal; repeated parameters refused; the RFC 9207 `iss` parameter checked, and required where the provider advertises it; provider errors logged from `[a-z_]` only.
     - Client authentication: a `private_key_jwt` assertion (ES256, typed `client-authentication+jwt`) whose `aud` is the issuer identifier alone. RFC 10070 (November 2026) requires this and forbids the token endpoint, after CVE-2025-27370/27371.
     - Evidence: 8 tests, including RFC 7636's S256 vector, checked against the RFC text; mutations 19 of 19 caught.
-  - Next: the session, token minting and the proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
+  - **Token minting built (2026-11-14, `mint.rs`).**
+    - The key is a `corten-manifest keygen` file, refused as `corten-manifest` refuses it (not a regular file, group- or other-accessible, a directory others can write, another owner).
+    - Tokens are minted for 300 s by default, never above the prelude's 900 s cap. A provider subject that is not a valid principal name is refused, never rewritten.
+    - Evidence: a minted token authenticates through `corten_std`'s `TokenAuthenticator` loaded from a signed manifest, and a token for another grant is refused. 3 tests; mutations 10 of 10 caught (one test was first vacuous, then fixed).
+    - The owner check is not exercised by a test: it needs a file owned by another user, which needs root.
+  - Next: the session and the forwarding proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
 | Data capability (spec section 8, question 24): a Postgres-first database grant whose protected queries take the row key from an `Authorized` proof, with row-level security set from the authenticated principal underneath; covers CWE-566, which stays planned on the chart because of this row | Not started. **Design note 2026-11-14: [`data-capability-proposal.md`](data-capability-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four)**; then the client dependency through the Phase 5 review | With batch 6 (the web types need a listener, a database and authentication together) |
 
 ### Developer friction (proposal reviewed 2026-11-03)
