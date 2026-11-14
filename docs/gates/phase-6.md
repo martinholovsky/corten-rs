@@ -294,7 +294,13 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
     - Tokens are minted for 300 s by default, never above the prelude's 900 s cap. A provider subject that is not a valid principal name is refused, never rewritten.
     - Evidence: a minted token authenticates through `corten_std`'s `TokenAuthenticator` loaded from a signed manifest, and a token for another grant is refused. 3 tests; mutations 10 of 10 caught (one test was first vacuous, then fixed).
     - The owner check is not exercised by a test: it needs a file owned by another user, which needs root.
-  - Next: the session and the forwarding proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
+  - **Session store built (2026-11-14, `session.rs`).**
+    - A session starts only after a successful sign-in. Its ID is 256 random bits, stored only as SHA-256. Its cookie is `__Host-`prefixed, `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`.
+    - Timeouts: 15 min idle and 8 h absolute, from the server's clock.
+    - Limits: 10 per principal (a new one ends the oldest, logged), 100,000 in all. Revoke-all is per principal.
+    - Ended sessions are remembered for one absolute timeout after they end. A replayed cookie then logs `session.use_after_end` at high severity, and malformed or unknown cookies log `session.malformed` or `session.unknown`.
+    - Evidence: 6 tests; mutations 12 of 12 caught. The tests found a design flaw first: a record whose expiry was the session's own absolute deadline was forgotten in the same sweep that ended it, so a replay after an absolute timeout went unlogged. They also showed the shape check was unobservable until it logged.
+  - Next: the HTTP server and the forwarding proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
 | Data capability (spec section 8, question 24): a Postgres-first database grant whose protected queries take the row key from an `Authorized` proof, with row-level security set from the authenticated principal underneath; covers CWE-566, which stays planned on the chart because of this row | Not started. **Design note 2026-11-14: [`data-capability-proposal.md`](data-capability-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four)**; then the client dependency through the Phase 5 review | With batch 6 (the web types need a listener, a database and authentication together) |
 
 ### Developer friction (proposal reviewed 2026-11-03)
