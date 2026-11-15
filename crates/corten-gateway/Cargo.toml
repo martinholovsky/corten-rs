@@ -22,11 +22,15 @@ http-body-util = "0.1.5"
 hyper = { version = "1.12.0", default-features = false, features = ["http1", "server", "client"] }
 hyper-util = { version = "0.1.21", default-features = false, features = ["tokio"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
+rustls-native-certs = "0.8.5"
 serde = { version = "1.0.229", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1.0.154", default-features = false, features = ["std"] }
 tokio = { version = "1.54.1", default-features = false, features = ["rt", "net", "io-util", "time", "macros"] }
 url = "2.5.8"
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["aws_lc_rs"] }
+
+[dev-dependencies]
+rcgen = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem"] }
 
 [lints]
 workspace = true

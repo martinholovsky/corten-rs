@@ -300,6 +300,12 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
     - Limits: 10 per principal (a new one ends the oldest, logged), 100,000 in all. Revoke-all is per principal.
     - Ended sessions are remembered for one absolute timeout after they end. A replayed cookie then logs `session.use_after_end` at high severity, and malformed or unknown cookies log `session.malformed` or `session.unknown`.
     - Evidence: 6 tests; mutations 12 of 12 caught. The tests found a design flaw first: a record whose expiry was the session's own absolute deadline was forgotten in the same sweep that ended it, so a replay after an absolute timeout went unlogged. They also showed the shape check was unobservable until it logged.
+  - **HTTPS client built (2026-11-15, `client.rs`), to sota-architecture rules/04.**
+    - Limits: 5 s connect and 10 s request timeouts; TLS 1.3 only with the platform's roots; HTTPS only; no redirects followed; status 200 and `application/json` only; at most 64 KiB read.
+    - Retries: a GET is retried on connection errors, timeouts, 408, 429, 502, 503 and 504, at most 3 attempts with full jitter. A POST never is.
+    - The provider gets a circuit breaker (5 failures, 30 s open) and a once-a-minute limit on key-set refreshes for unknown `kid`s.
+    - A failure-mode table is in the note.
+    - Evidence: 7 tests against a local TLS 1.3 server (and a TLS 1.2-only one); mutations 13 of 13 caught.
   - Next: the HTTP server and the forwarding proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
 | Data capability (spec section 8, question 24): a Postgres-first database grant whose protected queries take the row key from an `Authorized` proof, with row-level security set from the authenticated principal underneath; covers CWE-566, which stays planned on the chart because of this row | Not started. **Design note 2026-11-14: [`data-capability-proposal.md`](data-capability-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four)**; then the client dependency through the Phase 5 review | With batch 6 (the web types need a listener, a database and authentication together) |
 

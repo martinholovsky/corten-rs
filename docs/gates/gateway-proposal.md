@@ -93,7 +93,7 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 ## Prototype plan (after the answers)
 
 1. **Phase 5 review of the chosen library** (licences under `deny.toml`, advisories, maintenance, package count), recorded in `phase-6.md`.
-2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting and the session store are **built** (2026-11-14: 24 tests, 56 of 56 mutations caught; `phase-6.md`). The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
+2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store and the HTTPS client are **built** (2026-11-15: 31 tests, 81 of 81 mutations caught; `phase-6.md`). The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
    - the sign-in flow with `acr` enforcement, the session, token minting, and the forwarding proxy;
    - unit tests for each refusal (missing or unrequested `acr`, bad `nonce`, `state`, `aud` or `iss`, expired);
    - a mutation per control, shown to fail a test.
@@ -101,6 +101,18 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
    - a passkey sign-in (a virtual authenticator) is accepted;
    - a sign-in whose `acr` is not phishing-resistant is refused, as the control.
 4. **Integration with a Corten program waits for batch 6's listener.** Until then the program side is step 1's `TokenAuthenticator`, tested with tokens the gateway minted.
+
+## Failure modes of sign-in (sota-architecture rules/04 section 12)
+
+The identity provider is a T0 dependency: sign-in fails without it, and the gateway fails closed. Programs keep serving sessions that already exist.
+
+| Dependency | Slow | Down | Garbage |
+| --- | --- | --- | --- |
+| Discovery and key set (GET) | 5 s connect, 10 s request; at most 3 attempts, full-jitter backoff | at start: keep retrying, answer sign-in with 503 meanwhile; later: keep the last good key set | metadata refused (`flow::discover`); key set refused (`Jwks::parse`); sign-in refused |
+| Key set, unknown `kid` | as above | the token is refused | re-fetched at most once a minute (`RefreshLimiter`) |
+| Token endpoint (POST) | 10 s, **no retry** (the code is single-use) | circuit breaker opens after 5 failures for 30 s, logged; sign-in refused meanwhile | ID token refused by `idtoken::validate` |
+
+These defaults are configured values, not measured from a provider. Tune them to the reference provider's p99 in the end-to-end test.
 
 ## What it cannot claim
 
