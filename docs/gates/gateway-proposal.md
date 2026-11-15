@@ -93,7 +93,7 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 ## Prototype plan (after the answers)
 
 1. **Phase 5 review of the chosen library** (licences under `deny.toml`, advisories, maintenance, package count), recorded in `phase-6.md`.
-2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store and the HTTPS client are **built** (2026-11-15: 31 tests, 81 of 81 mutations caught; `phase-6.md`). The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
+2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store, the HTTPS client and the browser-facing rules are **built** (2026-11-15: 38 tests, 100 of 100 mutations caught; `phase-6.md`). The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
    - the sign-in flow with `acr` enforcement, the session, token minting, and the forwarding proxy;
    - unit tests for each refusal (missing or unrequested `acr`, bad `nonce`, `state`, `aud` or `iss`, expired);
    - a mutation per control, shown to fail a test.
@@ -101,6 +101,12 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
    - a passkey sign-in (a virtual authenticator) is accepted;
    - a sign-in whose `acr` is not phishing-resistant is refused, as the control.
 4. **Integration with a Corten program waits for batch 6's listener.** Until then the program side is step 1's `TokenAuthenticator`, tested with tokens the gateway minted.
+
+## Q5 to Q7: the server and the proxy (owner, 2026-11-15, the recommendation on all three)
+
+- **Q5. TLS for browsers ends at the gateway.** The gateway serves HTTPS itself (rustls, TLS 1.3, certificate and key files from the operator), so it trusts no proxy headers, and rate limits key on the connection's address. Rejected: plain HTTP behind an operator proxy, which would make the gateway trust `X-Forwarded-*` from one configured address. ACME is a later add-on.
+- **Q6. Forwarding to the program:** over a **Unix domain socket** named in configuration, with **`Authorization: Bearer <Corten token>`**. The client's `Authorization` is replaced, and the gateway's session cookie, hop-by-hop and forwarding headers are removed. File permissions decide who can connect, so nothing on the network can bypass the gateway, and the sandbox can grant the socket path. This is the contract batch 6's listener implements. Rejected: loopback TCP, which any local process could reach directly.
+- **Q7. Order:** build and test the server and proxy now against a plain test upstream; batch 6's listener implements the program side later. Rejected: designing the listener first.
 
 ## Failure modes of sign-in (sota-architecture rules/04 section 12)
 
