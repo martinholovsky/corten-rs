@@ -280,33 +280,7 @@ Every open Phase 6 item, with what starts it. Design principles: AGENTS.md. Stat
 | Spec section 5: every explicit wipe observable (CWE-14, 244, 733; ledger strategy `secrets`) | Not started; part of strategy 11 (`../residual-mitigation.md`) | With batch 6 (credentials) |
 | Spec section 5: secret spill control (CWE-316; ledger strategy `secrets`) | Partly done (Phase 2): `Secret<T>` is `mlock`ed and the process non-dumpable on Linux. **Deferred (owner decision 2026-11-04)** for per-page `MADV_DONTDUMP`: the process-wide non-dumpable flag (`secret.rs`, `set_dumpable_behavior(NotDumpable)`, with a test) already keeps the process out of core dumps, so a per-page flag would add protection only to a dumpable process. memmap2 0.9 offers it with no `unsafe` on an anonymous mapping it owns (`MmapMut::map_anon`, then `advise(Advice::DontDump)`; memmap2 0.9.12, MIT OR Apache-2.0, depends on libc and stable_deref_trait), but adopting it adds a dependency to the trusted base (principle 6), costs at least one locked page per secret (`Secret<T>` is a `region`-locked `Box<[u8]>` today), so programs reach the locked-memory limit sooner (creation already fails closed when the lock fails), for a debuggability gain rather than a CWE-316 one. The flag holds whatever `fs.suid_dumpable` says: the kernel skips the dump when the task's dumpable state is off at dump time, which is what `prctl` sets (`coredump_skip` in `fs/coredump.c`, read on Linux `master` 2026-11-04). Register and stack spills stay blocked: no LLVM attribute forbids spilling, and neither option touches them | Per-page no-dump: an operator needs core dumps of a Corten program; then review memmap2 against `deny.toml` and design a page-backed `Secret<T>` with its per-secret memory cost stated. Spills: an LLVM attribute that forbids them |
 | Spec section 5: arithmetic ergonomics, a `strict_math!` block instead of `checked_add` chains (CWE-190, 191; ledger strategy `contracts`) | Not started; needs an API design (a macro that propagates `?` through `+`, `-`, `*`) | With batch 6 (contracts, strategy 13); propose against design principle 1 |
-| Exchange gateway (spec section 8, question 23): accepts an identity provider's OIDC assertion only when it states a phishing-resistant method (passkeys, FIDO2/WebAuthn), and issues the short-lived Corten tokens programs accept (`corten_std::authz::TokenAuthenticator`). TLS client certificates as a second authenticator for services and managed devices | Not started; design note first: which assertion claims prove a phishing-resistant method, issuer and audience checks, where the gateway runs and holds its signing key, and its token library through the Phase 5 review (design principle 6). Corten does not build an identity provider. **Design note 2026-11-14: [`gateway-proposal.md`](gateway-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four).** The Phase 5 review of `openidconnect` 4.1.0 (2026-11-14, in the note) **fails the policy**: RUSTSEC-2023-0071 through `rsa` 0.9 and 14 duplicate crates, both fixed only by unmerged upstream pull requests #244 and #214. **Q2 decided again the same day (owner): option C**, relying-party steps written in the gateway on `aws-lc-rs` (already in the trusted base), `hyper` and `serde_json`. That set passes `cargo deny` with no exception and adds 10 packages (240 to 251; review in the note). **ID-token validation built (2026-11-14, `crates/corten-gateway/src/idtoken.rs`):**
-  - Checks: an algorithm allowlist from configuration (RS256 2048 to 8192-bit, ES256, Ed25519 through `aws-lc-rs`); header key material and `crit` refused; `kid` selecting only among the provider's keys; exact `iss`; `aud` and `azp`; `exp` and `iat` within 60 s; `nonce` compared in constant time; `acr` in {`phr`, `phrh`}, or `phrh` alone under the hardware policy; `sub` present; size caps on token and key set.
-  - Evidence: 7 tests covering every refusal reason; mutations 15 of 15 caught.
-  - **Authorization-code flow built (2026-11-14, `flow.rs`).**
-    - Discovery: accepted only for the configured issuer, with HTTPS endpoints, PKCE S256, `private_key_jwt`, an allowed signing algorithm and a phishing-resistant `acr` value; otherwise the gateway does not start.
-    - Requests: 256-bit `state`, `nonce` and PKCE verifier, held server-side. At most 10,000 outstanding, for 600 s each.
-    - Callbacks: `state` single-use, consumed even on refusal; repeated parameters refused; the RFC 9207 `iss` parameter checked, and required where the provider advertises it; provider errors logged from `[a-z_]` only.
-    - Client authentication: a `private_key_jwt` assertion (ES256, typed `client-authentication+jwt`) whose `aud` is the issuer identifier alone. RFC 10070 (November 2026) requires this and forbids the token endpoint, after CVE-2025-27370/27371.
-    - Evidence: 8 tests, including RFC 7636's S256 vector, checked against the RFC text; mutations 19 of 19 caught.
-  - **Token minting built (2026-11-14, `mint.rs`).**
-    - The key is a `corten-manifest keygen` file, refused as `corten-manifest` refuses it (not a regular file, group- or other-accessible, a directory others can write, another owner).
-    - Tokens are minted for 300 s by default, never above the prelude's 900 s cap. A provider subject that is not a valid principal name is refused, never rewritten.
-    - Evidence: a minted token authenticates through `corten_std`'s `TokenAuthenticator` loaded from a signed manifest, and a token for another grant is refused. 3 tests; mutations 10 of 10 caught (one test was first vacuous, then fixed).
-    - The owner check is not exercised by a test: it needs a file owned by another user, which needs root.
-  - **Session store built (2026-11-14, `session.rs`).**
-    - A session starts only after a successful sign-in. Its ID is 256 random bits, stored only as SHA-256. Its cookie is `__Host-`prefixed, `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`.
-    - Timeouts: 15 min idle and 8 h absolute, from the server's clock.
-    - Limits: 10 per principal (a new one ends the oldest, logged), 100,000 in all. Revoke-all is per principal.
-    - Ended sessions are remembered for one absolute timeout after they end. A replayed cookie then logs `session.use_after_end` at high severity, and malformed or unknown cookies log `session.malformed` or `session.unknown`.
-    - Evidence: 6 tests; mutations 12 of 12 caught. The tests found a design flaw first: a record whose expiry was the session's own absolute deadline was forgotten in the same sweep that ended it, so a replay after an absolute timeout went unlogged. They also showed the shape check was unobservable until it logged.
-  - **HTTPS client built (2026-11-15, `client.rs`), to sota-architecture rules/04.**
-    - Limits: 5 s connect and 10 s request timeouts; TLS 1.3 only with the platform's roots; HTTPS only; no redirects followed; status 200 and `application/json` only; at most 64 KiB read.
-    - Retries: a GET is retried on connection errors, timeouts, 408, 429, 502, 503 and 504, at most 3 attempts with full jitter. A POST never is.
-    - The provider gets a circuit breaker (5 failures, 30 s open) and a once-a-minute limit on key-set refreshes for unknown `kid`s.
-    - A failure-mode table is in the note.
-    - Evidence: 7 tests against a local TLS 1.3 server (and a TLS 1.2-only one); mutations 13 of 13 caught.
-  - Next: the HTTP server and the forwarding proxy, then an end-to-end test against Kanidm | Next in batch 4 (step 1 merged 2026-11-13, #64) |
+| Exchange gateway (spec section 8, question 23): accepts an identity provider's OIDC assertion only when it states a phishing-resistant method (passkeys, FIDO2/WebAuthn), and issues the short-lived Corten tokens programs accept (`corten_std::authz::TokenAuthenticator`). TLS client certificates as a second authenticator for services and managed devices | **In progress** (2026-11-15): design decided (Q1 to Q4, owner 2026-11-14; Q2 option C after `openidconnect` failed the Phase 5 review); built so far: ID-token validation, the authorization-code flow, token minting, the session store and the HTTPS client (31 tests, 81 of 81 mutations caught). Details: "Exchange gateway: progress" below | Next: the HTTP server and the forwarding proxy, then an end-to-end test against Kanidm |
 | Data capability (spec section 8, question 24): a Postgres-first database grant whose protected queries take the row key from an `Authorized` proof, with row-level security set from the authenticated principal underneath; covers CWE-566, which stays planned on the chart because of this row | Not started. **Design note 2026-11-14: [`data-capability-proposal.md`](data-capability-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four)**; then the client dependency through the Phase 5 review | With batch 6 (the web types need a listener, a database and authentication together) |
 
 ### Developer friction (proposal reviewed 2026-11-03)
@@ -457,6 +431,39 @@ Design: [`authz-proposal.md`](authz-proposal.md). No ledger row moves: the E can
 - **Issuing tokens:** the exchange gateway (next).
 - **Token revocation before expiry:** remove the key from the manifest.
 - **Rate limits on authentication attempts:** they belong where credentials are presented, which is the gateway and the identity provider, not the prelude.
+
+## Exchange gateway: progress
+
+The remaining-work row "Exchange gateway" points here. Design: [`gateway-proposal.md`](gateway-proposal.md).
+
+- **Started 2026-11-14 with the design note**, which covers which assertion claims prove a phishing-resistant method, issuer and audience checks, where the gateway runs and holds its signing key, and its token library through the Phase 5 review (design principle 6). Corten does not build an identity provider. **Design note 2026-11-14: [`gateway-proposal.md`](gateway-proposal.md); Q1 to Q4 decided the same day (owner, the recommendation on all four).** The Phase 5 review of `openidconnect` 4.1.0 (2026-11-14, in the note) **fails the policy**: RUSTSEC-2023-0071 through `rsa` 0.9 and 14 duplicate crates, both fixed only by unmerged upstream pull requests #244 and #214. **Q2 decided again the same day (owner): option C**, relying-party steps written in the gateway on `aws-lc-rs` (already in the trusted base), `hyper` and `serde_json`. That set passes `cargo deny` with no exception and adds 10 packages (240 to 251; review in the note).
+- **ID-token validation built (2026-11-14, `crates/corten-gateway/src/idtoken.rs`):**
+  - Checks: an algorithm allowlist from configuration (RS256 2048 to 8192-bit, ES256, Ed25519 through `aws-lc-rs`); header key material and `crit` refused; `kid` selecting only among the provider's keys; exact `iss`; `aud` and `azp`; `exp` and `iat` within 60 s; `nonce` compared in constant time; `acr` in {`phr`, `phrh`}, or `phrh` alone under the hardware policy; `sub` present; size caps on token and key set.
+  - Evidence: 7 tests covering every refusal reason; mutations 15 of 15 caught.
+- **Authorization-code flow built (2026-11-14, `flow.rs`).**
+  - Discovery: accepted only for the configured issuer, with HTTPS endpoints, PKCE S256, `private_key_jwt`, an allowed signing algorithm and a phishing-resistant `acr` value; otherwise the gateway does not start.
+  - Requests: 256-bit `state`, `nonce` and PKCE verifier, held server-side. At most 10,000 outstanding, for 600 s each.
+  - Callbacks: `state` single-use, consumed even on refusal; repeated parameters refused; the RFC 9207 `iss` parameter checked, and required where the provider advertises it; provider errors logged from `[a-z_]` only.
+  - Client authentication: a `private_key_jwt` assertion (ES256, typed `client-authentication+jwt`) whose `aud` is the issuer identifier alone. RFC 10070 (November 2026) requires this and forbids the token endpoint, after CVE-2025-27370/27371.
+  - Evidence: 8 tests, including RFC 7636's S256 vector, checked against the RFC text; mutations 19 of 19 caught.
+- **Token minting built (2026-11-14, `mint.rs`).**
+  - The key is a `corten-manifest keygen` file, refused as `corten-manifest` refuses it (not a regular file, group- or other-accessible, a directory others can write, another owner).
+  - Tokens are minted for 300 s by default, never above the prelude's 900 s cap. A provider subject that is not a valid principal name is refused, never rewritten.
+  - Evidence: a minted token authenticates through `corten_std`'s `TokenAuthenticator` loaded from a signed manifest, and a token for another grant is refused. 3 tests; mutations 10 of 10 caught (one test was first vacuous, then fixed).
+  - The owner check is not exercised by a test: it needs a file owned by another user, which needs root.
+- **Session store built (2026-11-14, `session.rs`).**
+  - A session starts only after a successful sign-in. Its ID is 256 random bits, stored only as SHA-256. Its cookie is `__Host-`prefixed, `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`.
+  - Timeouts: 15 min idle and 8 h absolute, from the server's clock.
+  - Limits: 10 per principal (a new one ends the oldest, logged), 100,000 in all. Revoke-all is per principal.
+  - Ended sessions are remembered for one absolute timeout after they end. A replayed cookie then logs `session.use_after_end` at high severity, and malformed or unknown cookies log `session.malformed` or `session.unknown`.
+  - Evidence: 6 tests; mutations 12 of 12 caught. The tests found a design flaw first: a record whose expiry was the session's own absolute deadline was forgotten in the same sweep that ended it, so a replay after an absolute timeout went unlogged. They also showed the shape check was unobservable until it logged.
+- **HTTPS client built (2026-11-15, `client.rs`), to sota-architecture rules/04.**
+  - Limits: 5 s connect and 10 s request timeouts; TLS 1.3 only with the platform's roots; HTTPS only; no redirects followed; status 200 and `application/json` only; at most 64 KiB read.
+  - Retries: a GET is retried on connection errors, timeouts, 408, 429, 502, 503 and 504, at most 3 attempts with full jitter. A POST never is.
+  - The provider gets a circuit breaker (5 failures, 30 s open) and a once-a-minute limit on key-set refreshes for unknown `kid`s.
+  - A failure-mode table is in the note.
+  - Evidence: 7 tests against a local TLS 1.3 server (and a TLS 1.2-only one); mutations 13 of 13 caught.
+- Next: the HTTP server and the forwarding proxy, then an end-to-end test against Kanidm
 
 ## Safe Rust through a crate (2026-11-04)
 
