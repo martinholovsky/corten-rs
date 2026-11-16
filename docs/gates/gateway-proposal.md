@@ -110,7 +110,7 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
    - **Shown to fail:** with `phr` mapped to level 1, Keycloak labelled the password-only sign-in `phr`, the gateway accepted it, and the script's control check failed (exit 1).
    - **Found by this test, fixed with it:** the gateway's HTTPS client sent `Host` without the port. RFC 9110 requires it unless it is the default, and Keycloak builds its issuer from `Host`, so the gateway refused Keycloak's discovery document as "not the configured issuer". A unit test now checks the port, and it failed before the fix.
    - Not run in CI: it needs podman and a Keycloak image of several hundred megabytes. Run it with `scripts/gateway-keycloak-e2e.py` from the repository root; it needs podman, cargo and Python 3 with `cryptography`.
-4. **Integration with a Corten program waits for batch 6's listener.** Until then the program side is step 1's `TokenAuthenticator`, tested with tokens the gateway minted.
+4. **Integration with a Corten program: done (2026-11-16), with batch 6's listener** (`listener-proposal.md`). A gateway test signs in and reaches a real `corten-std` listener, loaded from a signed manifest that trusts the gateway's minting key, as the signed-in principal; the program sees neither the token nor the session cookie, and a request straight to the socket gets 401.
 
 ## Q5 to Q7: the server and the proxy (owner, 2026-11-15, the recommendation on all three)
 

@@ -96,6 +96,20 @@ pub enum ManifestError {
     },
     /// The system clock could not be read or is before 1970.
     Clock,
+    /// A `listen` grant names an `authn` grant the manifest does not have.
+    UnknownAuthn {
+        /// The listener's name.
+        listen: String,
+        /// The missing authenticator's name.
+        authn: String,
+    },
+    /// A granted listening socket could not be bound.
+    Listen {
+        /// The entry's name.
+        name: String,
+        /// Why.
+        error: crate::listen::ListenError,
+    },
     /// A granted directory could not be opened.
     Dir {
         /// The entry's name.
@@ -124,6 +138,11 @@ impl fmt::Display for ManifestError {
             }
             Self::Clock => f.write_str("the system clock could not be read"),
             Self::Dir { name, error } => write!(f, "cannot open directory {name:?}: {error}"),
+            Self::UnknownAuthn { listen, authn } => write!(
+                f,
+                "listener {listen:?} names authenticator {authn:?}, which the manifest does not grant"
+            ),
+            Self::Listen { name, error } => write!(f, "cannot listen on {name:?}: {error}"),
         }
     }
 }
@@ -146,6 +165,8 @@ pub struct Capabilities {
     execs: BTreeMap<String, ExecCap>,
     declassify: BTreeMap<String, DeclassifyCap>,
     nets: BTreeMap<String, NetCap>,
+    #[cfg(unix)]
+    listeners: BTreeMap<String, crate::listen::Listener>,
     dns_fallback: Option<DnsFallback>,
     serial: u64,
 }
@@ -201,6 +222,17 @@ pub enum Grant {
         /// Whether non-public addresses are allowed.
         private: bool,
     },
+    /// `listen NAME unix PATH authn AUTHN`: one Unix domain socket at `PATH`
+    /// whose every request must carry a token the `AUTHN` grant accepts
+    /// (`crate::listen`; spec section 8, question 25).
+    Listen {
+        /// Manifest name.
+        name: String,
+        /// Absolute path of the socket.
+        path: PathBuf,
+        /// The `authn` grant that checks each request.
+        authn: String,
+    },
     /// `dns fallback NAME`: resolve host grants through this public resolver
     /// over DNS over TLS when it answers (question 16).
     DnsFallback {
@@ -227,7 +259,8 @@ impl Grant {
             | Self::Exec { name, .. }
             | Self::Declassify { name }
             | Self::Authn { name, .. }
-            | Self::Net { name, .. } => name,
+            | Self::Net { name, .. }
+            | Self::Listen { name, .. } => name,
             // At most one: a second is a duplicate.
             Self::DnsFallback { .. } => "dns fallback",
         }
@@ -369,6 +402,21 @@ pub fn verify(
             return Err(ManifestError::Duplicate(g.name().to_owned()));
         }
     }
+    // A listener without its authenticator would serve no one; refuse the
+    // manifest rather than bind a socket that answers only 401.
+    for g in &grants {
+        if let Grant::Listen { name, authn, .. } = g {
+            let known = grants
+                .iter()
+                .any(|a| matches!(a, Grant::Authn { name: n, .. } if n == authn));
+            if !known {
+                return Err(ManifestError::UnknownAuthn {
+                    listen: name.clone(),
+                    authn: authn.clone(),
+                });
+            }
+        }
+    }
     Ok(VerifiedManifest {
         grants,
         key: header.key,
@@ -471,6 +519,10 @@ fn parse(text: &str) -> Result<(Header, Vec<Grant>), ManifestError> {
             entries.push(parse_authn(rest).ok_or(ManifestError::Syntax(number))?);
             continue;
         }
+        if let Some(rest) = line.strip_prefix("listen ") {
+            entries.push(parse_listen(rest).ok_or(ManifestError::Syntax(number))?);
+            continue;
+        }
         let mut parts = line.split(' ');
         let (Some(kind), Some(name), path, flag, None) = (
             parts.next(),
@@ -544,6 +596,34 @@ fn parse_net(rest: &str) -> Option<Grant> {
     })
 }
 
+/// `NAME unix PATH authn AUTHN` after `listen `.
+fn parse_listen(rest: &str) -> Option<Grant> {
+    let mut parts = rest.split(' ');
+    let (Some(name), Some("unix"), Some(path), Some("authn"), Some(authn), None) = (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) else {
+        return None;
+    };
+    PathSeg::parse(name).ok()?;
+    if !crate::authz::token_field(authn) {
+        return None;
+    }
+    let path = Path::new(path);
+    if !path.is_absolute() || path.to_str().is_none_or(|p| p.contains('\0')) {
+        return None;
+    }
+    Some(Grant::Listen {
+        name: name.to_owned(),
+        path: path.to_path_buf(),
+        authn: authn.to_owned(),
+    })
+}
+
 /// `NAME token ID:HEX[,ID:HEX...]` after `authn `.
 /// The name and key identifiers use the token field grammar
 /// ([`crate::authz::token_field`]), since a token carries them.
@@ -608,6 +688,19 @@ impl Capabilities {
             serial: verified.serial,
             ..Self::default()
         };
+        // A listener checks requests with its own authenticator, built from
+        // the named grant's keys, so the program can still take that grant.
+        let authn_keys: BTreeMap<String, Vec<(String, [u8; 32])>> = verified
+            .grants
+            .iter()
+            .filter_map(|g| match g {
+                Grant::Authn {
+                    name,
+                    method: AuthnMethod::Token { keys },
+                } => Some((name.clone(), keys.clone())),
+                _ => None,
+            })
+            .collect();
         for grant in verified.grants {
             match grant {
                 Grant::Dir {
@@ -662,6 +755,18 @@ impl Capabilities {
                     }
                 }
                 Grant::DnsFallback { provider } => caps.dns_fallback = Some(provider),
+                Grant::Listen { name, path, authn } => {
+                    let keys =
+                        authn_keys
+                            .get(&authn)
+                            .ok_or_else(|| ManifestError::UnknownAuthn {
+                                listen: name.clone(),
+                                authn: authn.clone(),
+                            })?;
+                    let auth = TokenAuthenticator::new(authn.clone(), keys)
+                        .ok_or(ManifestError::Signature)?;
+                    caps.add_listener(name, &path, auth)?;
+                }
                 Grant::Net {
                     name,
                     host,
@@ -706,6 +811,47 @@ impl Capabilities {
     /// Takes the declassification capability named `name`, once.
     pub fn take_declassify(&mut self, name: &str) -> Option<DeclassifyCap> {
         self.declassify.remove(name)
+    }
+
+    /// Binds the listener for a `listen` grant.
+    #[cfg(unix)]
+    fn add_listener(
+        &mut self,
+        name: String,
+        path: &Path,
+        auth: TokenAuthenticator,
+    ) -> Result<(), ManifestError> {
+        let listener = crate::listen::bind(name.clone(), path, auth).map_err(|error| {
+            ManifestError::Listen {
+                name: name.clone(),
+                error,
+            }
+        })?;
+        if self.listeners.insert(name.clone(), listener).is_some() {
+            return Err(ManifestError::Duplicate(name));
+        }
+        Ok(())
+    }
+
+    /// Off Unix there is no socket to bind.
+    #[cfg(not(unix))]
+    #[expect(clippy::unused_self, reason = "the same signature as the Unix version")]
+    fn add_listener(
+        &mut self,
+        name: String,
+        _path: &Path,
+        _auth: TokenAuthenticator,
+    ) -> Result<(), ManifestError> {
+        Err(ManifestError::Listen {
+            name,
+            error: crate::listen::ListenError::Unsupported,
+        })
+    }
+
+    /// Takes the listener named `name`, once.
+    #[cfg(unix)]
+    pub fn take_listener(&mut self, name: &str) -> Option<crate::listen::Listener> {
+        self.listeners.remove(name)
     }
 
     /// Takes the network capability named `name`, once.
@@ -891,6 +1037,95 @@ mod tests {
         assert!(matches!(
             load(&manifest("k1", 1, 1, ""), &kp, &t, 0),
             Err(ManifestError::Expired { .. })
+        ));
+    }
+
+    /// A key line for an `authn` grant, from a fixed seed.
+    fn authn_line(name: &str) -> String {
+        let pk = KeyPair::from_seed(Seed::new([5; 32])).pk;
+        let hex = pk.as_ref().iter().fold(String::new(), |mut s, b| {
+            std::fmt::Write::write_fmt(&mut s, format_args!("{b:02x}")).unwrap();
+            s
+        });
+        format!("authn {name} token k1:{hex}\n")
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_listen_grant_binds_its_socket_and_is_taken_once() {
+        use std::os::unix::fs::{FileTypeExt as _, PermissionsExt as _};
+        let d = std::env::temp_dir().join(format!("cm{}", std::process::id()));
+        let _gone = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let sock = d.join("app.sock");
+        let kp = keys();
+        let t = trusted("k", &kp);
+        let body = format!(
+            "{}listen app unix {} authn api\n",
+            authn_line("api"),
+            sock.display()
+        );
+        let mut caps = load(&manifest("k", 1, LATER, &body), &kp, &t, 0).unwrap();
+        assert!(
+            std::fs::symlink_metadata(&sock)
+                .unwrap()
+                .file_type()
+                .is_socket()
+        );
+        assert_eq!(caps.take_listener("app").unwrap().name(), "app");
+        assert!(caps.take_listener("app").is_none());
+        // The listener checks with its own copy: the program can still take the grant.
+        assert!(caps.take_token_authenticator("api").is_some());
+        let _gone = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_listen_grant_must_name_an_authn_grant() {
+        let kp = keys();
+        let t = trusted("k", &kp);
+        let m = manifest("k", 1, LATER, "listen app unix /run/app.sock authn api\n");
+        // `verify` alone refuses it: the launcher calls only `verify`.
+        assert!(matches!(
+            verify(
+                m.as_bytes(),
+                Signature(&sign(&kp, m.as_bytes())),
+                &t,
+                UnixTime(1),
+                MinSerial(0)
+            ),
+            Err(ManifestError::UnknownAuthn { .. })
+        ));
+        assert!(matches!(
+            load(&m, &kp, &t, 0),
+            Err(ManifestError::UnknownAuthn { listen, authn }) if listen == "app" && authn == "api"
+        ));
+        for bad in [
+            "listen app tcp /run/a.sock authn api",
+            "listen app unix run/a.sock authn api",
+            "listen app unix /run/a.sock api",
+            "listen app unix /run/a.sock authn a.b",
+            "listen app unix /run/a.sock authn api extra",
+            "listen ../x unix /run/a.sock authn api",
+        ] {
+            let m = manifest("k", 1, LATER, &format!("{}{bad}\n", authn_line("api")));
+            assert!(
+                matches!(load(&m, &kp, &t, 0), Err(ManifestError::Syntax(_))),
+                "{bad}"
+            );
+        }
+        let dup = manifest(
+            "k",
+            1,
+            LATER,
+            &format!(
+                "{}listen api unix /run/a.sock authn api\n",
+                authn_line("api")
+            ),
+        );
+        assert!(matches!(
+            load(&dup, &kp, &t, 0),
+            Err(ManifestError::Duplicate(_))
         ));
     }
 

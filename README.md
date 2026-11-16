@@ -95,7 +95,7 @@ A rule only holds if the check that enforces it runs somewhere the code's author
 | [`crates/cargo-corten`](crates/cargo-corten) | `cargo corten check`: builds a crate with flags the checker supplies itself, plus the dependency policy; `cargo corten build`: the sandboxed build with SBOM and provenance. Its README lists what it overrides and its known gaps |
 | [`crates/corten-corpus`](crates/corten-corpus) | Runs the corpus; reports detection beside false rejection and marks verified rows |
 | [`crates/corten-ledger`](crates/corten-ledger) | `corten-ledger check` (the ledger gate, run in CI) and `corten-ledger totals` |
-| [`crates/corten-std`](crates/corten-std) | The capability prelude: `DirCap`, typed sinks, `Secret`, the signed manifest |
+| [`crates/corten-std`](crates/corten-std) | The capability prelude: `DirCap`, typed sinks, `Secret`, the signed manifest, and the `listen` grant's authenticated listener |
 | [`crates/corten-runtime`](crates/corten-runtime) | Supervision tree: a panicked component is restarted, not the service |
 | [`crates/corten-broker`](crates/corten-broker) | Process and Wasm brokers with quotas and deadlines; size-checked IPC frames |
 | [`crates/corten-sandbox`](crates/corten-sandbox) | Landlock launcher (Linux): grants by flag or by signed capability manifest, run only for the program whose SHA-256 the manifest pins |
