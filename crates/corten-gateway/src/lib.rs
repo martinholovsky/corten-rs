@@ -2,7 +2,8 @@
 //! Connect relying party that accepts only phishing-resistant sign-ins and
 //! issues short-lived Corten tokens. Being built in steps; today ID-token
 //! validation, the authorization-code flow, token minting, the
-//! session store, the HTTPS client and the browser-facing rules exist.
+//! session store, the HTTPS client, the browser-facing rules and
+//! the server that wires them together exist.
 
 pub mod client;
 pub mod edge;
@@ -10,4 +11,6 @@ pub mod flow;
 pub mod idtoken;
 #[cfg(unix)]
 pub mod mint;
+#[cfg(unix)]
+pub mod server;
 pub mod session;
