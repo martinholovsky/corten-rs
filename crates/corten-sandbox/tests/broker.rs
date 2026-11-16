@@ -536,3 +536,104 @@ fn manifest_mode_grants_exactly_the_manifest() {
     // None of the refused manifests moved the high-water mark.
     assert_eq!(fs::read_to_string(&state).unwrap(), "5\n");
 }
+
+/// The child half of `a_listen_grant_allows_its_socket_and_nothing_else`:
+/// runs only when that test re-executes this binary under the launcher.
+#[test]
+fn listen_grant_child() {
+    let Ok(dirs) = std::env::var("CORTEN_LISTEN_CHILD") else {
+        return;
+    };
+    let (granted, other) = dirs.split_once(':').unwrap();
+    let granted = Path::new(granted);
+    let socket = std::os::unix::net::UnixListener::bind(granted.join("app.sock")).map(|_| ());
+    let file = fs::write(granted.join("x.txt"), b"x");
+    let elsewhere =
+        std::os::unix::net::UnixListener::bind(Path::new(other).join("app.sock")).map(|_| ());
+    let say = |r: &std::io::Result<()>| match r {
+        Ok(()) => "ok".to_owned(),
+        Err(e) => format!("{:?}", e.kind()),
+    };
+    println!(
+        "CHILD socket={} file={} elsewhere={}",
+        say(&socket),
+        say(&file),
+        say(&elsewhere)
+    );
+}
+
+/// A `listen` grant lets the program create its socket in the grant's
+/// directory and nothing else: no regular file there, no socket elsewhere.
+/// The control: the same child, outside the launcher, does all three.
+#[test]
+fn a_listen_grant_allows_its_socket_and_nothing_else() {
+    let s = Scratch::new("listen");
+    let (granted, other) = (s.0.join("run"), s.0.join("other"));
+    for d in [&granted, &other] {
+        fs::create_dir_all(d).unwrap();
+    }
+    let me = std::env::current_exe().unwrap();
+    let env = format!("{}:{}", granted.display(), other.display());
+    let child = |launcher: bool| {
+        for d in [&granted, &other] {
+            for e in fs::read_dir(d).unwrap() {
+                fs::remove_file(e.unwrap().path()).unwrap();
+            }
+        }
+        let mut c = if launcher {
+            let kp = KeyPair::from_seed(Seed::new([13u8; 32]));
+            let authn = hex(KeyPair::from_seed(Seed::new([14u8; 32])).pk.as_ref());
+            let manifest = format!(
+                "corten-manifest 3\nkey deploy\nserial 1\nnot-after 4102444800\nprogram sha256 {}\nauthn api token k1:{authn}\nlisten app unix {} authn api\n",
+                corten_sha256::hex_digest(&fs::read(&me).unwrap()),
+                granted.join("app.sock").display()
+            );
+            let (m, g) = (s.0.join("m"), s.0.join("sig"));
+            fs::write(&m, &manifest).unwrap();
+            fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+            let mut c = Command::new(env!("CARGO_BIN_EXE_corten-sandbox"));
+            c.arg("--manifest")
+                .arg(&m)
+                .arg("--signature")
+                .arg(&g)
+                .arg("--trusted-key")
+                .arg(format!("deploy={}", hex(kp.pk.as_ref())))
+                .arg("--serial-state")
+                .arg(s.0.join("serial"))
+                .arg("--system")
+                .arg("--exec")
+                .arg(&me)
+                .arg("--")
+                .arg(&me);
+            c
+        } else {
+            Command::new(&me)
+        };
+        let out = c
+            .args([
+                "--exact",
+                "listen_grant_child",
+                "--nocapture",
+                "--test-threads",
+                "1",
+            ])
+            .env("CORTEN_LISTEN_CHILD", &env)
+            .output()
+            .unwrap();
+        let said = text(&out.stdout);
+        said.lines()
+            // libtest prints `test NAME ... ` before the line under --nocapture.
+            .find_map(|l| l.split_once("CHILD ").map(|(_, report)| report))
+            .unwrap_or_else(|| panic!("no report: {said} {}", text(&out.stderr)))
+            .to_owned()
+    };
+    assert_eq!(
+        child(false),
+        "socket=ok file=ok elsewhere=ok",
+        "the control"
+    );
+    assert_eq!(
+        child(true),
+        "socket=ok file=PermissionDenied elsewhere=PermissionDenied"
+    );
+}

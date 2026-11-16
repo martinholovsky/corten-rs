@@ -138,7 +138,7 @@ disallowed-methods = [
     # Processes (spec 4.4, 4.5): no PATH search, no ambient spawn.
     { path = "std::process::Command::new", reason = "ambient process authority with a PATH search (CWE-78); fix: process! with an ExecCap from the manifest" },
     # Network (spec 4.3).
-    { path = "std::net::TcpListener::bind", reason = "ambient network authority (CWE-918); corten-std has no listening capability yet" },
+    { path = "std::net::TcpListener::bind", reason = "ambient network authority (CWE-918); corten-std listens only on a Unix socket, through a `listen` grant (corten_std::listen)" },
     { path = "std::net::TcpStream::connect", reason = "ambient network authority (CWE-918); fix: a NetCap granted in the manifest, NetCap::connect_tls" },
     { path = "std::net::TcpStream::connect_timeout", reason = "ambient network authority (CWE-918); fix: a NetCap granted in the manifest, NetCap::connect_tls" },
     { path = "std::net::UdpSocket::bind", reason = "unencrypted datagrams outside any grant (CWE-319); corten-std has no UDP capability" },
@@ -162,10 +162,10 @@ disallowed-types = [
     { path = "std::fs::OpenOptions", reason = "ambient file creation (CWE-22, path traversal; CWE-276, default permissions); fix: DirCap::open_file with OpenMode::CreateExclusive(FileMode)" },
     { path = "std::fs::DirBuilder", reason = "ambient file creation (CWE-22, path traversal; CWE-276, default permissions); fix: DirCap::open_file with OpenMode::CreateExclusive(FileMode)" },
     { path = "std::os::unix::net::UnixDatagram", reason = "ambient IPC (spec 4.3; no ledger row); corten-std has no Unix-socket capability yet" },
-    { path = "std::os::unix::net::UnixListener", reason = "ambient IPC (spec 4.3; no ledger row); corten-std has no Unix-socket capability yet" },
-    { path = "std::os::unix::net::UnixStream", reason = "ambient IPC (spec 4.3; no ledger row); corten-std has no Unix-socket capability yet" },
+    { path = "std::os::unix::net::UnixListener", reason = "ambient IPC (spec 4.3; no ledger row); fix: a `listen` manifest grant (corten_std::listen)" },
+    { path = "std::os::unix::net::UnixStream", reason = "ambient IPC (spec 4.3; no ledger row); corten-std listens through a `listen` grant (corten_std::listen) and has no outgoing Unix-socket capability yet" },
     { path = "std::process::Command", reason = "ambient process authority with a PATH search (CWE-78); fix: process! with an ExecCap from the manifest" },
-    { path = "std::net::TcpListener", reason = "ambient network authority (CWE-918); corten-std has no listening capability yet" },
+    { path = "std::net::TcpListener", reason = "ambient network authority (CWE-918); corten-std listens only on a Unix socket, through a `listen` grant (corten_std::listen)" },
     { path = "std::net::TcpStream", reason = "ambient network authority (CWE-918); fix: a NetCap granted in the manifest, NetCap::connect_tls" },
     { path = "std::net::UdpSocket", reason = "unencrypted datagrams outside any grant (CWE-319); corten-std has no UDP capability" },
     { path = "std::mem::ManuallyDrop", reason = "skips the destructor (CWE-1091); fix: let the value drop at the end of its owner" },

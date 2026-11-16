@@ -754,10 +754,55 @@ mod tests {
         idp: Arc<Mutex<Idp>>,
         minter_entry: String,
         logs: Sink,
-        _dir: PathBuf,
+        dir: PathBuf,
     }
 
     async fn world(login_burst: u32) -> World {
+        world_with(login_burst, false).await
+    }
+
+    /// The program side as Corten deploys it: a signed manifest that trusts
+    /// the gateway's minting key (`authn api token ...`) and grants a socket
+    /// (`listen app unix ... authn api`), served by `corten_std::listen`.
+    fn serve_corten_program(socket: &std::path::Path, entry: &str) {
+        let deployer = ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::new([9; 32]));
+        let m = format!(
+            "corten-manifest 3\nkey dep\nserial 1\nnot-after 4102444800\nprogram sha256 {}\nauthn api token {entry}\nlisten app unix {} authn api\n",
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            socket.display()
+        );
+        let mut trusted = corten_std::manifest::TrustedKeys::new();
+        trusted
+            .add(
+                corten_std::manifest::KeyId("dep"),
+                corten_std::manifest::PublicKey(deployer.pk.as_ref()),
+            )
+            .unwrap();
+        let sig = deployer.sk.sign(m.as_bytes(), None);
+        let mut caps = corten_std::manifest::Capabilities::load(
+            m.as_bytes(),
+            corten_std::manifest::Signature(sig.as_ref()),
+            &trusted,
+            corten_std::manifest::MinSerial(0),
+        )
+        .unwrap();
+        let listener = caps.take_listener("app").unwrap();
+        let _serving = std::thread::spawn(move || {
+            listener.serve(
+                |who, req| {
+                    corten_std::listen::Response::ok(format!(
+                        "principal={}|auth={}|cookie={}",
+                        who.principal(),
+                        req.header("authorization").unwrap_or("-"),
+                        req.header("cookie").unwrap_or("-")
+                    ))
+                },
+                Sink::default(),
+            )
+        });
+    }
+
+    async fn world_with(login_burst: u32, real_program: bool) -> World {
         use std::os::unix::fs::PermissionsExt as _;
         static WORLDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let pki = pki();
@@ -779,14 +824,18 @@ mod tests {
         }));
         let idp_key = Arc::new(EcdsaKeyPair::generate(&ECDSA_P256_SHA256_FIXED_SIGNING).unwrap());
         let idp_port = serve_idp(tls.clone(), Arc::clone(&idp), idp_key).await;
+        let minter = Minter::from_key_file(&dir.join("mint.key"), "api", 300).unwrap();
+        let minter_entry = minter.manifest_entry();
         let socket = dir.join("program.sock");
-        serve_program(&socket);
+        if real_program {
+            serve_corten_program(&socket, &minter_entry);
+        } else {
+            serve_program(&socket);
+        }
         let mut roots = rustls::RootCertStore::empty();
         roots.add(pki.ca.clone()).unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let gw_port = listener.local_addr().unwrap().port();
-        let minter = Minter::from_key_file(&dir.join("mint.key"), "api", 300).unwrap();
-        let minter_entry = minter.manifest_entry();
         let logs = Sink::default();
         let settings = Settings {
             public: Public {
@@ -821,7 +870,7 @@ mod tests {
             idp,
             minter_entry,
             logs,
-            _dir: dir,
+            dir,
         }
     }
 
@@ -1039,6 +1088,31 @@ mod tests {
                 .iter()
                 .any(|l| l.starts_with("session.use_after_end"))
         );
+    }
+
+    /// Q6 end to end: a passkey sign-in at the gateway reaches a Corten
+    /// program's `listen` grant as the signed-in principal; the program sees
+    /// neither the token nor the session cookie, and a request that skips
+    /// the gateway gets 401.
+    #[tokio::test]
+    async fn a_corten_program_behind_the_gateway_serves_the_signed_in_user() {
+        let w = world_with(10, true).await;
+        let cookie = session_cookie(&sign_in(&w).await);
+        let got = browse(&w, "GET", "/hello", &[("cookie", &cookie)]).await;
+        assert_eq!(got.status(), StatusCode::OK);
+        assert_eq!(&got.body()[..], b"principal=user-1|auth=-|cookie=-");
+        // Straight to the socket, without the gateway: no token, no service.
+        let direct = {
+            use std::io::{Read as _, Write as _};
+            let mut s =
+                std::os::unix::net::UnixStream::connect(w.dir.join("program.sock")).unwrap();
+            s.write_all(b"GET /hello HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+                .unwrap();
+            let mut out = String::new();
+            s.read_to_string(&mut out).unwrap();
+            out
+        };
+        assert!(direct.starts_with("HTTP/1.1 401"), "{direct}");
     }
 
     #[tokio::test]

@@ -90,6 +90,9 @@ struct Plan {
     allow_unprotected_hardlinks: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
+    /// Directories of the manifest's `listen` grants: the program may create
+    /// and remove sockets there, and nothing else (`MakeSock`, `RemoveFile`).
+    socket_dirs: Vec<PathBuf>,
     manifest: Option<ManifestArgs>,
     /// The program digest the verified manifest pins (manifest mode only).
     program_sha256: Option<[u8; 32]>,
@@ -241,6 +244,14 @@ fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
             // Not a filesystem grant, or keys only: nothing for Landlock.
             corten_std::manifest::Grant::Declassify { .. }
             | corten_std::manifest::Grant::Authn { .. } => {}
+            // The program creates its socket, renames it into place and may
+            // replace a stale one: socket creation and file removal in that
+            // directory, and nothing else there.
+            corten_std::manifest::Grant::Listen { path, .. } => {
+                if let Some(dir) = path.parent() {
+                    plan.socket_dirs.push(dir.to_path_buf());
+                }
+            }
             // Landlock filters TCP by port, not address: the address check is
             // corten_std::net's.
             corten_std::manifest::Grant::Net { port, host, .. } => {
@@ -384,10 +395,12 @@ mod enforce {
             .map_err(|e| e.to_string())?
             .set_compatibility(CompatLevel::HardRequirement);
         let mut created = ruleset.create().map_err(|e| e.to_string())?;
+        let sockets = AccessFs::MakeSock | AccessFs::RemoveFile;
         for (paths, access) in [
             (&plan.read_only, read),
             (&plan.read_write, write),
             (&plan.execute, exec),
+            (&plan.socket_dirs, sockets),
         ] {
             for path in paths {
                 created = created
