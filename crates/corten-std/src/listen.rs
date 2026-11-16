@@ -212,7 +212,7 @@ mod imp {
     use std::convert::Infallible;
     use std::os::fd::OwnedFd;
     use std::path::Path;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::time::Duration;
 
     use http_body_util::BodyExt as _;
@@ -220,7 +220,7 @@ mod imp {
     use hyper_util::rt::{TokioIo, TokioTimer};
     use rustix::fs::{AtFlags, FileType, Mode, OFlags};
     use tokio::net::UnixSocket;
-    use tokio::sync::Semaphore;
+    use tokio::sync::{Mutex, Semaphore};
 
     use super::{
         BODY_TIMEOUT_SECS, HANDLER_TIMEOUT_SECS, HEAD_TIMEOUT_SECS, ListenError, MAX_BODY,
@@ -371,15 +371,19 @@ mod imp {
     }
 
     impl<H, L> Drop for Slot<H, L> {
+        /// Runs on the handler's worker thread only: a `Slot` is taken just
+        /// before `spawn_blocking` and moved into its closure, so it is
+        /// dropped there whether the handler returns or panics. That is a
+        /// blocking context, where `blocking_lock` is allowed (it panics in
+        /// an async one).
         fn drop(&mut self) {
-            if let Ok(mut map) = self.shared.in_flight.lock() {
-                let now_zero = map.get_mut(&self.principal).is_some_and(|n| {
-                    *n = n.saturating_sub(1);
-                    *n == 0
-                });
-                if now_zero {
-                    map.remove(&self.principal);
-                }
+            let mut map = self.shared.in_flight.blocking_lock();
+            let now_zero = map.get_mut(&self.principal).is_some_and(|n| {
+                *n = n.saturating_sub(1);
+                *n == 0
+            });
+            if now_zero {
+                map.remove(&self.principal);
             }
         }
     }
@@ -481,15 +485,16 @@ mod imp {
         (!token.is_empty()).then_some(token)
     }
 
-    fn log<H, L: LogWriter>(shared: &Shared<H, L>, record: &crate::log::LogRecord) {
-        if let Ok(mut log) = shared.log.lock() {
-            log.write(record);
-        }
+    /// Locks are tokio's, awaited: a `std::sync::Mutex` in async code is a
+    /// blocking call (`corten_blocking_in_async`). None is held across an
+    /// `.await`; the writer itself is a plain synchronous call.
+    async fn log<H, L: LogWriter>(shared: &Shared<H, L>, record: &crate::log::LogRecord) {
+        shared.log.lock().await.write(record);
     }
 
     /// Takes a slot for `principal`, or `None` at [`MAX_PER_PRINCIPAL`].
-    fn take_slot<H, L>(shared: &Arc<Shared<H, L>>, principal: &str) -> Option<Slot<H, L>> {
-        let mut map = shared.in_flight.lock().ok()?;
+    async fn take_slot<H, L>(shared: &Arc<Shared<H, L>>, principal: &str) -> Option<Slot<H, L>> {
+        let mut map = shared.in_flight.lock().await;
         let n = map.entry(principal.to_owned()).or_insert(0);
         if *n >= MAX_PER_PRINCIPAL {
             return None;
@@ -511,11 +516,13 @@ mod imp {
     {
         use hyper::StatusCode as S;
         // Authentication first: it is cheap, and nothing else runs without it.
-        let checked = {
-            let Ok(mut log) = shared.log.lock() else {
-                return plain(S::INTERNAL_SERVER_ERROR, "internal error\n");
-            };
-            bearer(&req).map(|t| shared.auth.authenticate(Token(t), &mut *log))
+        let checked = match bearer(&req) {
+            Some(t) => Some(
+                shared
+                    .auth
+                    .authenticate(Token(t), &mut *shared.log.lock().await),
+            ),
+            None => None,
         };
         let Some(Ok(who)) = checked else {
             let mut r = plain(S::UNAUTHORIZED, "unauthorized\n");
@@ -526,12 +533,6 @@ mod imp {
             return r;
         };
         let principal = who.principal().to_owned();
-        let Ok(handler_permit) = Arc::clone(&shared.handlers).try_acquire_owned() else {
-            return retry_later(S::SERVICE_UNAVAILABLE, "busy\n");
-        };
-        let Some(slot) = take_slot(&shared, &principal) else {
-            return retry_later(S::TOO_MANY_REQUESTS, "too many requests at once\n");
-        };
         let (parts, body) = req.into_parts();
         let limited = http_body_util::Limited::new(body, MAX_BODY).collect();
         let body = match tokio::time::timeout(Duration::from_secs(BODY_TIMEOUT_SECS), limited).await
@@ -564,6 +565,12 @@ mod imp {
             headers,
             body,
         };
+        let Ok(handler_permit) = Arc::clone(&shared.handlers).try_acquire_owned() else {
+            return retry_later(S::SERVICE_UNAVAILABLE, "busy\n");
+        };
+        let Some(slot) = take_slot(&shared, &principal).await else {
+            return retry_later(S::TOO_MANY_REQUESTS, "too many requests at once\n");
+        };
         // The worker owns the handler slot and the principal slot until the
         // handler returns, whether or not the caller is still waiting.
         let worker = Arc::clone(&shared);
@@ -580,14 +587,16 @@ mod imp {
                 log(
                     &shared,
                     &crate::log_record!("listen.timeout", method = method, principal = principal),
-                );
+                )
+                .await;
                 return plain(S::GATEWAY_TIMEOUT, "handler timed out\n");
             }
             Ok(Err(_)) => {
                 log(
                     &shared,
                     &crate::log_record!("listen.panic", method = method, principal = principal),
-                );
+                )
+                .await;
                 return plain(S::INTERNAL_SERVER_ERROR, "internal error\n");
             }
             Ok(Ok(r)) => r,
@@ -600,26 +609,24 @@ mod imp {
                 status = response.status,
                 principal = principal
             ),
-        );
+        )
+        .await;
         to_hyper(response)
     }
 
     /// The handler's response as hyper's.
+    ///
+    /// Names and values were validated by `crate::http`, which is stricter
+    /// than hyper's grammar; if hyper still refused one, the caller gets a
+    /// 500 rather than a response with a header silently missing.
     fn to_hyper(response: Response) -> hyper::Response<Body> {
-        use hyper::StatusCode as S;
-        let mut out = hyper::Response::new(Body::new(Bytes::from(response.body)));
-        *out.status_mut() = S::from_u16(response.status).unwrap_or(S::INTERNAL_SERVER_ERROR);
-        for (name, value) in response.headers {
-            // Both were validated by crate::http, which is stricter than
-            // hyper's grammar, so these conversions do not fail.
-            if let (Ok(n), Ok(v)) = (
-                hyper::header::HeaderName::from_bytes(name.as_str().as_bytes()),
-                hyper::header::HeaderValue::from_str(value.as_str()),
-            ) {
-                out.headers_mut().append(n, v);
-            }
+        let mut builder = hyper::Response::builder().status(response.status);
+        for (name, value) in &response.headers {
+            builder = builder.header(name.as_str(), value.as_str());
         }
-        out
+        builder
+            .body(Body::new(Bytes::from(response.body)))
+            .unwrap_or_else(|_| plain(hyper::StatusCode::INTERNAL_SERVER_ERROR, "internal error\n"))
     }
 }
 
