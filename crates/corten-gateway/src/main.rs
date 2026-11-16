@@ -1,4 +1,7 @@
-//! `corten-gateway` (design note: `docs/gates/gateway-proposal.md`). Not a
-//! working gateway yet: the library holds the parts built so far.
+//! `corten-gateway`: see `corten_gateway::cli` and
+//! `docs/gates/gateway-proposal.md`.
 
-fn main() {}
+fn main() -> std::process::ExitCode {
+    let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    corten_gateway::cli::run(&args)
+}

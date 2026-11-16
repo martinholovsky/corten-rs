@@ -105,7 +105,7 @@ pub fn route(method: &Method, path: &str) -> Result<Route, Reject> {
 }
 
 /// The public origin and host the gateway answers for.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Public {
     /// `https://HOST[:PORT]`, as browsers send it in `Origin`.
     pub origin: String,
