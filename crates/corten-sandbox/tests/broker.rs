@@ -544,9 +544,39 @@ fn listen_grant_child() {
     let Ok(dirs) = std::env::var("CORTEN_LISTEN_CHILD") else {
         return;
     };
-    let (granted, other) = dirs.split_once(':').unwrap();
-    let granted = Path::new(granted);
-    let socket = std::os::unix::net::UnixListener::bind(granted.join("app.sock")).map(|_| ());
+    let mut parts = dirs.split(':');
+    let (granted, other, manifest, trusted) = (
+        Path::new(parts.next().unwrap()),
+        parts.next().unwrap(),
+        Path::new(parts.next().unwrap()),
+        parts.next().unwrap(),
+    );
+    // Through corten-std, as a deployed program binds: the manifest's
+    // `listen` grant, loaded and taken.
+    let (id, hex_key) = trusted.split_once('=').unwrap();
+    let key: Vec<u8> = hex_key
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    let mut keys = TrustedKeys::new();
+    keys.add(KeyId(id), PublicKey(&key)).unwrap();
+    let socket = Capabilities::load(
+        &fs::read(manifest.join("m")).unwrap(),
+        Signature(&fs::read(manifest.join("sig")).unwrap()),
+        &keys,
+        MinSerial(0),
+    )
+    .map_err(|e| std::io::Error::other(e.to_string()))
+    .and_then(|mut caps| {
+        caps.take_listener("app")
+            .map(|_| ())
+            .ok_or_else(|| std::io::Error::other("no listener"))
+    })
+    .map_err(|e| {
+        println!("CHILD-ERROR {e}");
+        std::io::Error::new(std::io::ErrorKind::PermissionDenied, e.to_string())
+    });
     let file = fs::write(granted.join("x.txt"), b"x");
     let elsewhere =
         std::os::unix::net::UnixListener::bind(Path::new(other).join("app.sock")).map(|_| ());
@@ -568,12 +598,28 @@ fn listen_grant_child() {
 #[test]
 fn a_listen_grant_allows_its_socket_and_nothing_else() {
     let s = Scratch::new("listen");
-    let (granted, other) = (s.0.join("run"), s.0.join("other"));
-    for d in [&granted, &other] {
+    let (granted, other, signed) = (s.0.join("run"), s.0.join("other"), s.0.join("signed"));
+    for d in [&granted, &other, &signed] {
         fs::create_dir_all(d).unwrap();
     }
     let me = std::env::current_exe().unwrap();
-    let env = format!("{}:{}", granted.display(), other.display());
+    let kp = KeyPair::from_seed(Seed::new([13u8; 32]));
+    let authn = hex(KeyPair::from_seed(Seed::new([14u8; 32])).pk.as_ref());
+    let manifest = format!(
+        "corten-manifest 3\nkey deploy\nserial 1\nnot-after 4102444800\nprogram sha256 {}\nauthn api token k1:{authn}\nlisten app unix {} authn api\n",
+        corten_sha256::hex_digest(&fs::read(&me).unwrap()),
+        granted.join("app.sock").display()
+    );
+    let (m, g) = (signed.join("m"), signed.join("sig"));
+    fs::write(&m, &manifest).unwrap();
+    fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+    let trusted = format!("deploy={}", hex(kp.pk.as_ref()));
+    let env = format!(
+        "{}:{}:{}:{trusted}",
+        granted.display(),
+        other.display(),
+        signed.display()
+    );
     let child = |launcher: bool| {
         for d in [&granted, &other] {
             for e in fs::read_dir(d).unwrap() {
@@ -581,26 +627,18 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
             }
         }
         let mut c = if launcher {
-            let kp = KeyPair::from_seed(Seed::new([13u8; 32]));
-            let authn = hex(KeyPair::from_seed(Seed::new([14u8; 32])).pk.as_ref());
-            let manifest = format!(
-                "corten-manifest 3\nkey deploy\nserial 1\nnot-after 4102444800\nprogram sha256 {}\nauthn api token k1:{authn}\nlisten app unix {} authn api\n",
-                corten_sha256::hex_digest(&fs::read(&me).unwrap()),
-                granted.join("app.sock").display()
-            );
-            let (m, g) = (s.0.join("m"), s.0.join("sig"));
-            fs::write(&m, &manifest).unwrap();
-            fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
             let mut c = Command::new(env!("CARGO_BIN_EXE_corten-sandbox"));
             c.arg("--manifest")
                 .arg(&m)
                 .arg("--signature")
                 .arg(&g)
                 .arg("--trusted-key")
-                .arg(format!("deploy={}", hex(kp.pk.as_ref())))
+                .arg(&trusted)
                 .arg("--serial-state")
                 .arg(s.0.join("serial"))
                 .arg("--system")
+                .arg("--ro")
+                .arg(&signed)
                 .arg("--exec")
                 .arg(&me)
                 .arg("--")

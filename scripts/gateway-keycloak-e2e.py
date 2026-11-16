@@ -24,8 +24,18 @@ What it checks, in order:
      the key `corten-gateway check` reports, naming the Keycloak user.
   3. Logout, then the old cookie is refused.
 
+With --deployed, everything runs in one podman pod instead: Keycloak, the
+gateway built for Linux, and a Corten program (corten-std's `hello_listener`
+demo) launched by corten-sandbox under its signed manifest, which grants a
+`listen` socket on a volume shared with the gateway. The checks then also
+show the program's answer naming the Keycloak user, the program's own log
+of the authenticated request, and that the socket refuses a request that
+skips the gateway (401). The Linux build runs in the pinned rust image; pass
+--build-cache NAME to keep its target and registry in volumes NAME-target and
+NAME-cargo between runs (otherwise they are removed with everything else).
+
 Needs: podman, cargo, Python 3 with `cryptography`. Run from the repository
-root:  scripts/gateway-keycloak-e2e.py [--keep-dir]
+root:  scripts/gateway-keycloak-e2e.py [--deployed [--build-cache NAME]] [--keep-dir]
 Exit 0 when every check passed, 1 on a failed check or a setup error.
 """
 
@@ -58,6 +68,8 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 IMAGE = "quay.io/keycloak/keycloak:26.8.2@sha256:4da21f9a53bcbac1026a0d654b740a81e98e5de4c45457076acc74b4d94b1551"
+# The toolchain AGENTS.md pins for Linux checks; also the deployed containers' base.
+RUST_IMAGE = "docker.io/library/rust:1.99.1-slim-bookworm@sha256:04f6411f947b7caf4b10bbf28ce2716cae46013e690403c371076db598b2951e"
 REALM = "corten"
 CLIENT = "corten-gateway"
 USER = "alice"
@@ -236,21 +248,26 @@ def forms_of(page):
 # ---------------------------------------------------------------- keycloak
 
 class Keycloak:
-    def __init__(self, work, ca):
-        self.port = free_port()
+    def __init__(self, work, ca, port=None, pod=None):
+        self.port = port or free_port()
         self.base = f"https://localhost:{self.port}"
         self.name = f"corten-kc-e2e-{os.getpid()}"
-        self.work, self.ca = work, ca
+        self.work, self.ca, self.pod = work, ca, pod
         self.ctx = ssl.create_default_context(cafile=ca)
         self.token = None
 
     def start(self):
+        # In a pod, Keycloak listens on the published port number itself, so
+        # the host's browser and the gateway inside the pod see one issuer URL.
+        where = (["--pod", self.pod] if self.pod
+                 else ["-p", f"127.0.0.1:{self.port}:8443"])
+        port = [f"--https-port={self.port}"] if self.pod else []
         subprocess.run(
-            ["podman", "run", "-d", "--rm", "--name", self.name, "-p", f"127.0.0.1:{self.port}:8443",
-             "-v", f"{self.work}:/certs:ro,Z",
+            ["podman", "run", "-d", "--rm", "--name", self.name, *where,
+             "-v", f"{self.work}:/certs:ro,z",
              "-e", "KC_BOOTSTRAP_ADMIN_USERNAME=admin", "-e", f"KC_BOOTSTRAP_ADMIN_PASSWORD={ADMIN_PASSWORD}",
              IMAGE, "start-dev", "--https-certificate-file=/certs/tls.crt",
-             "--https-certificate-key-file=/certs/tls.key", "--http-enabled=false"],
+             "--https-certificate-key-file=/certs/tls.key", "--http-enabled=false", *port],
             check=True, stdout=subprocess.DEVNULL,
         )
         deadline = time.monotonic() + 180
@@ -488,11 +505,6 @@ def keycloak_redirect(browser, url, r, gw):
     return url, r
 
 
-def gateway_log(work):
-    with open(f"{work}/gateway.log") as f:
-        return f.read()
-
-
 def run_checks(kc, gw, browser, work, mint_id, mint_pk, stage):
     passkey = Authenticator(kc.base)
 
@@ -507,7 +519,7 @@ def run_checks(kc, gw, browser, work, mint_id, mint_pk, stage):
     done = to_gateway(browser, url, r, gw)
     check(done.status == 403, f"control: a password-only sign-in is refused by the gateway (status {done.status})")
     check(not done.headers_named("Set-Cookie"), "control: no session cookie was set")
-    check("not phishing-resistant" in gateway_log(work), "control: the gateway logged why")
+    check("not phishing-resistant" in gw.logs(), "control: the gateway logged why")
     if stage == "control":
         return
 
@@ -528,6 +540,30 @@ def run_checks(kc, gw, browser, work, mint_id, mint_pk, stage):
 
     got = browser.request("GET", f"{gw.origin}/hello")
     check(got.status == 200, f"passkey: a request reaches the program (status {got.status})")
+    if getattr(gw, "deployed", False):
+        check(got.text() == f"hello, {kc.user_id} (method GET, path /hello, token seen: false)\n",
+              "deployed: the Corten program answers as the Keycloak user, and never saw the token")
+        prog = gw.program_logs()
+        check(f'listen.request method="GET" status="200" principal="{kc.user_id}"' in prog,
+              "deployed: the program logged the authenticated request")
+        check('authn.ok' in prog and "corten-token-1" not in prog,
+              "deployed: the program logged the authentication, not the token")
+        direct = gw.direct_request()
+        check(direct.startswith("HTTP/1.1 401"),
+              "deployed: a request to the program's socket that skips the gateway gets 401")
+    else:
+        check_echo(got, kc, mint_id, mint_pk)
+
+    # 3. Logout, then the old cookie is refused.
+    out = browser.request("POST", f"{gw.origin}/.corten/logout", headers={"Sec-Fetch-Site": "same-origin"})
+    check(out.status == 303, f"logout succeeds (status {out.status})")
+    replay = browser.request("GET", f"{gw.origin}/hello", headers={"Cookie": cookie})
+    check(replay.status == 303 and replay.header("Location") == "/.corten/login",
+          "the ended session's cookie is sent back to sign-in")
+
+
+def check_echo(got, kc, mint_id, mint_pk):
+    """The mock program echoed what the gateway sent it."""
     echo = json.loads(got.body)
     check(echo["cookie"] is None, "passkey: the session cookie is not forwarded to the program")
     auth = echo["authorization"] or ""
@@ -539,13 +575,6 @@ def run_checks(kc, gw, browser, work, mint_id, mint_pk, stage):
     check((key_id, audience, subject) == (mint_id, "api", kc.user_id),
           "the token names the minting key, the grant and the Keycloak user")
     check(0 < int(not_after) - time.time() <= 300 + 5, "the token expires within its 300 s lifetime")
-
-    # 3. Logout, then the old cookie is refused.
-    out = browser.request("POST", f"{gw.origin}/.corten/logout", headers={"Sec-Fetch-Site": "same-origin"})
-    check(out.status == 303, f"logout succeeds (status {out.status})")
-    replay = browser.request("GET", f"{gw.origin}/hello", headers={"Cookie": cookie})
-    check(replay.status == 303 and replay.header("Location") == "/.corten/login",
-          "the ended session's cookie is sent back to sign-in")
 
 
 # ------------------------------------------------------------------ program
@@ -634,6 +663,10 @@ algorithms ES256
             time.sleep(0.5)
         raise Failed(f"corten-gateway did not load the provider within 60 s; see {self.work}/gateway.log")
 
+    def logs(self):
+        with open(f"{self.work}/gateway.log") as f:
+            return f.read()
+
     def stop(self):
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
@@ -646,11 +679,174 @@ algorithms ES256
             self.log.close()
 
 
+# ---------------------------------------------------------------- deployment
+
+def podman(*args, capture=False):
+    """Runs podman; raises Failed with its stderr when it fails."""
+    r = subprocess.run(["podman", *args], capture_output=True, text=True, check=False)
+    if r.returncode != 0:
+        raise Failed(f"podman {args[0]} {args[1] if len(args) > 1 else ''}: {r.stderr.strip()[-2000:]}")
+    return r.stdout if capture else None
+
+
+class Deployment:
+    """Keycloak, the gateway and a sandboxed Corten program in one pod. The
+    repository's binaries are built for Linux in the pinned rust image; the
+    work directory is mounted at /work; the program's socket lives on a pod
+    volume shared with the gateway, never on the macOS bind mount."""
+
+    deployed = True
+
+    def __init__(self, work, ca, build_cache):
+        tag = os.getpid()
+        self.work, self.ca = work, ca
+        self.pod = f"corten-e2e-{tag}"
+        self.sock_volume = f"corten-e2e-sock-{tag}"
+        self.cache = build_cache or f"corten-e2e-build-{tag}"
+        self.keep_cache = build_cache is not None
+        self.kc_port, self.port = free_port(), free_port()
+        self.origin = f"https://localhost:{self.port}"
+        self.issuer = f"https://localhost:{self.kc_port}/realms/{REALM}"
+        self.gw_name, self.prog_name = f"{self.pod}-gw", f"{self.pod}-prog"
+        self.created = []  # ("pod"|"volume", name), removed in stop()
+
+    def run(self, *cmd, capture=True):
+        """Runs a command in a throwaway container with /work mounted."""
+        return podman("run", "--rm", "-v", f"{self.work}:/work:z", "-e", "HOME=/root",
+                      RUST_IMAGE, *cmd, capture=capture)
+
+    def build(self):
+        for suffix in ("target", "cargo"):
+            name = f"{self.cache}-{suffix}"
+            exists = subprocess.run(["podman", "volume", "exists", name], check=False).returncode == 0
+            if not exists:
+                podman("volume", "create", name)
+                if not self.keep_cache:
+                    self.created.append(("volume", name))
+        log("building the Linux binaries in the pinned rust image (minutes when the cache is cold)")
+        podman("run", "--rm", "--memory", "12g", "-e", "CARGO_BUILD_JOBS=4",
+               "-v", f"{os.getcwd()}:/src:ro", "-w", "/src",
+               "-v", f"{self.cache}-target:/tmp/target", "-v", f"{self.cache}-cargo:/usr/local/cargo/registry",
+               "-v", f"{self.work}:/work:z", "-e", "CARGO_TARGET_DIR=/tmp/target", RUST_IMAGE, "bash", "-c",
+               "set -e; cargo build -q --locked -p corten-gateway -p corten-manifest -p corten-sandbox;"
+               " cargo build -q --locked -p corten-std --example hello_listener;"
+               " mkdir -p /work/bin; cp /tmp/target/debug/corten-gateway /tmp/target/debug/corten-manifest"
+               " /tmp/target/debug/corten-sandbox /tmp/target/debug/examples/hello_listener /work/bin/")
+
+    def keys(self):
+        self.run("/work/bin/corten-manifest", "keygen", "--id", "gw-mint", "--out", "/work/mint.key")
+        jwk = json.loads(self.run("/work/bin/corten-gateway", "keygen-client", "--out", "/work/client.key"))
+        self.trusted = self.run("/work/bin/corten-manifest", "keygen", "--id", "deploy",
+                                "--out", "/work/deploy.key").strip()
+        return jwk
+
+    def write_config(self):
+        conf = f"""origin {self.origin}
+listen 0.0.0.0:{self.port}
+tls-cert /work/tls.crt
+tls-key /work/tls.key
+issuer {self.issuer}
+client-id {CLIENT}
+client-key /work/client.key
+mint-key /work/mint.key
+authn-name api
+upstream /run/app/app.sock
+algorithms ES256
+"""
+        with open(f"{self.work}/gateway.conf", "w") as f:
+            f.write(conf)
+        out = self.run("/work/bin/corten-gateway", "check", "--config", "/work/gateway.conf")
+        line = next(ln for ln in out.splitlines() if ln.startswith("program manifest line: "))
+        entry = line.rsplit(" ", 1)[1]
+        # The program's grants: trust the gateway's minting key, and listen
+        # on the shared volume with that authenticator.
+        os.makedirs(f"{self.work}/prog", mode=0o755)
+        with open(f"{self.work}/grants", "w") as f:
+            f.write(f"authn api token {entry}\nlisten app unix /run/app/app.sock authn api\n")
+        self.run("/work/bin/corten-manifest", "sign", "--key", "/work/deploy.key", "--grants", "/work/grants",
+                 "--program", "/work/bin/hello_listener", "--valid-for", "1",
+                 "--out", "/work/prog/manifest", "--signature", "/work/prog/manifest.sig")
+        key_id, _, hexkey = entry.partition(":")
+        return key_id, bytes.fromhex(hexkey)
+
+    def create_pod(self):
+        podman("pod", "create", "--name", self.pod,
+               "-p", f"127.0.0.1:{self.kc_port}:{self.kc_port}", "-p", f"127.0.0.1:{self.port}:{self.port}")
+        self.created.append(("pod", self.pod))
+        podman("volume", "create", self.sock_volume)
+        self.created.append(("volume", self.sock_volume))
+
+    def start(self, browser):
+        common = ["run", "-d", "--pod", self.pod, "-v", f"{self.work}:/work:z",
+                  "-v", f"{self.sock_volume}:/run/app"]
+        # The program, under the launcher: Landlock from its signed manifest;
+        # it may read only its own manifest directory, not the keys in /work.
+        podman(*common, "--name", self.prog_name, RUST_IMAGE,
+               "/work/bin/corten-sandbox", "--manifest", "/work/prog/manifest",
+               "--signature", "/work/prog/manifest.sig", "--trusted-key", self.trusted,
+               "--serial-state", "/work/serial", "--system", "--ro", "/work/prog",
+               "--exec", "/work/bin/hello_listener", "--",
+               "/work/bin/hello_listener", "/work/prog/manifest", "/work/prog/manifest.sig", self.trusted)
+        deadline = time.monotonic() + 30
+        while "hello_listener: serving" not in self.program_logs():
+            if time.monotonic() > deadline:
+                raise Failed("the program did not start; its log:\n" + self.program_logs()[-2000:])
+            time.sleep(0.5)
+        podman(*common, "--name", self.gw_name, "-e", "SSL_CERT_FILE=/work/ca.crt", RUST_IMAGE,
+               "/work/bin/corten-gateway", "serve", "--config", "/work/gateway.conf")
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                if browser.request("GET", f"{self.origin}/.corten/login").status == 303:
+                    return
+            except OSError:
+                pass
+            time.sleep(0.5)
+        raise Failed("the gateway did not load the provider within 60 s; its log:\n" + self.logs()[-2000:])
+
+    def _logs(self, name):
+        r = subprocess.run(["podman", "logs", name], capture_output=True, text=True, check=False)
+        return r.stdout + r.stderr
+
+    def logs(self):
+        return self._logs(self.gw_name)
+
+    def program_logs(self):
+        return self._logs(self.prog_name)
+
+    def direct_request(self):
+        """One request straight to the program's socket, from inside the pod."""
+        return podman("exec", self.gw_name, "perl", "-MIO::Socket::UNIX", "-e",
+                      '$s = IO::Socket::UNIX->new(Peer => "/run/app/app.sock") or die "connect: $!";'
+                      ' print $s "GET /hello HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n";'
+                      ' print while <$s>;', capture=True)
+
+    def stop(self):
+        for kind, name in reversed(self.created):
+            if kind == "pod":
+                subprocess.run(["podman", "pod", "rm", "-f", "-t", "5", name],
+                               capture_output=True, check=False)
+            else:
+                subprocess.run(["podman", "volume", "rm", "-f", name], capture_output=True, check=False)
+        left = [n for k, n in self.created
+                if subprocess.run(["podman", k, "exists", n], check=False).returncode == 0]
+        if left:
+            log(f"could not remove: {left}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--keep-dir", action="store_true", help="keep the work directory (certificates, logs) after the run")
     ap.add_argument("--stage", default="all", help=argparse.SUPPRESS)
+    ap.add_argument("--deployed", action="store_true",
+                    help="run the gateway and a sandboxed Corten program in a podman pod")
+    ap.add_argument("--build-cache", metavar="NAME",
+                    help="with --deployed: keep the Linux build in volumes NAME-target and NAME-cargo")
     args = ap.parse_args()
+    if args.build_cache and not args.deployed:
+        ap.error("--build-cache goes with --deployed")
+    if args.build_cache and not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,40}", args.build_cache):
+        ap.error("--build-cache: lowercase letters, digits, '.', '_' and '-'")
     # Under the repository, not the system temporary directory: podman on macOS
     # runs in a VM that shares the user's directories but not /var/folders.
     base = os.path.abspath(".work")
@@ -660,6 +856,8 @@ def main():
     log(f"work directory {work}")
     ca = make_pki(work)
     os.chmod(os.path.join(work, "tls.key"), 0o644)  # Keycloak runs as a different uid in the container
+    if args.deployed:
+        return deployed(work, ca, args)
     kc = Keycloak(work, ca)
     gw = Gateway(work, ca, f"{kc.base}/realms/{REALM}")
     program = None
@@ -690,6 +888,37 @@ def main():
             program.shutdown()
             program.server_close()
         kc.stop()
+        if not args.keep_dir:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+def deployed(work, ca, args):
+    """The --deployed run: the same checks against the pod."""
+    d = Deployment(work, ca, args.build_cache)
+    kc = Keycloak(work, ca, port=d.kc_port, pod=d.pod)
+    try:
+        d.build()
+        jwk = d.keys()
+        mint_id, mint_pk = d.write_config()
+        d.create_pod()
+        kc.start()
+        log(f"Keycloak up at {kc.base} (in pod {d.pod})")
+        kc.configure(f"{d.origin}/.corten/callback", jwk)
+        browser = Browser(ca, [d.origin, kc.base])
+        d.start(browser)
+        log(f"gateway up at {d.origin}; program under corten-sandbox")
+        run_checks(kc, d, browser, work, mint_id, mint_pk, args.stage)
+        log("all checks passed")
+        return 0
+    except Failed as e:
+        log(f"FAILED: {e}")
+        return 1
+    except KeyboardInterrupt:
+        log("interrupted; cleaning up")
+        return 130
+    finally:
+        kc.stop()
+        d.stop()
         if not args.keep_dir:
             shutil.rmtree(work, ignore_errors=True)
 

@@ -212,17 +212,14 @@ mod imp {
     use std::convert::Infallible;
     use std::os::fd::OwnedFd;
     use std::path::Path;
-    use std::pin::Pin;
     use std::sync::{Arc, Mutex};
-    use std::task::{Context, Poll};
     use std::time::Duration;
 
     use http_body_util::BodyExt as _;
     use hyper::body::{Bytes, Incoming};
-    use hyper_util::rt::TokioTimer;
+    use hyper_util::rt::{TokioIo, TokioTimer};
     use rustix::fs::{AtFlags, FileType, Mode, OFlags};
-    use rustix::net::{AddressFamily, SocketAddrUnix, SocketFlags, SocketType};
-    use tokio::io::unix::AsyncFd;
+    use tokio::net::UnixSocket;
     use tokio::sync::Semaphore;
 
     use super::{
@@ -235,13 +232,19 @@ mod imp {
     type Body = http_body_util::Full<Bytes>;
 
     /// Pending connections the kernel queues before `accept`.
-    const BACKLOG: i32 = 128;
+    const BACKLOG: u32 = 128;
 
-    /// A bound listening socket and the authenticator its grant names.
+    /// A bound socket and the authenticator its grant names. It is a
+    /// `tokio::net::UnixSocket` (close-on-exec and non-blocking from
+    /// creation): neither a `std::os::unix::net` type, which the profile bans
+    /// in the prelude too, nor a raw descriptor, whose registration with
+    /// tokio is either `unsafe` or deprecated, and the profile forbids both.
+    /// It listens from the moment it is bound, so a connection that arrives
+    /// before [`Listener::serve`] waits in the backlog.
     #[derive(Debug)]
     pub struct Listener {
         name: String,
-        socket: OwnedFd,
+        socket: UnixSocket,
         auth: TokenAuthenticator,
     }
 
@@ -249,17 +252,21 @@ mod imp {
         ListenError::Io(format!("{}: {e}", what.display()))
     }
 
-    /// Close-on-exec and non-blocking, atomically where the platform allows.
+    /// How the socket's directory is opened. On Linux `O_PATH`: Landlock
+    /// does not check it, so the `listen` grant needs only `MakeSock` and
+    /// `RemoveFile` (no `ReadDir`), and every later step (`fstat`, `statat`,
+    /// `chmodat`, `renameat`, `unlinkat`) works on such a descriptor. Found
+    /// by the podman deployment: a read-only open was refused under the grant.
     #[cfg(any(target_os = "linux", target_os = "android"))]
-    const FLAGS: SocketFlags = SocketFlags::CLOEXEC.union(SocketFlags::NONBLOCK);
+    const DIR_FLAGS: OFlags = OFlags::PATH
+        .union(OFlags::DIRECTORY)
+        .union(OFlags::CLOEXEC)
+        .union(OFlags::NOFOLLOW);
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    const FLAGS: SocketFlags = SocketFlags::empty();
-
-    /// Sets what [`FLAGS`] could not (a no-op where it already did).
-    fn prepare(fd: &OwnedFd) -> rustix::io::Result<()> {
-        rustix::io::fcntl_setfd(fd, rustix::io::FdFlags::CLOEXEC)?;
-        rustix::io::ioctl_fionbio(fd, true)
-    }
+    const DIR_FLAGS: OFlags = OFlags::RDONLY
+        .union(OFlags::DIRECTORY)
+        .union(OFlags::CLOEXEC)
+        .union(OFlags::NOFOLLOW);
 
     /// Binds the grant's socket. The directory is opened once, without
     /// following a symbolic link, and checked on that descriptor: a
@@ -280,12 +287,8 @@ mod imp {
                 "{shown} has no directory or file name"
             )));
         };
-        let dir_fd = rustix::fs::open(
-            dir,
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
-            Mode::empty(),
-        )
-        .map_err(|e| ListenError::Directory(format!("{}: {e}", dir.display())))?;
+        let dir_fd = rustix::fs::open(dir, DIR_FLAGS, Mode::empty())
+            .map_err(|e| ListenError::Directory(format!("{}: {e}", dir.display())))?;
         let dir_stat = rustix::fs::fstat(&dir_fd).map_err(|e| io(dir, e))?;
         if Mode::from_raw_mode(dir_stat.st_mode).intersects(Mode::WGRP | Mode::WOTH) {
             return Err(ListenError::Directory(format!(
@@ -297,18 +300,21 @@ mod imp {
         // Short on purpose: a socket path is limited to about 104 bytes
         // (108 on Linux), and the temporary name must fit as well as `path`.
         let temp = format!(".{suffix:016x}");
-        let socket = rustix::net::socket_with(AddressFamily::UNIX, SocketType::STREAM, FLAGS, None)
-            .map_err(|e| io(path, e))?;
-        prepare(&socket).map_err(|e| io(path, e))?;
-        let addr = SocketAddrUnix::new(dir.join(&temp)).map_err(|e| {
+        let socket = UnixSocket::new_stream().map_err(|e| io(path, e))?;
+        socket.bind(dir.join(&temp)).map_err(|e| {
             ListenError::Io(format!(
                 "{shown}: {e} (the directory plus 17 bytes for a temporary name must fit \
                  the platform's socket path limit, about 104 bytes)"
             ))
         })?;
-        rustix::net::bind(&socket, &addr).map_err(|e| io(path, e))?;
-        let placed = place(&dir_fd, &temp, file, dir_stat.st_uid)
-            .and_then(|()| rustix::net::listen(&socket, BACKLOG).map_err(|e| io(path, e)));
+        // Listening now, not in `serve`: a connection that arrives before the
+        // program serves waits in the backlog instead of being refused (the
+        // gateway would answer 502). tokio's own `listen` in `serve` only
+        // sets the backlog again, which Linux and the BSDs allow.
+        let placed = place(&dir_fd, &temp, file, dir_stat.st_uid).and_then(|()| {
+            rustix::net::listen(&socket, i32::try_from(BACKLOG).unwrap_or(i32::MAX))
+                .map_err(|e| io(path, e))
+        });
         if let Err(e) = placed {
             // Best effort: the error being returned is the one that matters.
             let _removed = rustix::fs::unlinkat(&dir_fd, temp.as_str(), AtFlags::empty());
@@ -348,107 +354,6 @@ mod imp {
         }
         rustix::fs::chmodat(dir, temp, Mode::from_raw_mode(0o660), AtFlags::empty()).map_err(at)?;
         rustix::fs::renameat(dir, temp, dir, file).map_err(at)
-    }
-
-    /// An accepted connection, driven by the runtime's reactor and read and
-    /// written with `rustix` (no `std::os::unix::net`: the prelude passes its
-    /// own profile).
-    struct Conn(AsyncFd<OwnedFd>);
-
-    impl hyper::rt::Read for Conn {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            mut buf: hyper::rt::ReadBufCursor<'_>,
-        ) -> Poll<std::io::Result<()>> {
-            let mut chunk = [0_u8; 8192];
-            let room = buf.remaining().min(chunk.len());
-            loop {
-                let mut guard = match self.0.poll_read_ready(cx) {
-                    Poll::Ready(Ok(g)) => g,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                };
-                let Some(dest) = chunk.get_mut(..room) else {
-                    return Poll::Ready(Ok(()));
-                };
-                match guard
-                    .try_io(|fd| rustix::io::read(fd.get_ref(), &mut *dest).map_err(Into::into))
-                {
-                    Ok(Ok(n)) => {
-                        if let Some(read) = chunk.get(..n) {
-                            buf.put_slice(read);
-                        }
-                        return Poll::Ready(Ok(()));
-                    }
-                    Ok(Err(e)) => return Poll::Ready(Err(e)),
-                    Err(_would_block) => {}
-                }
-            }
-        }
-    }
-
-    impl hyper::rt::Write for Conn {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            data: &[u8],
-        ) -> Poll<std::io::Result<usize>> {
-            loop {
-                let mut guard = match self.0.poll_write_ready(cx) {
-                    Poll::Ready(Ok(g)) => g,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                };
-                match guard.try_io(|fd| rustix::io::write(fd.get_ref(), data).map_err(Into::into)) {
-                    Ok(done) => return Poll::Ready(done),
-                    Err(_would_block) => {}
-                }
-            }
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-            Poll::Ready(
-                rustix::net::shutdown(self.0.get_ref(), rustix::net::Shutdown::Write)
-                    .map_err(Into::into),
-            )
-        }
-    }
-
-    /// Registers a descriptor with the runtime's reactor.
-    ///
-    /// `AsyncFd::register` is the non-deprecated form, but it is an
-    /// `unsafe fn`, and `corten-std` forbids `unsafe`. Its safety contract asks
-    /// that the descriptor stay open and the same for the `AsyncFd`'s whole
-    /// life. `AsyncFd::new` was deprecated (tokio 1.54) because a generic
-    /// `T: AsRawFd` may break that; an `OwnedFd` cannot: it is the sole owner,
-    /// its raw descriptor never changes, and it closes only when dropped,
-    /// after the `AsyncFd` has deregistered it (`docs/tcb.md`).
-    #[expect(
-        deprecated,
-        reason = "AsyncFd::new over OwnedFd only, which meets register's safety contract; see above"
-    )]
-    fn register(fd: OwnedFd) -> std::io::Result<AsyncFd<OwnedFd>> {
-        AsyncFd::new(fd)
-    }
-
-    /// Waits for and accepts one connection.
-    async fn accept(listener: &AsyncFd<OwnedFd>) -> std::io::Result<OwnedFd> {
-        loop {
-            let mut guard = listener.readable().await?;
-            match guard.try_io(|fd| {
-                let conn = rustix::net::accept_with(fd.get_ref(), FLAGS)?;
-                prepare(&conn)?;
-                Ok(conn)
-            }) {
-                Ok(result) => return result,
-                Err(_would_block) => {}
-            }
-        }
     }
 
     struct Shared<H, L> {
@@ -533,18 +438,17 @@ mod imp {
             let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
             let socket = self.socket;
             runtime.block_on(async move {
-                let listener = register(socket).map_err(|e| ListenError::Io(e.to_string()))?;
+                let listener = socket
+                    .listen(BACKLOG)
+                    .map_err(|e| ListenError::Io(e.to_string()))?;
                 loop {
-                    let Ok(stream) = accept(&listener).await else {
+                    let Ok((stream, _)) = listener.accept().await else {
                         // Out of descriptors and the like: back off, carry on.
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     };
                     // Over the cap: the stream is dropped, closing it.
                     let Ok(permit) = Arc::clone(&connections).try_acquire_owned() else {
-                        continue;
-                    };
-                    let Ok(conn) = register(stream).map(Conn) else {
                         continue;
                     };
                     let shared = Arc::clone(&shared);
@@ -557,7 +461,7 @@ mod imp {
                             .timer(TokioTimer::new())
                             .header_read_timeout(Duration::from_secs(HEAD_TIMEOUT_SECS))
                             .max_buf_size(MAX_HEAD)
-                            .serve_connection(conn, service)
+                            .serve_connection(TokioIo::new(stream), service)
                             .await;
                         drop(permit);
                     });
