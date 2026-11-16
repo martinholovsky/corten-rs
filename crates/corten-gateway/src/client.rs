@@ -167,9 +167,15 @@ impl Https {
             Some(q) => format!("{}?{q}", url.path()),
             None => url.path().to_owned(),
         };
+        // RFC 9110 section 7.2: `Host` carries the port unless it is the
+        // default (`url.port()` is `None` exactly then).
+        let authority = match url.port() {
+            Some(p) => format!("{host}:{p}"),
+            None => host.clone(),
+        };
         tokio::time::timeout(
             self.request_timeout,
-            self.exchange(&host, port, &target, method),
+            self.exchange(&host, port, &authority, &target, method),
         )
         .await
         .map_err(|_| HttpError::Timeout)?
@@ -179,6 +185,7 @@ impl Https {
         &self,
         host: &str,
         port: u16,
+        authority: &str,
         target: &str,
         method: Method<'_>,
     ) -> Result<Vec<u8>, HttpError> {
@@ -202,7 +209,7 @@ impl Https {
         let task = tokio::spawn(conn);
         let builder = hyper::Request::builder()
             .uri(target)
-            .header(hyper::header::HOST, host)
+            .header(hyper::header::HOST, authority)
             .header(hyper::header::ACCEPT, "application/json")
             .header(hyper::header::USER_AGENT, "corten-gateway");
         let request = match method {
@@ -427,6 +434,10 @@ mod tests {
             "/flaky" if n < 2 => json(503, Vec::new()),
             "/flaky" => json(200, b"{}".to_vec()),
             "/down" => json(503, Vec::new()),
+            "/host" => {
+                let host = req.headers().get("host").map(|v| v.as_bytes().to_vec());
+                json(200, host.unwrap_or_default())
+            }
             "/form" => {
                 let form = req.method() == hyper::Method::POST
                     && req
@@ -509,6 +520,22 @@ mod tests {
                 .await
                 .unwrap(),
             b"{}"
+        );
+    }
+
+    /// RFC 9110 section 7.2: the port is part of `Host` unless it is the
+    /// scheme's default. A provider that builds its issuer from `Host`
+    /// (Keycloak does) would otherwise name a different issuer.
+    #[tokio::test]
+    async fn host_carries_a_non_default_port() {
+        let (port, _) = serve(TLS13).await;
+        let host = client(true)
+            .get(&format!("https://127.0.0.1:{port}/host"))
+            .await
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(host).unwrap(),
+            format!("127.0.0.1:{port}")
         );
     }
 

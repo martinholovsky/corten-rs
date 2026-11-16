@@ -1,6 +1,6 @@
 # Exchange gateway: phishing-resistant sign-in for Corten programs (design note, 2026-11-14)
 
-Status: **Q1 to Q4 decided (owner, 2026-11-14, the recommendation on all four):** (1) a separate `corten-gateway` as an identity-aware reverse proxy; (2) `openidconnect`, after the Phase 5 review; (3) `acr` `phr` by default, with a per-grant option to require `phrh`, and the signing key in a 0600 file, rotated through the manifest; (4) Kanidm as the reference provider, Keycloak if Kanidm does not return `acr` `phr`. Phase 6, batch 4, the item after step 1 (`phase-6.md`, remaining work). It implements spec section 8, question 23: Corten accepts only phishing-resistant authentication, users sign in with passkeys at an identity provider Corten does not build, and programs accept only a Corten token (`corten_std::authz::TokenAuthenticator`). Nothing here is built.
+Status: **Q1 to Q4 decided (owner, 2026-11-14, the recommendation on all four):** (1) a separate `corten-gateway` as an identity-aware reverse proxy; (2) `openidconnect`, after the Phase 5 review; (3) `acr` `phr` by default, with a per-grant option to require `phrh`, and the signing key in a 0600 file, rotated through the manifest; (4) Kanidm as the reference provider, Keycloak if Kanidm does not return `acr` `phr`. Phase 6, batch 4, the item after step 1 (`phase-6.md`, remaining work). It implements spec section 8, question 23: Corten accepts only phishing-resistant authentication, users sign in with passkeys at an identity provider Corten does not build, and programs accept only a Corten token (`corten_std::authz::TokenAuthenticator`). The gateway is built ("Prototype plan", step 2) and passes its end-to-end test against Keycloak (step 3, 2026-11-16). Q4's premise was measured on 2026-11-16 and failed for Kanidm: see Q4.
 
 ## What it is for
 
@@ -21,7 +21,7 @@ The prelude stays as step 1 left it: no JWT or OIDC code in any program. The pro
   - `jsonwebtoken` 12.0.0 (MIT) was released 2026-11-13, one day before this note. That is too recent to adopt without a waiting period.
   - `jwt-simple` 0.15.0 is ISC.
   - None has had the Phase 5 review yet (design principle 6).
-- **Not verified here:** which providers return `acr` = `phr` or `phrh` for a passkey sign-in, and how each is configured to. It is measured per provider in the prototype (Q4).
+- **Measured per provider (Q4):** Kanidm v1.12.1 never sends `acr`; Keycloak 26.8.2 sends the value an administrator maps to the level of authentication a flow reached. No provider's `acr` is truer than its flow configuration, which is why the end-to-end test includes a password-only flow as its control.
 
 ## Threat model, briefly
 
@@ -62,6 +62,12 @@ The gateway is part of the trusted base and close to tier 0. Whoever holds its s
 - B. Keycloak: widely deployed; it maps authentication flows to `acr` levels.
 - Either way the gateway is provider-neutral; the reference is the one the tests run against.
 
+**Q4 revisited (2026-11-16): Kanidm does not return `acr`, so Q4 falls to Keycloak.**
+- **Measured, from Kanidm's source at its latest release, v1.12.1 (2026-11-13):** `server/lib/src/idm/oauth2.rs` builds every ID token with `acr: None` (lines 2090, 2133 and 3134), and its discovery document sets `acr_values_supported: None` (line 3291). The gateway would refuse every Kanidm sign-in, as designed: it cannot tell a passkey from a password without the claim.
+- **Keycloak 26.8.2 (2026-11-05):** `AcrProtocolMapper.getAcr` maps the level of authentication a flow reached to an `acr` value through the client's `acr.loa.map`. The mapper is active only with the `STEP_UP_AUTHENTICATION` feature. **Not verified yet:** whether that feature is on by default; the end-to-end test settles it.
+- **Owner decision (2026-11-16): Keycloak now, Kanidm later.** Keycloak becomes the reference provider for the end-to-end test. A tracked item proposes `acr` support to Kanidm upstream; its text goes to the owner before anything is posted. This adds to the recommendation (Keycloak) rather than going against it; the owner gave no further reason.
+- **Options not taken:** a gateway mode that accepts tokens with no `acr` from one pinned issuer, relying on the provider's account policy. Rejected because the gateway could no longer tell how a user signed in: the control would move from a checked claim into the provider's configuration.
+
 ## Phase 5 review of `openidconnect` 4.1.0 (2026-11-14): fails the policy as is
 
 Two scratch crates were checked with the repository's `deny.toml` (cargo-deny 0.20.2, rustc 1.99.1):
@@ -93,13 +99,17 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 ## Prototype plan (after the answers)
 
 1. **Phase 5 review of the chosen library** (licences under `deny.toml`, advisories, maintenance, package count), recorded in `phase-6.md`.
-2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store, the HTTPS client, the browser-facing rules and the server and proxy are **built**, and so is the `corten-gateway` binary with its configuration file (2026-11-16: 49 tests, 125 of 125 mutations caught; `phase-6.md`; how to run it: "Running the gateway" below). An end-to-end test on loopback runs the whole sign-in against a mock provider and reaches a mock program with a token `corten_std` accepts. The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
+2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store, the HTTPS client, the browser-facing rules and the server and proxy are **built**, and so is the `corten-gateway` binary with its configuration file (2026-11-16: 50 tests, 125 of 125 mutations caught; `phase-6.md`; how to run it: "Running the gateway" below). An end-to-end test on loopback runs the whole sign-in against a mock provider and reaches a mock program with a token `corten_std` accepts. The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
    - the sign-in flow with `acr` enforcement, the session, token minting, and the forwarding proxy;
    - unit tests for each refusal (missing or unrequested `acr`, bad `nonce`, `state`, `aud` or `iss`, expired);
    - a mutation per control, shown to fail a test.
-3. **An end-to-end test against the reference provider in a container:**
-   - a passkey sign-in (a virtual authenticator) is accepted;
-   - a sign-in whose `acr` is not phishing-resistant is refused, as the control.
+3. **An end-to-end test against the reference provider in a container: done (2026-11-16), `scripts/gateway-keycloak-e2e.py`.**
+   - Keycloak 26.8.2, pinned by digest, in podman over HTTPS with a throwaway CA, configured through its admin API. The gateway binary is built from the tree, a mock program listens on a Unix socket, and a software WebAuthn authenticator (P-256, "none" attestation) stands in for the browser. Keycloak verifies its registration and assertions as it would a hardware key's; only the browser is left out.
+   - Control: a password-only sign-in is refused, with no cookie and the reason logged.
+   - A passkey sign-in is accepted (`acr` `phr` in the session log). The program receives a Corten token whose Ed25519 signature verifies against the key `corten-gateway check` reports, naming the Keycloak user; the session cookie is not forwarded. Logout ends the session, and the old cookie is sent back to sign-in.
+   - **Shown to fail:** with `phr` mapped to level 1, Keycloak labelled the password-only sign-in `phr`, the gateway accepted it, and the script's control check failed (exit 1).
+   - **Found by this test, fixed with it:** the gateway's HTTPS client sent `Host` without the port. RFC 9110 requires it unless it is the default, and Keycloak builds its issuer from `Host`, so the gateway refused Keycloak's discovery document as "not the configured issuer". A unit test now checks the port, and it failed before the fix.
+   - Not run in CI: it needs podman and a Keycloak image of several hundred megabytes. Run it with `scripts/gateway-keycloak-e2e.py` from the repository root; it needs podman, cargo and Python 3 with `cryptography`.
 4. **Integration with a Corten program waits for batch 6's listener.** Until then the program side is step 1's `TokenAuthenticator`, tested with tokens the gateway minted.
 
 ## Q5 to Q7: the server and the proxy (owner, 2026-11-15, the recommendation on all three)
@@ -116,7 +126,8 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 2. **The client key:** `corten-gateway keygen-client --out client.key [--kid ID]`. This writes a P-256 key with mode 0600, never overwriting a file, and prints its public JWK. Register that JWK at the identity provider for the gateway's client, for `private_key_jwt`. A `--kid` other than the default must also be set as `client-key-id`.
 3. **The configuration file:** one `key value` per line; `#` starts a comment line. An unknown or repeated key is an error: a misspelt setting must never fall back to a default unnoticed.
 4. **`corten-gateway check --config FILE`** reads the configuration and every file it names, contacting no network. It prints the `kid` it will sign with and the line for the program's signed manifest: `authn NAME token ID:HEX`.
-5. **`corten-gateway serve --config FILE`.** If the provider cannot be reached at start, the gateway still listens: sign-in answers 503, and it retries every 30 s, logging each failure. It keeps no state on disk, so SIGINT and SIGTERM end it at once (crash-only); a restart signs everyone out.
+5. **A provider with a private CA:** set `SSL_CERT_FILE` to its PEM bundle when starting the gateway. It **replaces** the platform's roots rather than adding to them (`rustls-native-certs` 0.8.5), so include every CA the gateway must trust.
+6. **`corten-gateway serve --config FILE`.** If the provider cannot be reached at start, the gateway still listens: sign-in answers 503, and it retries every 30 s, logging each failure. It keeps no state on disk, so SIGINT and SIGTERM end it at once (crash-only); a restart signs everyone out.
 
 | Key | Required | Meaning (default) |
 |---|---|---|
@@ -137,6 +148,15 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 | `idle-timeout`, `absolute-timeout` | no | Session lifetimes in seconds; idle at most absolute (900, 28800) |
 | `sessions-per-principal` | no | Live sessions per person (10) |
 | `login-burst`, `login-refill` | no | Sign-in requests per address at once, and seconds per further one (10, 6) |
+
+### Keycloak as the provider
+
+The settings `scripts/gateway-keycloak-e2e.py` applies through Keycloak's admin API, as tested with 26.8.2:
+
+- **Realm and client:** `acr.loa.map` `{"phr": 2}` on both. With these set, the discovery document listed `phr` (observed), which the gateway requires before it loads a provider.
+- **Never map `phr` or `phrh` to level 0 or 1.** Keycloak gives level 1 to any sign-in through a flow with no level condition (level 0 to one through an existing session), so the label then lands on password sign-ins. Measured: with `phr` mapped to level 1, a password-only sign-in came back as `phr` and the gateway accepted it. No relying party can detect this; the label is only as true as the provider's configuration.
+- **The passkey flow:** a username form, then a conditional subflow whose condition is "Level of Authentication" 2 and whose step is "WebAuthn Passwordless Authenticator". The passwordless WebAuthn policy requires user verification and a resident key.
+- **The client:** confidential, client authenticator "Signed JWT" with the JWK from `keygen-client` (`jwks.string`), signing algorithm ES256, PKCE S256, and the redirect URI `ORIGIN/.corten/callback`, matched exactly.
 
 ## Failure modes of sign-in (sota-architecture rules/04 section 12)
 
