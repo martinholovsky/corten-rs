@@ -93,7 +93,7 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 ## Prototype plan (after the answers)
 
 1. **Phase 5 review of the chosen library** (licences under `deny.toml`, advisories, maintenance, package count), recorded in `phase-6.md`.
-2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store, the HTTPS client, the browser-facing rules and the server and proxy are **built** (2026-11-16: 42 tests, 109 of 109 mutations caught; `phase-6.md`). An end-to-end test on loopback runs the whole sign-in against a mock provider and reaches a mock program with a token `corten_std` accepts. Still to build: the binary's configuration and command line. The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
+2. **`corten-gateway` crate, outside the prelude.** ID-token validation, the authorization-code flow, token minting, the session store, the HTTPS client, the browser-facing rules and the server and proxy are **built**, and so is the `corten-gateway` binary with its configuration file (2026-11-16: 49 tests, 125 of 125 mutations caught; `phase-6.md`; how to run it: "Running the gateway" below). An end-to-end test on loopback runs the whole sign-in against a mock provider and reaches a mock program with a token `corten_std` accepts. The minting key is a `corten-manifest keygen` file, so operators need no new tool. The client assertion follows RFC 10070, which updated RFC 7523 in November 2026: `aud` is the issuer identifier as the sole value, never the token endpoint. The rest covers:
    - the sign-in flow with `acr` enforcement, the session, token minting, and the forwarding proxy;
    - unit tests for each refusal (missing or unrequested `acr`, bad `nonce`, `state`, `aud` or `iss`, expired);
    - a mutation per control, shown to fail a test.
@@ -107,6 +107,36 @@ Q2's premise (adopt after a passing review) did not hold, so Q2 went back to the
 - **Q5. TLS for browsers ends at the gateway.** The gateway serves HTTPS itself (rustls, TLS 1.3, certificate and key files from the operator), so it trusts no proxy headers, and rate limits key on the connection's address. Rejected: plain HTTP behind an operator proxy, which would make the gateway trust `X-Forwarded-*` from one configured address. ACME is a later add-on.
 - **Q6. Forwarding to the program:** over a **Unix domain socket** named in configuration, with **`Authorization: Bearer <Corten token>`**. The client's `Authorization` is replaced, and the gateway's session cookie, hop-by-hop and forwarding headers are removed. File permissions decide who can connect, so nothing on the network can bypass the gateway, and the sandbox can grant the socket path. This is the contract batch 6's listener implements. Rejected: loopback TCP, which any local process could reach directly.
 - **Q7. Order:** build and test the server and proxy now against a plain test upstream; batch 6's listener implements the program side later. Rejected: designing the listener first.
+
+## Running the gateway
+
+`corten-gateway --help` is the reference for commands and options. Exit codes: 0 success, 1 failure, 2 usage error. Data goes to standard output; logs and errors go to standard error.
+
+1. **The minting key:** `corten-manifest keygen --id gw-mint --out mint.key`. The gateway signs the Corten tokens it issues with it.
+2. **The client key:** `corten-gateway keygen-client --out client.key [--kid ID]`. This writes a P-256 key with mode 0600, never overwriting a file, and prints its public JWK. Register that JWK at the identity provider for the gateway's client, for `private_key_jwt`. A `--kid` other than the default must also be set as `client-key-id`.
+3. **The configuration file:** one `key value` per line; `#` starts a comment line. An unknown or repeated key is an error: a misspelt setting must never fall back to a default unnoticed.
+4. **`corten-gateway check --config FILE`** reads the configuration and every file it names, contacting no network. It prints the `kid` it will sign with and the line for the program's signed manifest: `authn NAME token ID:HEX`.
+5. **`corten-gateway serve --config FILE`.** If the provider cannot be reached at start, the gateway still listens: sign-in answers 503, and it retries every 30 s, logging each failure. It keeps no state on disk, so SIGINT and SIGTERM end it at once (crash-only); a restart signs everyone out.
+
+| Key | Required | Meaning (default) |
+|---|---|---|
+| `origin` | yes | The public origin, `https://HOST[:PORT]`, no path |
+| `listen` | yes | The address and port to listen on |
+| `tls-cert`, `tls-key` | yes | PEM certificate chain and key for browsers (TLS 1.3) |
+| `issuer` | yes | The provider's issuer identifier, an `https` URL |
+| `client-id` | yes | The gateway's client ID at the provider |
+| `client-key` | yes | The key from step 2; refused if group or others can read it |
+| `client-key-id` | no | The `kid` registered with that key (`corten-gateway-1`) |
+| `mint-key` | yes | The key from step 1; refused like the client key |
+| `authn-name` | yes | The name of the program's `authn NAME token` grant |
+| `upstream` | yes | The program's Unix socket |
+| `acr` | no | `phr` or `phrh` (`phr`) |
+| `algorithms` | no | ID-token algorithms among `RS256`, `ES256`, `EdDSA` (all three) |
+| `token-lifetime` | no | Seconds a minted token lives, 1 to 900 (300) |
+| `upstream-timeout` | no | Seconds to wait for the program (30) |
+| `idle-timeout`, `absolute-timeout` | no | Session lifetimes in seconds; idle at most absolute (900, 28800) |
+| `sessions-per-principal` | no | Live sessions per person (10) |
+| `login-burst`, `login-refill` | no | Sign-in requests per address at once, and seconds per further one (10, 6) |
 
 ## Failure modes of sign-in (sota-architecture rules/04 section 12)
 

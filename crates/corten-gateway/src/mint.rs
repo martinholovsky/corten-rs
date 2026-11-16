@@ -85,8 +85,6 @@ impl Minter {
     ///
     /// A message naming the file or value refused.
     pub fn from_key_file(path: &Path, audience: &str, lifetime: u64) -> Result<Self, String> {
-        use std::io::Read as _;
-        use std::os::unix::fs::MetadataExt as _;
         if !token_field(audience) {
             return Err(format!("{audience:?} is not a valid authn grant name"));
         }
@@ -96,36 +94,8 @@ impl Minter {
             ));
         }
         let shown = path.display();
-        let meta = std::fs::symlink_metadata(path).map_err(|e| format!("{shown}: {e}"))?;
-        if !meta.file_type().is_file() {
-            return Err(format!("{shown} is not a regular file"));
-        }
-        if meta.mode() & 0o077 != 0 {
-            return Err(format!(
-                "{shown} is accessible to group or others (mode {:o}); chmod 600 it",
-                meta.mode() & 0o7777
-            ));
-        }
-        let dir = path
-            .parent()
-            .ok_or_else(|| format!("{shown} has no directory"))?;
-        let dir_meta = std::fs::metadata(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        if dir_meta.mode() & 0o022 != 0 {
-            return Err(format!("{} is writable by group or others", dir.display()));
-        }
-        if meta.uid() != dir_meta.uid() {
-            return Err(format!(
-                "{shown} is owned by uid {}, not by its directory's owner (uid {})",
-                meta.uid(),
-                dir_meta.uid()
-            ));
-        }
-        let mut text = String::new();
-        let _read = std::fs::File::open(path)
-            .map_err(|e| format!("{shown}: {e}"))?
-            .take(MAX_KEY_FILE)
-            .read_to_string(&mut text)
-            .map_err(|_| format!("{shown} is not a key file"))?;
+        let bytes = crate::keyfile::read_private(path, MAX_KEY_FILE)?;
+        let text = String::from_utf8(bytes).map_err(|_| format!("{shown} is not a key file"))?;
         let bad = || format!("{shown} is not a {KEY_HEADER} file");
         let mut lines = text.lines();
         if lines.next() != Some(KEY_HEADER) {
