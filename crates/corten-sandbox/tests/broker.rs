@@ -538,55 +538,53 @@ fn manifest_mode_grants_exactly_the_manifest() {
 }
 
 /// The child half of `a_listen_grant_allows_its_socket_and_nothing_else`:
-/// runs only when that test re-executes this binary under the launcher.
+/// runs only when that test re-executes this binary. It takes its
+/// capabilities as a deployed program does, from the launch document on
+/// standard input (`Capabilities::from_launcher`).
 #[test]
 fn listen_grant_child() {
+    use std::os::fd::AsFd as _;
     let Ok(dirs) = std::env::var("CORTEN_LISTEN_CHILD") else {
         return;
     };
-    let mut parts = dirs.split(':');
-    let (granted, other, manifest, trusted) = (
-        Path::new(parts.next().unwrap()),
-        parts.next().unwrap(),
-        Path::new(parts.next().unwrap()),
-        parts.next().unwrap(),
-    );
-    // Through corten-std, as a deployed program binds: the manifest's
-    // `listen` grant, loaded and taken.
-    let (id, hex_key) = trusted.split_once('=').unwrap();
-    let key: Vec<u8> = hex_key
-        .as_bytes()
-        .chunks(2)
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect();
-    let mut keys = TrustedKeys::new();
-    keys.add(KeyId(id), PublicKey(&key)).unwrap();
-    let socket = Capabilities::load(
-        &fs::read(manifest.join("m")).unwrap(),
-        Signature(&fs::read(manifest.join("sig")).unwrap()),
-        &keys,
-        MinSerial(0),
-    )
-    .map_err(|e| std::io::Error::other(e.to_string()))
-    .and_then(|mut caps| {
-        caps.take_listener("app")
-            .map(|_| ())
-            .ok_or_else(|| std::io::Error::other("no listener"))
-    })
-    .map_err(|e| {
-        println!("CHILD-ERROR {e}");
-        std::io::Error::new(std::io::ErrorKind::PermissionDenied, e.to_string())
-    });
-    let file = fs::write(granted.join("x.txt"), b"x");
-    let elsewhere =
-        std::os::unix::net::UnixListener::bind(Path::new(other).join("app.sock")).map(|_| ());
+    let (granted, other) = dirs.split_once(':').unwrap();
+    let granted = Path::new(granted);
     let say = |r: &std::io::Result<()>| match r {
         Ok(()) => "ok".to_owned(),
         Err(e) => format!("{:?}", e.kind()),
     };
+    let launch = Capabilities::from_launcher();
+    let report = match launch {
+        Err(e) => {
+            println!("CHILD-ERROR {e}");
+            "launch=refused".to_owned()
+        }
+        Ok(mut caps) => {
+            let socket = caps
+                .take_listener("app")
+                .map(|_| ())
+                .ok_or_else(|| std::io::Error::other("no listener"));
+            // The document is sealed: the program can neither rewrite the
+            // bytes it was given (a write at offset 0, which only the write
+            // seal stops) nor cut them short (the shrink seal).
+            let stdin = std::io::stdin();
+            let rewrite = rustix::io::pwrite(stdin.as_fd(), b"x", 0)
+                .map(|_| ())
+                .map_err(std::io::Error::from);
+            let truncate = rustix::fs::ftruncate(stdin.as_fd(), 0).map_err(std::io::Error::from);
+            format!(
+                "launch=ok socket={} stdin-rewrite={} stdin-truncate={}",
+                say(&socket),
+                say(&rewrite),
+                say(&truncate)
+            )
+        }
+    };
+    let file = fs::write(granted.join("x.txt"), b"x");
+    let elsewhere =
+        std::os::unix::net::UnixListener::bind(Path::new(other).join("app.sock")).map(|_| ());
     println!(
-        "CHILD socket={} file={} elsewhere={}",
-        say(&socket),
+        "CHILD {report} file={} elsewhere={}",
         say(&file),
         say(&elsewhere)
     );
@@ -594,12 +592,14 @@ fn listen_grant_child() {
 
 /// A `listen` grant lets the program create its socket in the grant's
 /// directory and nothing else: no regular file there, no socket elsewhere.
-/// The control: the same child, outside the launcher, does all three.
+/// The program gets its manifest from the launcher, sealed, on standard
+/// input. The control: the same child, outside the launcher, has no launch
+/// document and does the other two.
 #[test]
 fn a_listen_grant_allows_its_socket_and_nothing_else() {
     let s = Scratch::new("listen");
-    let (granted, other, signed) = (s.0.join("run"), s.0.join("other"), s.0.join("signed"));
-    for d in [&granted, &other, &signed] {
+    let (granted, other) = (s.0.join("run"), s.0.join("other"));
+    for d in [&granted, &other] {
         fs::create_dir_all(d).unwrap();
     }
     let me = std::env::current_exe().unwrap();
@@ -610,16 +610,10 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
         corten_sha256::hex_digest(&fs::read(&me).unwrap()),
         granted.join("app.sock").display()
     );
-    let (m, g) = (signed.join("m"), signed.join("sig"));
+    let (m, g) = (s.0.join("m"), s.0.join("sig"));
     fs::write(&m, &manifest).unwrap();
     fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
-    let trusted = format!("deploy={}", hex(kp.pk.as_ref()));
-    let env = format!(
-        "{}:{}:{}:{trusted}",
-        granted.display(),
-        other.display(),
-        signed.display()
-    );
+    let env = format!("{}:{}", granted.display(), other.display());
     let child = |launcher: bool| {
         for d in [&granted, &other] {
             for e in fs::read_dir(d).unwrap() {
@@ -633,12 +627,10 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
                 .arg("--signature")
                 .arg(&g)
                 .arg("--trusted-key")
-                .arg(&trusted)
+                .arg(format!("deploy={}", hex(kp.pk.as_ref())))
                 .arg("--serial-state")
                 .arg(s.0.join("serial"))
                 .arg("--system")
-                .arg("--ro")
-                .arg(&signed)
                 .arg("--exec")
                 .arg(&me)
                 .arg("--")
@@ -656,6 +648,7 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
                 "1",
             ])
             .env("CORTEN_LISTEN_CHILD", &env)
+            .stdin(std::process::Stdio::null())
             .output()
             .unwrap();
         let said = text(&out.stdout);
@@ -667,11 +660,11 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
     };
     assert_eq!(
         child(false),
-        "socket=ok file=ok elsewhere=ok",
+        "launch=refused file=ok elsewhere=ok",
         "the control"
     );
     assert_eq!(
         child(true),
-        "socket=ok file=PermissionDenied elsewhere=PermissionDenied"
+        "launch=ok socket=ok stdin-rewrite=PermissionDenied stdin-truncate=PermissionDenied file=PermissionDenied elsewhere=PermissionDenied"
     );
 }

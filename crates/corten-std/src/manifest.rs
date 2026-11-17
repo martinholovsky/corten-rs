@@ -110,6 +110,9 @@ pub enum ManifestError {
         /// Why.
         error: crate::listen::ListenError,
     },
+    /// The launch document on standard input is missing or malformed
+    /// ([`crate::launch`]).
+    Launch(String),
     /// A granted directory could not be opened.
     Dir {
         /// The entry's name.
@@ -143,6 +146,10 @@ impl fmt::Display for ManifestError {
                 "listener {listen:?} names authenticator {authn:?}, which the manifest does not grant"
             ),
             Self::Listen { name, error } => write!(f, "cannot listen on {name:?}: {error}"),
+            Self::Launch(why) => write!(
+                f,
+                "no launch document on standard input ({why}); run the program under corten-sandbox --manifest"
+            ),
         }
     }
 }
@@ -813,6 +820,42 @@ impl Capabilities {
         self.declassify.remove(name)
     }
 
+    /// The capabilities of the manifest `corten-sandbox` verified and handed
+    /// this program: it reads the launch document from standard input
+    /// ([`crate::launch`]), then verifies the manifest itself with the keys
+    /// the launcher trusted, as [`Capabilities::load`] does: the signature,
+    /// the key and the expiry. The rollback floor is the launcher's (its
+    /// serial state file).
+    ///
+    /// # Errors
+    ///
+    /// [`ManifestError::Launch`] when standard input holds no well-formed
+    /// launch document (for example, the program was not started by the
+    /// launcher); otherwise as [`Capabilities::load`].
+    pub fn from_launcher() -> Result<Self, ManifestError> {
+        use std::io::Read as _;
+        let mut bytes = Vec::new();
+        let limit = u64::try_from(crate::launch::MAX_LAUNCH)
+            .map_err(|_| ManifestError::Launch("limit".into()))?;
+        let _read = std::io::stdin()
+            .lock()
+            .take(limit.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|e| ManifestError::Launch(e.to_string()))?;
+        Self::from_launch_document(&bytes)
+    }
+
+    /// [`Capabilities::from_launcher`] on bytes already read.
+    pub(crate) fn from_launch_document(bytes: &[u8]) -> Result<Self, ManifestError> {
+        let launch = crate::launch::parse(bytes)?;
+        Self::load(
+            &launch.manifest,
+            Signature(&launch.signature),
+            &launch.keys,
+            MinSerial(0),
+        )
+    }
+
     /// Binds the listener for a `listen` grant.
     #[cfg(unix)]
     fn add_listener(
@@ -1078,6 +1121,42 @@ mod tests {
         // The listener checks with its own copy: the program can still take the grant.
         assert!(caps.take_token_authenticator("api").is_some());
         let _gone = std::fs::remove_dir_all(&d);
+    }
+
+    /// The launcher's hand-over: the program re-verifies what it is given.
+    #[test]
+    fn a_launch_document_loads_only_the_manifest_it_was_signed_for() {
+        let kp = keys();
+        let mut pk = [0u8; 32];
+        pk.copy_from_slice(kp.pk.as_ref());
+        let m = manifest("k", 5, LATER, "declassify audit\n");
+        let mut sig = [0u8; 64];
+        sig.copy_from_slice(&sign(&kp, m.as_bytes()));
+        let doc = |text: &str| crate::launch::document(&[("k", pk)], text.as_bytes(), &sig);
+        let mut caps = Capabilities::from_launch_document(&doc(&m)).unwrap();
+        assert!(caps.take_declassify("audit").is_some());
+        // The launcher's own verification is not trusted: a changed byte fails.
+        let tampered = m.replace("audit", "audiT");
+        assert!(matches!(
+            Capabilities::from_launch_document(&doc(&tampered)),
+            Err(ManifestError::Signature)
+        ));
+        // Expiry is checked again by the program.
+        let expired = manifest("k", 5, 1, "declassify audit\n");
+        let mut esig = [0u8; 64];
+        esig.copy_from_slice(&sign(&kp, expired.as_bytes()));
+        assert!(matches!(
+            Capabilities::from_launch_document(&crate::launch::document(
+                &[("k", pk)],
+                expired.as_bytes(),
+                &esig
+            )),
+            Err(ManifestError::Expired { .. })
+        ));
+        assert!(matches!(
+            Capabilities::from_launch_document(b""),
+            Err(ManifestError::Launch(_))
+        ));
     }
 
     #[test]
