@@ -4,6 +4,10 @@ Newest first. Releases are tags signed with the maintainer's OpenPGP key; verify
 
 ## Unreleased
 
+### Changed
+
+- Correction (2026-11-17) to the v0.1.0 entry "Marketplace would refuse `name: corten` anyway": that follows GitHub's naming rule but was not tested by publishing. The account is `CorteN`, and Marketplace's case-insensitive comparison is inferred. The Phase 5 row now says so. `AGENTS.md` said GitHub rulesets do not check tag signatures; their docs only say nothing about tags, so it now says nothing enforces the signature.
+
 ## v0.1.0 (2026-11-17)
 
 The first release: everything built from Phase 0 to date. A signed tag only. There are no prebuilt binaries, no crates.io packages and no Marketplace listing. The workspace crates and the lint driver are versioned 0.1.0 (they were 0.0.0).
