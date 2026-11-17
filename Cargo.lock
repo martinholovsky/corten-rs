@@ -175,7 +175,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cargo-corten"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "corten-sha256",
 ]
@@ -288,7 +288,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "corten-broker"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "corten-std",
  "wasmi",
@@ -296,14 +296,14 @@ dependencies = [
 
 [[package]]
 name = "corten-corpus"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "corten-ledger",
 ]
 
 [[package]]
 name = "corten-gateway"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
  "base64",
@@ -325,11 +325,11 @@ dependencies = [
 
 [[package]]
 name = "corten-ledger"
-version = "0.0.0"
+version = "0.1.0"
 
 [[package]]
 name = "corten-manifest"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "cargo-corten",
  "corten-sha256",
@@ -339,11 +339,11 @@ dependencies = [
 
 [[package]]
 name = "corten-runtime"
-version = "0.0.0"
+version = "0.1.0"
 
 [[package]]
 name = "corten-sandbox"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "corten-broker",
  "corten-sha256",
@@ -355,11 +355,11 @@ dependencies = [
 
 [[package]]
 name = "corten-sha256"
-version = "0.0.0"
+version = "0.1.0"
 
 [[package]]
 name = "corten-std"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "argon2",
  "chacha20poly1305",
