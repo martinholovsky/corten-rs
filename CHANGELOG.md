@@ -1,8 +1,12 @@
 # Changelog
 
-Newest first. Nothing is released yet.
+Newest first. Releases are tags signed with the maintainer's OpenPGP key; verify one with `git verify-tag <tag>`.
 
 ## Unreleased
+
+## v0.1.0 (2026-11-17)
+
+The first release: everything built from Phase 0 to date. A signed tag only. There are no prebuilt binaries, no crates.io packages and no Marketplace listing. The workspace crates and the lint driver are versioned 0.1.0 (they were 0.0.0).
 
 ### Changed
 

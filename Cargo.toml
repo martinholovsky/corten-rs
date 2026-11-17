@@ -16,7 +16,7 @@ resolver = "3"
 exclude = ["crates/corten-lints"]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 # Same as rust-toolchain.toml, so the toolchain CI runs is the MSRV it tests.
 rust-version = "1.99"
