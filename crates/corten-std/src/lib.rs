@@ -38,6 +38,7 @@ pub mod fs;
 pub mod html;
 pub mod http;
 pub mod label;
+pub mod launch;
 pub mod ldap;
 pub mod listen;
 pub mod log;

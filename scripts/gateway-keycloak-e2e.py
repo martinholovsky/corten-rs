@@ -779,14 +779,14 @@ algorithms ES256
     def start(self, browser):
         common = ["run", "-d", "--pod", self.pod, "-v", f"{self.work}:/work:z",
                   "-v", f"{self.sock_volume}:/run/app"]
-        # The program, under the launcher: Landlock from its signed manifest;
-        # it may read only its own manifest directory, not the keys in /work.
+        # The program, under the launcher: Landlock from its signed manifest,
+        # which the launcher hands it, sealed, on standard input; it is given
+        # no read access to /work at all (the keys live there).
         podman(*common, "--name", self.prog_name, RUST_IMAGE,
                "/work/bin/corten-sandbox", "--manifest", "/work/prog/manifest",
                "--signature", "/work/prog/manifest.sig", "--trusted-key", self.trusted,
-               "--serial-state", "/work/serial", "--system", "--ro", "/work/prog",
-               "--exec", "/work/bin/hello_listener", "--",
-               "/work/bin/hello_listener", "/work/prog/manifest", "/work/prog/manifest.sig", self.trusted)
+               "--serial-state", "/work/serial", "--system",
+               "--exec", "/work/bin/hello_listener", "--", "/work/bin/hello_listener")
         deadline = time.monotonic() + 30
         while "hello_listener: serving" not in self.program_logs():
             if time.monotonic() > deadline:

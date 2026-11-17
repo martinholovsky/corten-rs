@@ -48,7 +48,12 @@
 //!   serial 0. Each `dir` grant becomes a read-write rule, each `exec`
 //!   grant an execute rule, and each `net` grant a TCP connect rule for its
 //!   port (Landlock filters by port; `corten_std::net` checks the address).
-//!   Any refusal stops the run.
+//!   Any refusal stops the run. The program is then handed the manifest it
+//!   was verified against, on its standard input: a launch document
+//!   (`corten_std::launch`) in a memfd sealed against writing, growing and
+//!   shrinking, which `Capabilities::from_launcher` reads and verifies again
+//!   (spec section 8, question 26). In manifest mode the program's standard
+//!   input is therefore not the caller's.
 //!
 //! Every other filesystem access and, by default, all TCP bind and connect
 //! are refused by the kernel for the program and everything it starts. The
@@ -96,6 +101,9 @@ struct Plan {
     manifest: Option<ManifestArgs>,
     /// The program digest the verified manifest pins (manifest mode only).
     program_sha256: Option<[u8; 32]>,
+    /// The launch document for the program's standard input (manifest mode
+    /// only; `corten_std::launch`).
+    launch: Option<Vec<u8>>,
     program: PathBuf,
     args: Vec<OsString>,
 }
@@ -234,6 +242,20 @@ fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
     // Before the serial is advanced: a refused binary leaves no trace.
     let program = open_pinned(&plan.program, &verified.program_sha256)?;
     plan.program_sha256 = Some(verified.program_sha256);
+    // The program verifies again from these exact bytes, with the same keys
+    // (`corten_std::launch`); the rollback floor stays in the state file.
+    let mut launch_keys: Vec<(&str, [u8; 32])> = Vec::new();
+    for (id, hex) in &m.trusted_keys {
+        let key = hex_decode(hex)
+            .and_then(|k| <[u8; 32]>::try_from(k).ok())
+            .ok_or("--trusted-key must be ID=HEX")?;
+        launch_keys.push((id.as_str(), key));
+    }
+    let sig: [u8; 64] = signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| "the signature is not 64 bytes".to_owned())?;
+    let launch = corten_std::launch::document(&launch_keys, &manifest, &sig);
     if verified.serial > stored {
         write_serial(&m.serial_state, verified.serial)?;
     }
@@ -267,6 +289,7 @@ fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
             corten_std::manifest::Grant::DnsFallback { .. } => plan.connect_ports.push(853),
         }
     }
+    plan.launch = Some(launch);
     Ok(Some(program))
 }
 
@@ -472,6 +495,16 @@ fn main() -> ExitCode {
         eprintln!("corten-sandbox: {e}");
         return ExitCode::from(EXIT_UNENFORCEABLE);
     }
+    // The launch document becomes the program's standard input. After the
+    // descriptor check: the memfd is close-on-exec, and only its copy on
+    // descriptor 0 reaches the program.
+    #[cfg(target_os = "linux")]
+    if let Some(doc) = &plan.launch
+        && let Err(e) = hand_over(doc)
+    {
+        eprintln!("corten-sandbox: cannot hand the program its manifest: {e}");
+        return ExitCode::from(EXIT_UNENFORCEABLE);
+    }
     #[cfg(target_os = "linux")]
     match hardlink_decision(
         std::fs::read_to_string(PROTECTED_HARDLINKS),
@@ -631,6 +664,34 @@ fn check_descriptors() -> Result<(), String> {
             "descriptors {leaked:?} are open without close-on-exec and would reach the program; close them before starting the sandbox"
         ))
     }
+}
+
+/// Installs the launch document as standard input: written to a memfd,
+/// sealed against writing, growing, shrinking and further sealing, rewound,
+/// then copied onto descriptor 0 (the program reads exactly these bytes and
+/// cannot change them).
+#[cfg(target_os = "linux")]
+fn hand_over(doc: &[u8]) -> Result<(), String> {
+    use rustix::fs::{MemfdFlags, SealFlags, SeekFrom};
+    let fd = rustix::fs::memfd_create(
+        "corten-launch",
+        MemfdFlags::CLOEXEC | MemfdFlags::ALLOW_SEALING,
+    )
+    .map_err(|e| format!("memfd_create: {e}"))?;
+    let mut rest = doc;
+    while !rest.is_empty() {
+        let n = rustix::io::write(&fd, rest).map_err(|e| format!("write: {e}"))?;
+        rest = rest
+            .get(n..)
+            .ok_or("write returned more than it was given")?;
+    }
+    rustix::fs::fcntl_add_seals(
+        &fd,
+        SealFlags::WRITE | SealFlags::GROW | SealFlags::SHRINK | SealFlags::SEAL,
+    )
+    .map_err(|e| format!("seal: {e}"))?;
+    let _start = rustix::fs::seek(&fd, SeekFrom::Start(0)).map_err(|e| format!("seek: {e}"))?;
+    rustix::stdio::dup2_stdin(&fd).map_err(|e| format!("dup2: {e}"))
 }
 
 /// Executes the program: in manifest mode the file [`open_pinned`] checked,
