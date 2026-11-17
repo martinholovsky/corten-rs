@@ -121,6 +121,24 @@ $ cd path/to/your-crate && cargo corten check
 
 `scripts/build-driver.sh` installs the nightly that `crates/corten-lints` pins, with `rustc-dev`, on first use. A crate with dependencies also needs a dependency policy: dependencies are refused unless the operator admits them ([`crates/cargo-corten/README.md`](crates/cargo-corten/README.md), "Dependency policy"). Measured from a fresh clone to a passing check of a `cargo new` crate: 102 to 141 s on Linux in a `rust:1.99.1` container, 14 to 19 s on macOS with the toolchains already installed ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), "Developer friction").
 
+### In CI: the GitHub Action
+
+The same check runs in a GitHub Actions workflow through this repository's [`action.yml`](action.yml). It is not listed on the GitHub Marketplace: call it by repository path, pinned to a full commit SHA (or, once releases exist, a signed version tag such as `v0.1.0`; tags are never moved):
+
+```yaml
+jobs:
+  corten:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@<commit-sha>
+      - uses: martinholovsky/corten-rs@<commit-sha>
+        with:
+          command: check                   # or build: adds sbom.json and provenance.json
+          dep-policy: corten-dep-policy    # needed if the crate has dependencies
+```
+
+The action builds `cargo-corten`, `corten-sandbox` and the lint driver from its own checkout and lockfile on every run (there are no prebuilt binaries yet). Its other inputs are `manifest-path`, `allow-deps` and `out-dir` (descriptions in `action.yml`). The provenance from `build` is unsigned: sign it in a later step of your workflow. CI tests it on `ubuntu-24.04` only (the "Action self-test" step in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+
 ## Building
 
 The toolchain is pinned in `rust-toolchain.toml` (Rust 1.99.1); rustup installs it on first use. `cargo-corten`, part of the trusted base, has no third-party dependencies; the prelude's are reviewed in [`docs/gates/phase-6.md`](docs/gates/phase-6.md).
