@@ -52,7 +52,7 @@ pub fn check<P, A, K>(who: &Authenticated<P>, action: A, key: K, policy: &impl P
 2. Corpus cases for CWE-862, 306, 288, 638, 639 and 566: a `good.rs` that checks then acts, and every way of skipping it as a `bad-*.rs` (no proof, a forged proof, a proof for another key, a proof reused after a different check, the raw `std` route, a raw database crate through the dependency policy).
 3. Detection and false rejection with totals on the full corpus (AGENTS.md rule 2); adopt only at 0 false rejections (question 14). The ledger changes only after that run.
 
-A blocker to name now: there is no listener or request type in `corten-std` (`gates/phase-6.md`, the missing-capabilities row), so the prototype exercises protected *operations*, not request handlers. A handler-level claim waits for batch 6's web types.
+A blocker to name now: there is no listener or request type in `corten-std` (`gates/phase-6.md`, the missing-capabilities row), so the prototype exercises protected *operations*, not request handlers. A handler-level claim waits for batch 6's web types. Fired 2026-11-16: the listener (`corten_std::listen`, spec section 8, question 25) hands each handler an `Authenticated`, so the claim can now be tested (`phase-6.md`, "Batch 6: the listener").
 
 ## Step 1 built (2026-11-13)
 

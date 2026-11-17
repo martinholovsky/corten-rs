@@ -161,7 +161,7 @@ disallowed-types = [
     { path = "std::fs::File", reason = "ambient filesystem access (CWE-22, path traversal); fix: take a DirCap from the manifest and use DirCap::open_file or open_dir" },
     { path = "std::fs::OpenOptions", reason = "ambient file creation (CWE-22, path traversal; CWE-276, default permissions); fix: DirCap::open_file with OpenMode::CreateExclusive(FileMode)" },
     { path = "std::fs::DirBuilder", reason = "ambient file creation (CWE-22, path traversal; CWE-276, default permissions); fix: DirCap::open_file with OpenMode::CreateExclusive(FileMode)" },
-    { path = "std::os::unix::net::UnixDatagram", reason = "ambient IPC (spec 4.3; no ledger row); corten-std has no Unix-socket capability yet" },
+    { path = "std::os::unix::net::UnixDatagram", reason = "ambient IPC (spec 4.3; no ledger row); corten-std has no Unix datagram capability (it listens on stream sockets through a `listen` grant)" },
     { path = "std::os::unix::net::UnixListener", reason = "ambient IPC (spec 4.3; no ledger row); fix: a `listen` manifest grant (corten_std::listen)" },
     { path = "std::os::unix::net::UnixStream", reason = "ambient IPC (spec 4.3; no ledger row); corten-std listens through a `listen` grant (corten_std::listen) and has no outgoing Unix-socket capability yet" },
     { path = "std::process::Command", reason = "ambient process authority with a PATH search (CWE-78); fix: process! with an ExecCap from the manifest" },
