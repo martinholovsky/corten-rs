@@ -6,6 +6,8 @@ Newest first. Releases are tags signed with the maintainer's OpenPGP key; verify
 
 ### Changed
 
+- `url` 2.5.8 → 2.5.9 and `wasmi` (with `wasmi_core`, `wasmi_ir`, `wasmi_collections`) 2.0.0 → 2.0.2, `Cargo.lock` only (2026-11-22; `form_urlencoded` 1.2.2 → 1.2.3 came with `url`). `url`: RUSTSEC-2026-0592, a stack overflow in `Url::origin()` on nested `blob:` URLs, which failed `cargo audit`; neither hickory 0.26.3 nor Corten calls `.origin()`. `wasmi`: 2.0.0 and 2.0.1 were yanked; 2.0.1 and 2.0.2 fix a `call_indirect` signature-check bypass, a use-after-free on resuming a call in another `Store`, and several miscompilations. `wasmi` is the Wasm broker's runtime, so these are fixes inside a sandbox boundary. `cargo audit` (exit 1 before, 0 after) and `cargo deny check` pass; Linux Clippy and the `corten-broker` and `corten-sandbox` tests (38) pass in the pinned container.
+- Deferral checks recorded (2026-11-22): the resolver-out-of-process trigger (not fired), Kanidm `acr` support (not fired; a maintainer replied on kanidm/kanidm#4720), the Flux re-trial (not fired). Two untested gaps got revisit triggers: the gateway paths no end-to-end test drives, and the listener's 25 s and 30 s timeouts.
 - Correction (2026-11-17) to the v0.1.0 entry "Marketplace would refuse `name: corten` anyway": that follows GitHub's naming rule but was not tested by publishing. The account is `CorteN`, and Marketplace's case-insensitive comparison is inferred. The Phase 5 row now says so. `AGENTS.md` said GitHub rulesets do not check tag signatures; their docs only say nothing about tags, so it now says nothing enforces the signature.
 
 ## v0.1.0 (2026-11-17)
