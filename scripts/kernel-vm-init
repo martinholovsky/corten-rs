@@ -1,0 +1,18 @@
+#!/bin/bash
+# PID 1 of the kernel test VM (scripts/kernel-vm-test.sh): mount what the
+# tests need, set what a distribution would, run the sandbox's broker tests,
+# print markers the host parses, and power off.
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+mount -t securityfs securityfs /sys/kernel/security 2>/dev/null
+# corten-sandbox refuses to start without it (CWE-62); distributions set it.
+echo 1 > /proc/sys/fs/protected_hardlinks
+ip link set lo up
+echo "VM_KERNEL=$(uname -r)"
+echo "VM_LSM=$(cat /sys/kernel/security/lsm)"
+export HOME=/root
+"$VM_TEST_BIN" --test-threads=1 2>&1
+echo "VM_TEST_RC=$?"
+echo o > /proc/sysrq-trigger
+sleep 10
