@@ -94,7 +94,7 @@ The order weighs Top 25 and KEV exposure against cost. Each strategy is one way 
 - Generate the deployment's sandbox from the same manifest that grants capabilities in code, so code and OS agree (CWE-250, 269 to 274, 653, 668).
 - Make `dynamic_code` an effect that has to be declared, and run it only in the Wasm broker (CWE-94, 96: code injection becomes code that runs inside a sandbox).
 - Refuse a release build without its provenance statement, and the provenance records the profile (CWE-1269).
-- Request Landlock's UDP rights when the kernel and the `landlock` crate support them (open item in `docs/gates/phase-5.md`).
+- Request Landlock's UDP rights when the kernel and the `landlock` crate support them. Done 2026-11-22 (`landlock` 0.4.8, Linux 7.2 and later; `docs/gates/phase-5.md`).
 
 ### 6. Secure-by-default HTTP types (30)
 

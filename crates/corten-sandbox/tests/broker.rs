@@ -194,7 +194,10 @@ fn tcp_connect_is_denied() {
 }
 
 /// F2: Landlock ABI v4 does not filter UDP; a program without a network
-/// grant runs in an empty network namespace, so it cannot send any.
+/// grant runs in an empty network namespace, so it cannot send any. From
+/// ABI v10 (Linux 7.2) Landlock refuses the send first (measured on 7.3.5:
+/// "Permission denied"); below it the empty namespace does ("Network is
+/// unreachable").
 #[test]
 fn udp_is_refused_without_a_network_grant() {
     let script = "echo x > /dev/udp/127.0.0.1/9 && echo sent";
@@ -214,11 +217,12 @@ fn udp_is_refused_without_a_network_grant() {
     let out = run(&inv, &policy(), b"").unwrap();
     assert_ne!(out.code, Some(0));
     assert!(text(&out.stdout).is_empty(), "{}", text(&out.stdout));
-    assert!(
-        text(&out.stderr).contains("Network is unreachable"),
-        "{}",
-        text(&out.stderr)
-    );
+    let refusal = if kernel_at_least(7, 2) {
+        "Permission denied"
+    } else {
+        "Network is unreachable"
+    };
+    assert!(text(&out.stderr).contains(refusal), "{}", text(&out.stderr));
 }
 
 /// With a `net` grant the program keeps the host's network, and Landlock
@@ -267,18 +271,89 @@ fn landlock_denies_a_tcp_port_the_net_grant_does_not_name() {
     );
 }
 
-/// Whether the running kernel has Landlock ABI v6 (Linux 6.12), the first
-/// with signal and abstract UNIX socket scoping. Read from the release string:
-/// a test cannot ask Landlock directly without `unsafe`.
-fn kernel_has_scopes() -> bool {
+/// With a `net` grant the program keeps the host's network, so the empty
+/// network namespace does not stop UDP. Where the kernel has Landlock ABI v10
+/// (Linux 7.2), Landlock does: a grant naming a host may send to port 53 (its
+/// system-resolver lookup) and nowhere else. Below v10 UDP is unfiltered;
+/// the test then checks that requesting the UDP rights did not stop the
+/// sandbox from running (they are best effort, like the v6 scopes).
+#[test]
+fn udp_with_a_net_grant_reaches_only_the_resolver_port() {
+    let s = Scratch::new("udpgrant");
+    let kp = KeyPair::from_seed(Seed::new([14u8; 32]));
+    let bash = corten_sha256::hex_digest(&fs::read("/bin/bash").unwrap());
+    let manifest = format!(
+        "corten-manifest 3\nkey deploy\nserial 1\nnot-after 4102444800\nprogram sha256 {bash}\nnet api api.example.com:443\n"
+    );
+    let (m, g, state) = (s.0.join("m"), s.0.join("m.sig"), s.0.join("serial"));
+    fs::write(&m, &manifest).unwrap();
+    fs::write(&g, kp.sk.sign(manifest.as_bytes(), None).as_ref()).unwrap();
+    let script = |port: u16| format!("echo x > /dev/udp/127.0.0.1/{port} && echo sent");
+    let send = |port: u16| {
+        Command::new(env!("CARGO_BIN_EXE_corten-sandbox"))
+            .arg("--manifest")
+            .arg(&m)
+            .arg("--signature")
+            .arg(&g)
+            .arg("--trusted-key")
+            .arg(format!("deploy={}", hex(kp.pk.as_ref())))
+            .arg("--serial-state")
+            .arg(&state)
+            .arg("--system")
+            .arg("--")
+            .arg("/bin/bash")
+            .arg("-c")
+            .arg(script(port))
+            .output()
+            .unwrap()
+    };
+    // Control: bash sends both datagrams unconfined.
+    for port in [9, 53] {
+        let plain = Command::new("/bin/bash")
+            .arg("-c")
+            .arg(script(port))
+            .output()
+            .unwrap();
+        assert_eq!(text(&plain.stdout), "sent\n", "{}", text(&plain.stderr));
+    }
+    let resolver = send(53);
+    assert_eq!(
+        text(&resolver.stdout),
+        "sent\n",
+        "{}",
+        text(&resolver.stderr)
+    );
+    let other = send(9);
+    if kernel_at_least(7, 2) {
+        assert_ne!(other.status.code(), Some(0));
+        assert!(text(&other.stdout).is_empty(), "{}", text(&other.stdout));
+        assert!(
+            text(&other.stderr).contains("Permission denied"),
+            "{}",
+            text(&other.stderr)
+        );
+    } else {
+        assert_eq!(text(&other.stdout), "sent\n", "{}", text(&other.stderr));
+    }
+}
+
+/// Whether the running kernel is at least `major.minor`. Read from the
+/// release string: a test cannot ask Landlock for its ABI without `unsafe`.
+fn kernel_at_least(major: u32, minor: u32) -> bool {
     let release = fs::read_to_string("/proc/sys/kernel/osrelease").unwrap();
     let mut parts = release
         .trim()
         .split(|c: char| !c.is_ascii_digit())
         .map(|n| n.parse::<u32>().unwrap_or(0));
-    let major = parts.next().unwrap_or(0);
-    let minor = parts.next().unwrap_or(0);
-    (major, minor) >= (6, 12)
+    let have_major = parts.next().unwrap_or(0);
+    let have_minor = parts.next().unwrap_or(0);
+    (have_major, have_minor) >= (major, minor)
+}
+
+/// Whether the running kernel has Landlock ABI v6 (Linux 6.12), the first
+/// with signal and abstract UNIX socket scoping.
+fn kernel_has_scopes() -> bool {
+    kernel_at_least(6, 12)
 }
 
 #[test]
