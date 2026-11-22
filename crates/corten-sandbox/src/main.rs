@@ -67,6 +67,10 @@
 //! UNIX socket created outside it; older kernels run without those scopes.
 //! Where it has ABI v10 (Linux 7.2), UDP bind and send are filtered by port
 //! like TCP (unless `--allow-net`); older kernels leave UDP unfiltered.
+//! Where it has ABI v5 (Linux 6.10), the program cannot send driver `ioctl`
+//! commands to a device it opens; where it has ABI v9 (Linux 7.1), it cannot
+//! connect to a pathname UNIX socket created outside the sandbox. Neither is
+//! granted on any path; descriptors open before the sandbox keep theirs.
 //! A path that does not exist is an error, not a skipped rule.
 //! A descriptor above 2 open without close-on-exec is refused the same way:
 //! the program would inherit it, and Landlock does not restrict a descriptor
@@ -397,6 +401,15 @@ mod enforce {
     /// is unrestricted by Landlock, and only the empty network namespace of a
     /// program without a network grant stops it (finding F2).
     const ABI_UDP: ABI = ABI::V10;
+    /// Filesystem rights newer than ABI v4, handled best effort and granted
+    /// on no path: `IoctlDev` (ABI v5, Linux 6.10), device-driver `ioctl` on
+    /// a character or block device the program opens; `ResolveUnix` (ABI v9,
+    /// Linux 7.1), connecting to a pathname UNIX socket whose server was
+    /// created outside the sandbox. Both are decided when the file or socket
+    /// is reached from inside the sandbox, so descriptors inherited from
+    /// before it (a terminal on standard input) keep their rights, and a
+    /// program's own listener socket stays reachable.
+    const NEWER_FS_RIGHTS: [AccessFs; 2] = [AccessFs::IoctlDev, AccessFs::ResolveUnix];
 
     fn rule(
         path: &Path,
@@ -426,13 +439,18 @@ mod enforce {
                 .handle_access(AccessNet::from_all(ABI_REQUIRED))
                 .map_err(|e| e.to_string())?;
         }
-        // Best effort for the scopes and the UDP rights only, then back to a
-        // hard requirement: the created ruleset and its rules inherit the
-        // level set last.
+        // Best effort for the scopes, the newer filesystem rights and the UDP
+        // rights only, then back to a hard requirement: the created ruleset
+        // and its rules inherit the level set last. No rule below grants a
+        // newer filesystem right, so where the kernel has one it is denied
+        // everywhere.
         let mut ruleset = ruleset
             .set_compatibility(CompatLevel::BestEffort)
             .scope(Scope::from_all(ABI_SCOPES))
             .map_err(|e| e.to_string())?;
+        for right in NEWER_FS_RIGHTS {
+            ruleset = ruleset.handle_access(right).map_err(|e| e.to_string())?;
+        }
         if !plan.allow_net {
             ruleset = ruleset
                 .handle_access(AccessNet::BindUdp | AccessNet::ConnectSendUdp)
@@ -487,7 +505,8 @@ mod enforce {
     }
 
     /// Full enforcement, except that below ABI v10 the best-effort parts (the
-    /// v6 scopes, the v10 UDP rights) may be left out: everything else was
+    /// v5 and v9 filesystem rights, the v6 scopes, the v10 UDP rights) may be
+    /// left out: everything else was
     /// requested as a hard requirement, so a missing v4 right is an error
     /// before this point, never a partial status.
     fn enforced(status: &RestrictionStatus) -> bool {
