@@ -337,6 +337,9 @@ impl Runner<'_> {
     fn corten(&self, dir: &Path, target: &Path) -> io::Result<Build> {
         let start = Instant::now();
         let mut cmd = Command::new(&self.opts.checker);
+        // `corten check` first: cargo-corten accepts the `corten` that cargo
+        // passes only as its first argument.
+        cmd.args(["corten", "check"]);
         if let Some(driver) = &self.opts.unpinned_driver {
             cmd.arg("--unpinned-driver").arg(driver);
         }
@@ -347,7 +350,6 @@ impl Runner<'_> {
             cmd.env_remove("CORTEN_DEP_POLICY");
         }
         let out = cmd
-            .args(["corten", "check"])
             .current_dir(dir)
             .env("CARGO", &self.cargo)
             .env_remove("RUSTC")
