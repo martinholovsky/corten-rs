@@ -20,7 +20,8 @@
 //!   runs in a new, empty network namespace (inside a new user namespace,
 //!   with its user and group IDs mapped to themselves where the kernel
 //!   allows it, else shown as 65534 inside): no UDP, which
-//!   Landlock does not filter, and no TCP, not even loopback (finding F2).
+//!   Landlock filters only from ABI v10, and no TCP, not even loopback
+//!   (finding F2).
 //!   If the kernel refuses the namespaces, the sandbox stops, unless
 //!   `--allow-udp-without-netns` is given: then the program runs with UDP
 //!   open and a warning is printed on every start (owner decision,
@@ -48,6 +49,8 @@
 //!   serial 0. Each `dir` grant becomes a read-write rule, each `exec`
 //!   grant an execute rule, and each `net` grant a TCP connect rule for its
 //!   port (Landlock filters by port; `corten_std::net` checks the address).
+//!   Where the kernel has ABI v10, UDP is denied too, except sends to port
+//!   53 for a `net` grant that names a host (its system-resolver lookup).
 //!   Any refusal stops the run. The program is then handed the manifest it
 //!   was verified against, on its standard input: a launch document
 //!   (`corten_std::launch`) in a memfd sealed against writing, growing and
@@ -61,7 +64,10 @@
 //! cannot enforce every rule, or off Linux, it refuses to run the program
 //! (exit 3). Where the kernel has ABI v6 (Linux 6.12), the program also
 //! cannot signal a process outside the sandbox or connect to an abstract
-//! UNIX socket created outside it; older kernels run without those scopes. A path that does not exist is an error, not a skipped rule.
+//! UNIX socket created outside it; older kernels run without those scopes.
+//! Where it has ABI v10 (Linux 7.2), UDP bind and send are filtered by port
+//! like TCP (unless `--allow-net`); older kernels leave UDP unfiltered.
+//! A path that does not exist is an error, not a skipped rule.
 //! A descriptor above 2 open without close-on-exec is refused the same way:
 //! the program would inherit it, and Landlock does not restrict a descriptor
 //! that is already open.
@@ -95,6 +101,10 @@ struct Plan {
     allow_unprotected_hardlinks: bool,
     /// TCP ports the manifest's `net` grants may connect to.
     connect_ports: Vec<u16>,
+    /// Remote UDP ports the program may send to, where the kernel has
+    /// Landlock ABI v10 (Linux 7.2): port 53, for a `net` grant that names a
+    /// host, whose lookup goes to the system resolver.
+    udp_send_ports: Vec<u16>,
     /// Directories of the manifest's `listen` grants: the program may create
     /// and remove sockets there, and nothing else (`MakeSock`, `RemoveFile`).
     socket_dirs: Vec<PathBuf>,
@@ -278,11 +288,12 @@ fn apply_manifest(plan: &mut Plan) -> Result<Option<std::fs::File>, String> {
             // corten_std::net's.
             corten_std::manifest::Grant::Net { port, host, .. } => {
                 plan.connect_ports.push(port);
-                // A host grant resolves through the system resolver, which
-                // falls back to TCP port 53 for large answers (UDP is not
-                // restricted by Landlock).
+                // A host grant resolves through the system resolver: UDP port
+                // 53, falling back to TCP port 53 for large answers. Landlock
+                // filters UDP only from ABI v10; below it UDP is unrestricted.
                 if matches!(host, corten_std::net::Host::Name(_)) {
                     plan.connect_ports.push(53);
+                    plan.udp_send_ports.push(53);
                 }
             }
             // DNS over TLS to the manifest's public resolver.
@@ -381,6 +392,11 @@ mod enforce {
     /// below v6 the v4 rules still hold and the scopes are absent
     /// (`docs/tcb.md`).
     const ABI_SCOPES: ABI = ABI::V6;
+    /// Filtering UDP (`BindUdp`, `ConnectSendUdp`) needs ABI v10 (Linux 7.2).
+    /// Requested wherever the kernel has it, like the scopes; below v10 UDP
+    /// is unrestricted by Landlock, and only the empty network namespace of a
+    /// program without a network grant stops it (finding F2).
+    const ABI_UDP: ABI = ABI::V10;
 
     fn rule(
         path: &Path,
@@ -410,13 +426,19 @@ mod enforce {
                 .handle_access(AccessNet::from_all(ABI_REQUIRED))
                 .map_err(|e| e.to_string())?;
         }
-        // Best effort for the scopes only, then back to a hard requirement:
-        // the created ruleset and its rules inherit the level set last.
-        let ruleset = ruleset
+        // Best effort for the scopes and the UDP rights only, then back to a
+        // hard requirement: the created ruleset and its rules inherit the
+        // level set last.
+        let mut ruleset = ruleset
             .set_compatibility(CompatLevel::BestEffort)
             .scope(Scope::from_all(ABI_SCOPES))
-            .map_err(|e| e.to_string())?
-            .set_compatibility(CompatLevel::HardRequirement);
+            .map_err(|e| e.to_string())?;
+        if !plan.allow_net {
+            ruleset = ruleset
+                .handle_access(AccessNet::BindUdp | AccessNet::ConnectSendUdp)
+                .map_err(|e| e.to_string())?;
+        }
+        let ruleset = ruleset.set_compatibility(CompatLevel::HardRequirement);
         let mut created = ruleset.create().map_err(|e| e.to_string())?;
         let sockets = AccessFs::MakeSock | AccessFs::RemoveFile;
         for (paths, access) in [
@@ -439,6 +461,22 @@ mod enforce {
                     .add_rule(NetPort::new(port, AccessNet::ConnectTcp))
                     .map_err(|e| e.to_string())?;
             }
+            // From ABI v10 every UDP bind and send is denied too, except
+            // sends to these remote ports. Sending from an unbound socket
+            // binds an ephemeral port, which Landlock checks as `BindUdp` on
+            // port 0, so that is granted with them. Best effort: below v10
+            // the rights are not handled and the rules are dropped.
+            if !plan.udp_send_ports.is_empty() {
+                created = created
+                    .set_compatibility(CompatLevel::BestEffort)
+                    .add_rule(NetPort::new(0, AccessNet::BindUdp))
+                    .map_err(|e| e.to_string())?;
+                for &port in &plan.udp_send_ports {
+                    created = created
+                        .add_rule(NetPort::new(port, AccessNet::ConnectSendUdp))
+                        .map_err(|e| e.to_string())?;
+                }
+            }
         }
         let status = created.restrict_self().map_err(|e| e.to_string())?;
         if enforced(&status) {
@@ -448,18 +486,19 @@ mod enforce {
         }
     }
 
-    /// Full enforcement, except that below ABI v6 the scopes may be the part
-    /// left out: everything else was requested as a hard requirement, so a
-    /// missing v4 right is an error before this point, never a partial status.
+    /// Full enforcement, except that below ABI v10 the best-effort parts (the
+    /// v6 scopes, the v10 UDP rights) may be left out: everything else was
+    /// requested as a hard requirement, so a missing v4 right is an error
+    /// before this point, never a partial status.
     fn enforced(status: &RestrictionStatus) -> bool {
-        let below_scopes = matches!(
+        let below_best_effort = matches!(
             status.landlock,
-            LandlockStatus::Available { effective_abi, .. } if effective_abi < ABI_SCOPES
+            LandlockStatus::Available { effective_abi, .. } if effective_abi < ABI_UDP
         );
         status.no_new_privs
             && match status.ruleset {
                 RulesetStatus::FullyEnforced => true,
-                RulesetStatus::PartiallyEnforced => below_scopes,
+                RulesetStatus::PartiallyEnforced => below_best_effort,
                 RulesetStatus::NotEnforced => false,
             }
     }
@@ -524,7 +563,7 @@ fn main() -> ExitCode {
             Ok(()) => {}
             Err(e) if plan.allow_udp_without_netns => {
                 eprintln!(
-                    "corten-sandbox: warning: no network namespace ({e}); the program can send UDP anywhere (--allow-udp-without-netns)"
+                    "corten-sandbox: warning: no network namespace ({e}); the program can send UDP anywhere unless the kernel has Landlock ABI v10 (--allow-udp-without-netns)"
                 );
             }
             Err(e) => {
@@ -580,9 +619,9 @@ fn needs_netns(plan: &Plan) -> bool {
     !plan.allow_net && plan.connect_ports.is_empty()
 }
 
-/// User and network namespaces (F2). Landlock ABI v4 filters TCP only; an
-/// empty network namespace stops UDP and everything else the program could
-/// send.
+/// User and network namespaces (F2). Landlock ABI v4 filters TCP only, and
+/// UDP only from ABI v10; an empty network namespace stops UDP on any kernel
+/// and everything else the program could send.
 #[cfg(target_os = "linux")]
 mod netns {
     use rustix::thread::UnshareFlags;
