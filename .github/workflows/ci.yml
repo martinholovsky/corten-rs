@@ -96,8 +96,9 @@ jobs:
         if: steps.scope.outputs.heavy == 'true'
         with:
           tool: cargo-nextest@0.9.150
-      # The checker requires corten-driver (owner decision 10); every later
-      # step finds it through CORTEN_DRIVER.
+      # The checker requires corten-driver (owner decision 10). A driver built
+      # here is no pinned release, so every later step passes it with
+      # --unpinned-driver, from CORTEN_DRIVER (owner decision 2026-11-22).
       - name: Build corten-driver
         if: steps.scope.outputs.heavy == 'true'
         run: |
@@ -156,7 +157,7 @@ jobs:
         if: steps.scope.outputs.heavy == 'true'
         run: |
           cargo build --locked -p cargo-corten
-          bash scripts/close-leaked-fds.sh cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten --work-dir "$RUNNER_TEMP/corpus-work"
+          bash scripts/close-leaked-fds.sh cargo run --locked -p corten-corpus -- --checker target/debug/cargo-corten --work-dir "$RUNNER_TEMP/corpus-work" --unpinned-driver "$CORTEN_DRIVER"
       - name: Hermetic build smoke test
         if: steps.scope.outputs.heavy == 'true'
         run: |

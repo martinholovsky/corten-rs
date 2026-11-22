@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Builds corten-driver on the nightly pinned in crates/corten-lints (installing
 # that toolchain if needed) and prints the binary's path on stdout.
-# `cargo corten check` and `build` require it (owner decision 10): put it
-# beside cargo-corten or point CORTEN_DRIVER at it.
+# `cargo corten check` and `build` require it (owner decision 10). No release
+# pins a driver built here, so pass it as `cargo corten check --unpinned-driver
+# PATH` (owner decision 2026-11-22).
 #
 # Usage: scripts/build-driver.sh [--release]
 set -euo pipefail

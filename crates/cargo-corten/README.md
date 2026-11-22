@@ -80,7 +80,10 @@ A side effect: an operator's own wrapper, such as `sccache`, is not used under t
 
 ## Corten's own lints (second pass)
 
-A passing check runs a second `cargo check` with `corten-driver` as the compiler and only `-F corten_*` flags ([`src/profile.rs`](src/profile.rs) `FORBIDDEN_CORTEN_LINTS`), into `target/corten-lints`, in the sandbox on Linux; `build` runs it before building. The driver is required (owner decision 10): it is found through `CORTEN_DRIVER` or beside `cargo-corten`, and without it both subcommands fail. Build it with `scripts/build-driver.sh`, which installs the nightly pinned in [`crates/corten-lints`](../corten-lints) and prints the binary's path ([`docs/gates/phase-3b.md`](../../docs/gates/phase-3b.md)).
+A passing check runs a second `cargo check` with `corten-driver` as the compiler and only `-F corten_*` flags ([`src/profile.rs`](src/profile.rs) `FORBIDDEN_CORTEN_LINTS`), into `target/corten-lints`, in the sandbox on Linux; `build` runs it before building. The driver is required (owner decision 10), and without it both subcommands fail. It is part of the trusted base, so the checker accepts two kinds (owner decision 2026-11-22):
+
+- **A release binary**, found through `CORTEN_DRIVER` or beside `cargo-corten`, only when its SHA-256 is the one [`driver-pins.txt`](driver-pins.txt) pins for the host target (compiled into the checker; empty until the first driver release). Its library path points at the machine that built it, so the checker asks rustup for the pinned nightly's sysroot, with automatic installation off, and runs the driver with `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) set to exactly its `lib` directory. A missing nightly is reported with the command that installs it (`rustup toolchain install NIGHTLY --profile minimal`); the checker downloads nothing.
+- **A driver you built** with `scripts/build-driver.sh`, which installs the nightly pinned in [`crates/corten-lints`](../corten-lints) and prints the binary's path ([`docs/gates/phase-3b.md`](../../docs/gates/phase-3b.md)), passed as `--unpinned-driver PATH`. A command-line flag, so a checked repository cannot set it, and warned on every run.
 
 ## What it does not cover yet
 

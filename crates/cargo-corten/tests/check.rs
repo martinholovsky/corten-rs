@@ -118,10 +118,16 @@ fn operator_policy(fx: &Fixture) -> PathBuf {
     fx.dir.join("operator.policy")
 }
 
-/// `cargo corten check` on the fixture, with extra environment (which may
-/// replace `CORTEN_DRIVER`). The fixture's operator policy, if any, is
-/// passed with `CORTEN_DEP_POLICY`.
+/// `cargo corten check` on the fixture with extra environment, running the
+/// locally built driver through `--unpinned-driver` (no release pins it).
+/// The fixture's operator policy, if any, is passed with `CORTEN_DEP_POLICY`.
 fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
+    corten_with(fx, env, Some(&driver()))
+}
+
+/// [`corten`] with `unpinned` as `--unpinned-driver`, or without the flag.
+/// `CORTEN_DRIVER` is removed unless `env` sets it.
+fn corten_with(fx: &Fixture, env: &[(&str, &str)], unpinned: Option<&str>) -> io::Result<Outcome> {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_cargo-corten"));
     if operator_policy(fx).is_file() {
         cmd.env("CORTEN_DEP_POLICY", operator_policy(fx));
@@ -132,8 +138,11 @@ fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
         .env_remove("RUSTC")
         .current_dir(&fx.dir)
         .env("CARGO_TARGET_DIR", fx.target())
-        .env("CORTEN_DRIVER", driver())
+        .env_remove("CORTEN_DRIVER")
         .envs(env.iter().copied());
+    if let Some(path) = unpinned {
+        cmd.arg("--unpinned-driver").arg(path);
+    }
     outcome(&mut cmd)
 }
 
@@ -296,12 +305,15 @@ fn ban_list_resolves_and_safe_program_is_clean() {
         "{}",
         out.stderr
     );
-    // Off Linux the checker itself warns that there is no sandbox; any other
-    // warning comes from the build.
+    // The checker itself warns that there is no sandbox (off Linux) and that
+    // the local driver is unpinned; any other warning comes from the build.
     let build_output: Vec<&str> = out
         .stderr
         .lines()
-        .filter(|l| !l.starts_with("warning: no sandbox on this platform"))
+        .filter(|l| {
+            !l.starts_with("warning: no sandbox on this platform")
+                && !l.starts_with("warning: Corten's own lints run with")
+        })
         .collect();
     assert!(
         !build_output.iter().any(|l| l.contains("warning")),
@@ -642,15 +654,50 @@ fn dependency_exporting_an_unsafe_macro_is_refused() {
 #[test]
 fn missing_driver_is_an_error() {
     let fx = Fixture::new("no-driver", SAFE).unwrap();
-    let out = corten(&fx, &[("CORTEN_DRIVER", "/nonexistent/corten-driver")]).unwrap();
+    let out = corten_with(
+        &fx,
+        &[("CORTEN_DRIVER", "/nonexistent/corten-driver")],
+        None,
+    )
+    .unwrap();
     assert_eq!(out.code, Some(1), "{}", out.stderr);
     assert!(
         out.stderr.contains("corten-driver is not installed"),
         "{}",
         out.stderr
     );
+    let out = corten_with(&fx, &[], Some("/nonexistent/corten-driver")).unwrap();
+    assert_eq!(out.code, Some(1), "{}", out.stderr);
+    assert!(out.stderr.contains("not a file"), "{}", out.stderr);
     // Control: the same program passes with the driver.
     assert_eq!(corten(&fx, &[]).unwrap().code, Some(0));
+}
+
+/// Without `--unpinned-driver`, only the release driver whose SHA-256 this
+/// checker pins runs Corten's own lints: a locally built one, found through
+/// `CORTEN_DRIVER`, is refused. With the flag the same binary runs, and the
+/// check says on every run that no release pins it.
+#[test]
+fn a_driver_no_release_pins_needs_the_explicit_flag() {
+    let fx = Fixture::new("unpinned-driver", SAFE).unwrap();
+    let refused = corten_with(&fx, &[("CORTEN_DRIVER", &driver())], None).unwrap();
+    assert_eq!(refused.code, Some(1), "{}", refused.stderr);
+    assert!(
+        refused
+            .stderr
+            .contains("refusing to run Corten's own lints with it"),
+        "{}",
+        refused.stderr
+    );
+    let accepted = corten(&fx, &[]).unwrap();
+    assert_eq!(accepted.code, Some(0), "{}", accepted.stderr);
+    assert!(
+        accepted
+            .stderr
+            .contains("no release pins (--unpinned-driver)"),
+        "{}",
+        accepted.stderr
+    );
 }
 
 #[test]
