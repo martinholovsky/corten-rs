@@ -38,6 +38,7 @@ runs:
   using: composite
   steps:
     - name: Build cargo-corten
+      id: tools
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
@@ -47,15 +48,17 @@ runs:
         cd "$ACTION_PATH"
         rustup toolchain install
         cargo build --release --locked --target-dir "$TOOLS_TARGET" -p cargo-corten -p corten-sandbox
-        # corten-driver, on its pinned nightly, beside cargo-corten: the
-        # checker requires it.
+        # corten-driver, on its pinned nightly: the checker requires it. Built
+        # here, so no release pins it; the next step passes it with
+        # --unpinned-driver (owner decision 2026-11-22).
         driver=$(bash scripts/build-driver.sh --release)
-        cp "$driver" "$TOOLS_TARGET/release/corten-driver"
+        printf 'driver=%s\n' "$driver" >> "$GITHUB_OUTPUT"
         printf '%s\n' "$TOOLS_TARGET/release" >> "$GITHUB_PATH"
     - name: Run cargo corten
       id: run
       shell: bash
       env:
+        CORTEN_UNPINNED_DRIVER: ${{ steps.tools.outputs.driver }}
         ACTION_PATH: ${{ github.action_path }}
         CORTEN_COMMAND: ${{ inputs.command }}
         CORTEN_MANIFEST: ${{ inputs.manifest-path }}
@@ -66,7 +69,7 @@ runs:
         set -euo pipefail
         # corten-sandbox refuses to start while a descriptor without
         # close-on-exec is open; the runner leaks some into every step.
-        corten() { bash "$ACTION_PATH/scripts/close-leaked-fds.sh" cargo corten "$@"; }
+        corten() { bash "$ACTION_PATH/scripts/close-leaked-fds.sh" cargo corten "$@" --unpinned-driver "$CORTEN_UNPINNED_DRIVER"; }
         case "$CORTEN_COMMAND" in
           check)
             corten check --manifest-path "$CORTEN_MANIFEST"

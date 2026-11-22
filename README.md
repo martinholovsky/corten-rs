@@ -115,11 +115,11 @@ Check a crate of your own with `cargo corten check`. You need rustup, and Rust 1
 $ git clone https://github.com/martinholovsky/corten-rs.git && cd corten-rs
 $ cargo install --path crates/cargo-corten --locked
 $ cargo install --path crates/corten-sandbox --locked     # Linux only
-$ export CORTEN_DRIVER="$(scripts/build-driver.sh)"        # Corten's own lints, on a pinned nightly
-$ cd path/to/your-crate && cargo corten check
+$ driver="$(scripts/build-driver.sh)"                       # Corten's own lints, on a pinned nightly
+$ cd path/to/your-crate && cargo corten check --unpinned-driver "$driver"
 ```
 
-`scripts/build-driver.sh` installs the nightly that `crates/corten-lints` pins, with `rustc-dev`, on first use. A crate with dependencies also needs a dependency policy: dependencies are refused unless the operator admits them ([`crates/cargo-corten/README.md`](crates/cargo-corten/README.md), "Dependency policy"). Measured from a fresh clone to a passing check of a `cargo new` crate: 102 to 141 s on Linux in a `rust:1.99.1` container, 14 to 19 s on macOS with the toolchains already installed ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), "Developer friction").
+`scripts/build-driver.sh` installs the nightly that `crates/corten-lints` pins, with `rustc-dev`, on first use. A driver you build is no release binary, so the checker takes it only through `--unpinned-driver` and says so on every run; without the flag it accepts only the release driver whose SHA-256 it pins (none is published yet; `docs/gates/phase-6.md`, the prebuilt-driver row). A crate with dependencies also needs a dependency policy: dependencies are refused unless the operator admits them ([`crates/cargo-corten/README.md`](crates/cargo-corten/README.md), "Dependency policy"). Measured from a fresh clone to a passing check of a `cargo new` crate: 102 to 141 s on Linux in a `rust:1.99.1` container, 14 to 19 s on macOS with the toolchains already installed ([`docs/gates/phase-6.md`](docs/gates/phase-6.md), "Developer friction").
 
 ### In CI: the GitHub Action
 

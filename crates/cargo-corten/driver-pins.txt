@@ -1,0 +1,7 @@
+# corten-driver release binaries that cargo-corten accepts without
+# --unpinned-driver (docs/gates/phase-6.md, the prebuilt-driver row).
+#
+# One line per target: TARGET SHA256-HEX. CI's release-driver workflow builds
+# the binaries and prints these lines; they land in the commit after that
+# build, which changes only this file, and the signed v* tag goes on that
+# commit (owner decision 2026-11-13). Empty until the first driver release.

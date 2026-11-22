@@ -12,6 +12,9 @@ set -euo pipefail
 unset CARGO_TARGET_DIR
 
 bin_dir=$(cd "$1" && pwd)
+# A locally built corten-driver (scripts/build-driver.sh): no release pins it,
+# so the checker gets it through --unpinned-driver.
+driver=${CORTEN_DRIVER:?set CORTEN_DRIVER to a corten-driver built by scripts/build-driver.sh}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 # The real toolchain cargo, as `cargo corten` sees it (not the rustup proxy).
@@ -48,7 +51,7 @@ printf 'corten-dep-policy 1\nallow hostile\n' > "$policy"
 
 corten_build() { # dir, extra args...
     local dir=$1; shift
-    (cd "$dir" && CARGO="$cargo_bin" CORTEN_SANDBOX="$bin_dir/corten-sandbox" CORTEN_DEP_POLICY="$policy" "$bin_dir/cargo-corten" corten build "$@")
+    (cd "$dir" && CARGO="$cargo_bin" CORTEN_SANDBOX="$bin_dir/corten-sandbox" CORTEN_DEP_POLICY="$policy" "$bin_dir/cargo-corten" corten build --unpinned-driver "$driver" "$@")
 }
 
 # 1. Benign crate: builds; the provenance digest matches.

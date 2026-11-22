@@ -8,6 +8,7 @@
 
 pub mod dep_policy;
 pub mod deps;
+pub mod driver;
 pub mod explain;
 pub mod json;
 pub mod profile;
@@ -482,7 +483,9 @@ fn sandboxed(inner: &Command, s: &BuildSandbox, conf_dir: &Path) -> Command {
 /// any program using a derive failed this pass (spec section 8, question
 /// 22). The first pass, on the stable toolchain, still pins `-1`.
 /// With `sandbox`, it runs there; `sandbox.local_paths` must also grant the
-/// driver and its sysroot.
+/// driver and its sysroot. With `library_dir`, the loader's library path
+/// ([`driver::library_path_var`]) is set to exactly that directory: a
+/// prebuilt driver finds the pinned nightly's `librustc_driver` there.
 ///
 /// # Errors
 ///
@@ -494,9 +497,13 @@ pub fn lint_command(
     driver: &Path,
     target_dir: &Path,
     sandbox: Option<&BuildSandbox>,
+    library_dir: Option<&Path>,
 ) -> Result<Command, ConfDirError> {
     let mut inner = pinned_cargo_with(toolchain, conf_dir, "")?;
     inner.env("RUSTC", driver);
+    if let Some(dir) = library_dir {
+        inner.env(driver::library_path_var(), dir);
+    }
     // Empty overrides a configured `[build] rustc-wrapper` as well.
     inner.env("RUSTC_WRAPPER", "");
     let mut flags = Vec::new();
@@ -691,6 +698,7 @@ mod tests {
             Path::new("/drv/corten-driver"),
             Path::new("/t"),
             None,
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -710,6 +718,35 @@ mod tests {
             env_of(&command(None), "RUSTC_BOOTSTRAP"),
             EnvSetting::Set(OsStr::new("-1")),
             "the first pass keeps -1"
+        );
+    }
+
+    /// A prebuilt driver's loader path is set to exactly the directory given,
+    /// and left alone when none is (a local build finds its libraries itself).
+    #[test]
+    fn the_lint_pass_sets_the_loader_path_only_when_given() {
+        let lint = |dir: Option<&Path>| {
+            lint_command(
+                &toolchain(),
+                None,
+                Path::new("/conf"),
+                Path::new("/drv/corten-driver"),
+                Path::new("/t"),
+                None,
+                dir,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            env_of(
+                &lint(Some(Path::new("/nightly/lib"))),
+                driver::library_path_var()
+            ),
+            EnvSetting::Set(OsStr::new("/nightly/lib"))
+        );
+        assert_eq!(
+            env_of(&lint(None), driver::library_path_var()),
+            EnvSetting::Inherited
         );
     }
 

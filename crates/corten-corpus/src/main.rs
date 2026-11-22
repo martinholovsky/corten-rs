@@ -41,7 +41,7 @@ use corten_ledger::{ERow, Ledger, parse_csv};
 const USAGE: &str = "\
 Usage: corten-corpus --checker <cargo-corten> [--root <repo>] [--phase <n>]
                      [--report <file.md>] [--mark-verified] [--jobs <n>]
-                     [--work-dir <dir>]
+                     [--work-dir <dir>] [--unpinned-driver <corten-driver>]
 
 Runs every corpus case named by an E row of ledger/cwe-ledger.csv.
   --mark-verified  set status=verified for passing rows and unverified for failing ones
@@ -49,6 +49,9 @@ Runs every corpus case named by an E row of ledger/cwe-ledger.csv.
                    <dir> and leave them there, so a later run (or a CI cache) reuses
                    the compiled dependencies; by default a temporary directory is
                    used and removed
+  --unpinned-driver  pass a locally built corten-driver to every checker call
+                   (`cargo corten check --unpinned-driver`); without it the checker
+                   accepts only the pinned release driver
 ";
 
 struct Options {
@@ -59,6 +62,7 @@ struct Options {
     mark_verified: bool,
     jobs: usize,
     work_dir: Option<PathBuf>,
+    unpinned_driver: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Options, String> {
@@ -70,6 +74,7 @@ fn parse_args() -> Result<Options, String> {
     let mut mark_verified = false;
     let mut jobs = thread::available_parallelism().map_or(2, std::num::NonZero::get);
     let mut work_dir = None;
+    let mut unpinned_driver = None;
     while let Some(arg) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match arg.as_str() {
@@ -84,6 +89,9 @@ fn parse_args() -> Result<Options, String> {
             }
             "--mark-verified" => mark_verified = true,
             "--work-dir" => work_dir = Some(PathBuf::from(value("--work-dir")?)),
+            "--unpinned-driver" => {
+                unpinned_driver = Some(PathBuf::from(value("--unpinned-driver")?));
+            }
             "-h" | "--help" => return Err(String::new()),
             other => return Err(format!("unexpected argument {other:?}")),
         }
@@ -93,8 +101,14 @@ fn parse_args() -> Result<Options, String> {
     // resolve there.
     let checker = std::fs::canonicalize(&checker)
         .map_err(|e| format!("--checker {}: {e}", checker.display()))?;
+    let unpinned_driver = unpinned_driver
+        .map(|d| {
+            std::fs::canonicalize(&d).map_err(|e| format!("--unpinned-driver {}: {e}", d.display()))
+        })
+        .transpose()?;
     Ok(Options {
         checker,
+        unpinned_driver,
         root,
         phase,
         report,
@@ -323,6 +337,9 @@ impl Runner<'_> {
     fn corten(&self, dir: &Path, target: &Path) -> io::Result<Build> {
         let start = Instant::now();
         let mut cmd = Command::new(&self.opts.checker);
+        if let Some(driver) = &self.opts.unpinned_driver {
+            cmd.arg("--unpinned-driver").arg(driver);
+        }
         let policy = dir.join("operator.policy");
         if policy.is_file() {
             cmd.env("CORTEN_DEP_POLICY", policy);

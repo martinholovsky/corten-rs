@@ -26,8 +26,9 @@ const USAGE: &str = "\
 Build a crate under the Corten profile, with flags the checker supplies itself.
 
 Usage: cargo corten check [--manifest-path <PATH>] [--dep-policy <FILE>] [--allow-dep <NAME>]...
+                          [--unpinned-driver <PATH>]
        cargo corten build [--manifest-path <PATH>] [--dep-policy <FILE>] [--allow-dep <NAME>]...
-                          [--sbom <FILE>] [--provenance <FILE>]
+                          [--unpinned-driver <PATH>] [--sbom <FILE>] [--provenance <FILE>]
 
 `build` builds --release --locked --offline inside corten-sandbox (Linux):
 no network, sources and toolchain read-only, only the target directory
@@ -43,6 +44,12 @@ Options:
                               (NAME or NAME@VERSION); does not admit it. Also read,
                               comma-separated, from CORTEN_ALLOW_DEPS
       --sbom <FILE>           build: write a CycloneDX SBOM
+      --unpinned-driver <PATH>
+                              Run Corten's own lints with a corten-driver you built
+                              (scripts/build-driver.sh). Without it, only the release
+                              driver whose SHA-256 this cargo-corten pins is accepted,
+                              found through CORTEN_DRIVER or beside cargo-corten.
+                              Warned on every run.
       --provenance <FILE>     build: write an unsigned in-toto/SLSA provenance statement
   -h, --help                  Print help
   -V, --version               Print version
@@ -69,11 +76,13 @@ enum Invocation {
         manifest_path: Option<PathBuf>,
         dep_policy: Option<PathBuf>,
         allow_deps: Vec<String>,
+        unpinned_driver: Option<PathBuf>,
     },
     Build {
         manifest_path: Option<PathBuf>,
         dep_policy: Option<PathBuf>,
         allow_deps: Vec<String>,
+        unpinned_driver: Option<PathBuf>,
         sbom: Option<PathBuf>,
         provenance: Option<PathBuf>,
     },
@@ -91,6 +100,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
     let mut dep_policy = None;
     let mut sbom = None;
     let mut provenance = None;
+    let mut unpinned_driver = None;
     while let Some(arg) = args.next() {
         let Some(text) = arg.to_str() else {
             return Err(format!("unexpected argument {}", arg.display()));
@@ -121,6 +131,14 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
             _ if text.starts_with("--allow-dep=") => {
                 allow_deps.push(text.trim_start_matches("--allow-dep=").to_owned());
             }
+            "--unpinned-driver" => {
+                let value = args.next().ok_or("--unpinned-driver needs a path")?;
+                unpinned_driver = Some(PathBuf::from(value));
+            }
+            _ if text.starts_with("--unpinned-driver=") => {
+                unpinned_driver =
+                    Some(PathBuf::from(text.trim_start_matches("--unpinned-driver=")));
+            }
             "--sbom" => sbom = Some(PathBuf::from(args.next().ok_or("--sbom needs a file")?)),
             "--provenance" => {
                 provenance = Some(PathBuf::from(
@@ -136,12 +154,14 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Invocation, String>
             manifest_path,
             dep_policy,
             allow_deps,
+            unpinned_driver,
         }),
         Some("check") => Err("--sbom and --provenance belong to `build`".to_owned()),
         Some(_) => Ok(Invocation::Build {
             manifest_path,
             dep_policy,
             allow_deps,
+            unpinned_driver,
             sbom,
             provenance,
         }),
@@ -325,6 +345,7 @@ struct BuildRequest<'a> {
     manifest_path: Option<&'a Path>,
     conf: &'a Path,
     metadata: &'a Json,
+    unpinned_driver: Option<&'a Path>,
     sbom: Option<&'a Path>,
     provenance: Option<&'a Path>,
 }
@@ -534,6 +555,7 @@ fn hermetic_build(req: &BuildRequest<'_>) -> Result<(), String> {
         req.conf,
         Some(&plan),
         req.metadata,
+        req.unpinned_driver,
     )? {
         return Err("Corten's own lints failed".to_owned());
     }
@@ -578,6 +600,7 @@ fn run_check(
     manifest_path: Option<&Path>,
     conf: &ConfDir,
     metadata: &Json,
+    unpinned_driver: Option<&Path>,
 ) -> ExitCode {
     // On Linux the check runs inside the sandbox, as the build does: build
     // scripts and procedural macros execute during a check. Elsewhere there
@@ -636,6 +659,7 @@ fn run_check(
         conf.path(),
         plan.as_ref(),
         metadata,
+        unpinned_driver,
     ) {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::from(EXIT_FAILED),
@@ -682,13 +706,126 @@ fn run_explained(cmd: &mut Command) -> io::Result<ExitStatus> {
     Ok(status)
 }
 
-/// `corten-driver`: `CORTEN_DRIVER`, or the one installed beside this binary.
-fn find_driver() -> Option<PathBuf> {
+/// Largest driver binary read for its digest.
+const MAX_DRIVER_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// The `corten-driver` to run, and where its compiler libraries are.
+struct Driver {
+    path: PathBuf,
+    /// The pinned nightly's `lib` directory, the loader path for a release
+    /// binary; `None` for an operator's build, which carries its own.
+    library_dir: Option<PathBuf>,
+    sysroot: PathBuf,
+}
+
+/// The driver to run. With `--unpinned-driver`, the operator's build, warned
+/// on every run. Otherwise the release binary found through `CORTEN_DRIVER`
+/// or beside this checker, accepted only when its SHA-256 is the one pinned
+/// for this platform (`driver-pins.txt`), and loaded from the pinned nightly.
+/// The digest covers the file as read here; replacing it before it runs
+/// needs write access to where the operator installed it.
+fn resolve_driver(unpinned: Option<&Path>) -> Result<Driver, String> {
+    if let Some(path) = unpinned {
+        if !path.is_file() {
+            return Err(format!("--unpinned-driver {}: not a file", path.display()));
+        }
+        eprintln!(
+            "warning: Corten's own lints run with {}, a corten-driver no release pins (--unpinned-driver); the check trusts it as built",
+            path.display()
+        );
+        let sysroot = driver_sysroot(path, None)?;
+        return Ok(Driver {
+            path: path.to_path_buf(),
+            library_dir: None,
+            sysroot,
+        });
+    }
     let path = match env::var_os("CORTEN_DRIVER") {
         Some(p) => PathBuf::from(p),
-        None => env::current_exe().ok()?.with_file_name("corten-driver"),
+        None => env::current_exe()
+            .map_err(|e| format!("cannot find this checker's own path: {e}"))?
+            .with_file_name("corten-driver"),
     };
-    path.is_file().then_some(path)
+    if !path.is_file() {
+        return Err(format!(
+            "corten-driver is not installed (install the pinned release beside cargo-corten or point CORTEN_DRIVER at it, or pass --unpinned-driver PATH for one you built with scripts/build-driver.sh), so Corten's own lints ({}) cannot run",
+            profile::FORBIDDEN_CORTEN_LINTS.join(", ")
+        ));
+    }
+    let size = fs::metadata(&path)
+        .map_err(|e| format!("{}: {e}", path.display()))?
+        .len();
+    if size > MAX_DRIVER_BYTES {
+        return Err(format!(
+            "{}: larger than {MAX_DRIVER_BYTES} bytes",
+            path.display()
+        ));
+    }
+    let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    cargo_corten::driver::check_pinned(&sha256::hex_digest(&bytes)).map_err(|e| {
+        format!(
+            "{}: {e}; refusing to run Corten's own lints with it. Use the release driver this cargo-corten pins, or pass --unpinned-driver PATH for one you built",
+            path.display()
+        )
+    })?;
+    let toolchain = cargo_corten::driver::pinned_toolchain()
+        .ok_or("this cargo-corten names no nightly for corten-driver")?;
+    let sysroot = nightly_sysroot(toolchain)?;
+    let library_dir = sysroot.join("lib");
+    let sysroot = driver_sysroot(&path, Some(&library_dir))?;
+    Ok(Driver {
+        path,
+        library_dir: Some(library_dir),
+        sysroot,
+    })
+}
+
+/// The pinned nightly's sysroot, from rustup with automatic installation off,
+/// so the check never downloads a toolchain.
+fn nightly_sysroot(toolchain: &str) -> Result<PathBuf, String> {
+    let missing = || {
+        format!(
+            "corten-driver needs the nightly {toolchain}, which is not installed; install it with `{}`",
+            cargo_corten::driver::install_command(toolchain)
+        )
+    };
+    let out = Command::new("rustup")
+        .args(["run", toolchain, "rustc", "--print", "sysroot"])
+        .env("RUSTUP_AUTO_INSTALL", "0")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("cannot run rustup ({e}): {}", missing()))?;
+    if !out.status.success() {
+        return Err(missing());
+    }
+    let sysroot = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    if sysroot.join("lib").is_dir() {
+        Ok(sysroot)
+    } else {
+        Err(missing())
+    }
+}
+
+/// The sysroot `driver` reports, run with `library_dir` as its loader path
+/// when given.
+fn driver_sysroot(driver: &Path, library_dir: Option<&Path>) -> Result<PathBuf, String> {
+    let mut cmd = Command::new(driver);
+    cmd.args(["--print", "sysroot"]).stdin(Stdio::null());
+    if let Some(dir) = library_dir {
+        cmd.env(cargo_corten::driver::library_path_var(), dir);
+    }
+    let out = cmd
+        .output()
+        .map_err(|e| format!("cannot run {}: {e}", driver.display()))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{} --print sysroot failed ({}): {}",
+            driver.display(),
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()))
 }
 
 /// The second pass, Corten's own lints. `Ok(true)`: passed. The driver is
@@ -700,25 +837,13 @@ fn lint_pass(
     conf: &Path,
     plan: Option<&BuildSandbox>,
     metadata: &Json,
+    unpinned_driver: Option<&Path>,
 ) -> Result<bool, String> {
-    let Some(driver) = find_driver() else {
-        return Err(format!(
-            "corten-driver is not installed (set CORTEN_DRIVER or install it beside cargo-corten), so Corten's own lints ({}) cannot run",
-            profile::FORBIDDEN_CORTEN_LINTS.join(", ")
-        ));
-    };
-    let out = std::process::Command::new(&driver)
-        .args(["--print", "sysroot"])
-        .output()
-        .map_err(|e| format!("cannot run {}: {e}", driver.display()))?;
-    if !out.status.success() {
-        return Err(format!(
-            "{} --print sysroot failed ({})",
-            driver.display(),
-            out.status
-        ));
-    }
-    let sysroot = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    let Driver {
+        path: driver,
+        library_dir,
+        sysroot,
+    } = resolve_driver(unpinned_driver)?;
     let target_dir = PathBuf::from(str_field(metadata, "target_directory")?).join("corten-lints");
     let plan = plan.map(|p| {
         let mut p = p.clone();
@@ -733,6 +858,7 @@ fn lint_pass(
         &driver,
         &target_dir,
         plan.as_ref(),
+        library_dir.as_deref(),
     )
     .map_err(|e| e.to_string())?;
     let status = run_explained(&mut cmd).map_err(|e| format!("cannot run the lint pass: {e}"))?;
@@ -809,6 +935,56 @@ fn rustc_supported(toolchain: &Toolchain) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// What a `check` or `build` invocation asks for.
+struct Request {
+    manifest_path: Option<PathBuf>,
+    dep_policy: Option<PathBuf>,
+    allow_deps: Vec<String>,
+    unpinned_driver: Option<PathBuf>,
+    /// `build`'s SBOM and provenance paths; `None` for `check`.
+    build: Option<(Option<PathBuf>, Option<PathBuf>)>,
+}
+
+/// The request to run, or `None` after printing help or the version.
+fn request(invocation: Invocation) -> Option<Request> {
+    match invocation {
+        Invocation::Help => {
+            print!("{USAGE}");
+            None
+        }
+        Invocation::Version => {
+            println!("cargo-corten {}", env!("CARGO_PKG_VERSION"));
+            None
+        }
+        Invocation::Check {
+            manifest_path,
+            dep_policy,
+            allow_deps,
+            unpinned_driver,
+        } => Some(Request {
+            manifest_path,
+            dep_policy,
+            allow_deps,
+            unpinned_driver,
+            build: None,
+        }),
+        Invocation::Build {
+            manifest_path,
+            dep_policy,
+            allow_deps,
+            unpinned_driver,
+            sbom,
+            provenance,
+        } => Some(Request {
+            manifest_path,
+            dep_policy,
+            allow_deps,
+            unpinned_driver,
+            build: Some((sbom, provenance)),
+        }),
+    }
+}
+
 fn main() -> ExitCode {
     let invocation = match parse(env::args_os().skip(1)) {
         Ok(invocation) => invocation,
@@ -817,32 +993,15 @@ fn main() -> ExitCode {
             return ExitCode::from(EXIT_USAGE);
         }
     };
-    let (manifest_path, dep_policy, allow_deps, build) = match invocation {
-        Invocation::Help => {
-            print!("{USAGE}");
-            return ExitCode::SUCCESS;
-        }
-        Invocation::Version => {
-            println!("cargo-corten {}", env!("CARGO_PKG_VERSION"));
-            return ExitCode::SUCCESS;
-        }
-        Invocation::Check {
-            manifest_path,
-            dep_policy,
-            allow_deps,
-        } => (manifest_path, dep_policy, allow_deps, None),
-        Invocation::Build {
-            manifest_path,
-            dep_policy,
-            allow_deps,
-            sbom,
-            provenance,
-        } => (
-            manifest_path,
-            dep_policy,
-            allow_deps,
-            Some((sbom, provenance)),
-        ),
+    let Some(Request {
+        manifest_path,
+        dep_policy,
+        allow_deps,
+        unpinned_driver,
+        build,
+    }) = request(invocation)
+    else {
+        return ExitCode::SUCCESS;
     };
     let (policy, allow) = match operator_inputs(dep_policy, allow_deps) {
         Ok(inputs) => inputs,
@@ -890,6 +1049,7 @@ fn main() -> ExitCode {
             manifest_path: manifest_path.as_deref(),
             conf: conf.path(),
             metadata: &metadata,
+            unpinned_driver: unpinned_driver.as_deref(),
             sbom: sbom.as_deref(),
             provenance: provenance.as_deref(),
         };
@@ -901,7 +1061,13 @@ fn main() -> ExitCode {
             }
         };
     }
-    run_check(&toolchain, manifest_path.as_deref(), &conf, &metadata)
+    run_check(
+        &toolchain,
+        manifest_path.as_deref(),
+        &conf,
+        &metadata,
+        unpinned_driver.as_deref(),
+    )
 }
 
 #[cfg(test)]
@@ -919,7 +1085,8 @@ mod tests {
             Ok(Invocation::Check {
                 manifest_path: None,
                 dep_policy: None,
-                allow_deps: Vec::new()
+                allow_deps: Vec::new(),
+                unpinned_driver: None,
             })
         );
     }
@@ -941,7 +1108,8 @@ mod tests {
             Ok(Invocation::Check {
                 manifest_path: Some(PathBuf::from("a/Cargo.toml")),
                 dep_policy: Some(PathBuf::from("ops/deps.policy")),
-                allow_deps: vec!["serde_derive".to_owned(), "x@1.0.0".to_owned()]
+                allow_deps: vec!["serde_derive".to_owned(), "x@1.0.0".to_owned()],
+                unpinned_driver: None,
             })
         );
         let Ok(Invocation::Check { manifest_path, .. }) =
@@ -967,11 +1135,36 @@ mod tests {
                 manifest_path: None,
                 dep_policy: None,
                 allow_deps: Vec::new(),
+                unpinned_driver: None,
                 sbom: Some(PathBuf::from("s.json")),
                 provenance: Some(PathBuf::from("p.json")),
             })
         );
         assert!(run(&["check", "--sbom", "s.json"]).is_err());
+    }
+
+    #[test]
+    fn parses_the_unpinned_driver_in_both_forms() {
+        for args in [
+            &["check", "--unpinned-driver", "/d/corten-driver"][..],
+            &["check", "--unpinned-driver=/d/corten-driver"][..],
+        ] {
+            let Ok(Invocation::Check {
+                unpinned_driver, ..
+            }) = run(args)
+            else {
+                panic!("did not parse {args:?}");
+            };
+            assert_eq!(unpinned_driver, Some(PathBuf::from("/d/corten-driver")));
+        }
+        let Ok(Invocation::Build {
+            unpinned_driver, ..
+        }) = run(&["build", "--unpinned-driver", "/d/corten-driver"])
+        else {
+            panic!("did not parse build");
+        };
+        assert_eq!(unpinned_driver, Some(PathBuf::from("/d/corten-driver")));
+        assert!(run(&["check", "--unpinned-driver"]).is_err());
     }
 
     #[test]
