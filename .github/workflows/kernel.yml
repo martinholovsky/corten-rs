@@ -1,0 +1,86 @@
+name: kernel
+
+# corten-sandbox's broker tests on a newer kernel than CI's runner has (owner
+# decision 2026-11-22). The runner's kernel (7.0 on ubuntu-24.04) has Landlock
+# ABI v8, so the ResolveUnix (v9, Linux 7.1) and UDP (v10, Linux 7.2) refusals
+# are exercised only here: Ubuntu's mainline 7.3.5 build boots under QEMU with
+# an initramfs holding the test binaries (scripts/kernel-vm-test.sh).
+# Runs when the sandbox, what it links or this job changes, and weekly.
+
+on:
+  pull_request:
+    paths:
+      - crates/corten-sandbox/**
+      - crates/corten-broker/**
+      - crates/corten-std/**
+      - Cargo.lock
+      - scripts/kernel-vm-*
+      - .github/workflows/kernel.yml
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kernel-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Ubuntu mainline 7.3.5 (stable; 7.2 reached end of life 2026-11-01), the
+  # package's SHA-256 from that directory's CHECKSUMS.
+  KERNEL_DEB_URL: https://kernel.ubuntu.com/mainline/v7.3.5/amd64/linux-image-unsigned-7.3.5-070305-generic_7.3.5-070305.202611171251_amd64.deb
+  KERNEL_DEB_SHA256: 6892914ad7689a9d33b47be13d155563d5f782a561dac962537d7960e8573139
+  EXPECT_KERNEL: 7.3.5
+  # The VM's root filesystem: the runner's own release (Ubuntu 24.04, end of
+  # life 2029-05-31), so the test binaries find the glibc they were built with.
+  ROOTFS_IMAGE: docker.io/library/ubuntu@sha256:9a04f13b3f80ef056361e30868593b1cfd2279fe19e4081cb93a90bf56819d6a
+
+jobs:
+  sandbox:
+    name: sandbox on Linux 7.3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 cpio
+          # Hardware acceleration where the runner exposes it; the script
+          # falls back to software emulation otherwise and says which.
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+          ls -l /dev/kvm || true
+      - name: Kernel, verified
+        run: |
+          curl --proto '=https' -fsSL --max-time 300 -o "$RUNNER_TEMP/kernel.deb" "$KERNEL_DEB_URL"
+          echo "$KERNEL_DEB_SHA256  $RUNNER_TEMP/kernel.deb" | sha256sum -c -
+      - name: Root filesystem
+        run: |
+          docker run --name corten-vm-rootfs "$ROOTFS_IMAGE" bash -c \
+            'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends iproute2 procps'
+          docker export corten-vm-rootfs -o "$RUNNER_TEMP/rootfs.tar"
+          docker rm corten-vm-rootfs
+      - name: Build the sandbox tests
+        id: build
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/target
+        run: |
+          set -euo pipefail
+          cargo test --locked -p corten-sandbox --no-run --message-format=json > "$RUNNER_TEMP/build.json"
+          bin=$(jq -r 'select(.reason == "compiler-artifact" and .target.name == "broker" and .profile.test) | .executable' "$RUNNER_TEMP/build.json")
+          test -x "$bin"
+          printf 'test_bin=%s\nsandbox_bin=%s\n' "$bin" "$CARGO_TARGET_DIR/debug/corten-sandbox" >> "$GITHUB_OUTPUT"
+      - name: Broker tests on the newer kernel
+        env:
+          TEST_BIN: ${{ steps.build.outputs.test_bin }}
+          SANDBOX_BIN: ${{ steps.build.outputs.sandbox_bin }}
+        run: bash scripts/kernel-vm-test.sh "$RUNNER_TEMP/kernel.deb" "$RUNNER_TEMP/rootfs.tar" "$TEST_BIN" "$SANDBOX_BIN" "$EXPECT_KERNEL"
