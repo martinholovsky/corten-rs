@@ -743,3 +743,101 @@ fn a_listen_grant_allows_its_socket_and_nothing_else() {
         "launch=ok socket=ok stdin-rewrite=PermissionDenied stdin-truncate=PermissionDenied file=PermissionDenied elsewhere=PermissionDenied"
     );
 }
+
+/// Landlock ABI v5 (Linux 6.10): a device the program opens inside the
+/// sandbox takes no driver `ioctl`, even where reading it is granted. `stty`
+/// asks `/dev/null` for terminal settings (`TCGETS`, a driver command): the
+/// driver answers "not a terminal", Landlock answers "Permission denied"
+/// before the driver is asked. Below ABI v5 the driver's answer comes back.
+#[test]
+fn a_device_opened_in_the_sandbox_takes_no_driver_ioctl() {
+    let script = "stty -F /dev/null";
+    // Control: unconfined, the driver refuses the terminal command.
+    let plain = Command::new("/bin/sh")
+        .arg("-c")
+        .arg(script)
+        .output()
+        .unwrap();
+    assert_ne!(plain.status.code(), Some(0));
+    assert!(
+        text(&plain.stderr).contains("Inappropriate ioctl for device"),
+        "{}",
+        text(&plain.stderr)
+    );
+    let mut p = policy();
+    p.read_only.push(PathBuf::from("/dev/null"));
+    let out = run(&shell(script), &p, b"").unwrap();
+    assert_ne!(out.code, Some(0));
+    let refusal = if kernel_at_least(6, 10) {
+        "Permission denied"
+    } else {
+        "Inappropriate ioctl for device"
+    };
+    assert!(text(&out.stderr).contains(refusal), "{}", text(&out.stderr));
+}
+
+/// The child half of `a_unix_socket_created_outside_cannot_be_connected_to`:
+/// runs only when that test re-executes this binary. It connects to the
+/// socket path it is given and reports the outcome.
+#[test]
+fn unix_connect_child() {
+    let Ok(path) = std::env::var("CORTEN_UNIX_CONNECT_CHILD") else {
+        return;
+    };
+    let said = match std::os::unix::net::UnixStream::connect(&path) {
+        Ok(_) => "ok".to_owned(),
+        Err(e) => format!("{:?}", e.kind()),
+    };
+    println!("CHILD connect={said}");
+}
+
+/// Landlock ABI v9 (Linux 7.1): the program cannot connect to a pathname UNIX
+/// socket whose server was created outside the sandbox (here by this test),
+/// even with read and write granted on its directory. Below ABI v9 it can.
+#[test]
+fn a_unix_socket_created_outside_cannot_be_connected_to() {
+    let s = Scratch::new("unixconnect");
+    let socket = s.0.join("server.sock");
+    let _server = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    let me = std::env::current_exe().unwrap();
+    let child = |sandboxed: bool| {
+        let mut c = if sandboxed {
+            let mut c = Command::new(env!("CARGO_BIN_EXE_corten-sandbox"));
+            c.arg("--system")
+                .arg("--allow-net")
+                .arg("--rw")
+                .arg(&s.0)
+                .arg("--exec")
+                .arg(&me)
+                .arg("--")
+                .arg(&me);
+            c
+        } else {
+            Command::new(&me)
+        };
+        let out = c
+            .args([
+                "--exact",
+                "unix_connect_child",
+                "--nocapture",
+                "--test-threads",
+                "1",
+            ])
+            .env("CORTEN_UNIX_CONNECT_CHILD", &socket)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let said = text(&out.stdout);
+        said.lines()
+            .find_map(|l| l.split_once("CHILD ").map(|(_, report)| report))
+            .unwrap_or_else(|| panic!("no report: {said} {}", text(&out.stderr)))
+            .to_owned()
+    };
+    assert_eq!(child(false), "connect=ok", "the control");
+    let expected = if kernel_at_least(7, 1) {
+        "connect=PermissionDenied"
+    } else {
+        "connect=ok"
+    };
+    assert_eq!(child(true), expected);
+}
