@@ -1,6 +1,6 @@
 # AGENTS.md — working in the Corten repository
 
-Instructions for AI coding agents (Claude Code, Codex, Cursor, Copilot and others) and for humans who want the same ground rules. `CLAUDE.md` points here; this file is the single source.
+Instructions for AI coding agents (Claude Code, Codex, Cursor, Copilot and others) and for humans who want the same ground rules. `CLAUDE.md` imports this file (`@AGENTS.md`), so Claude Code loads it into every session; this file is the single source.
 
 ## What this repository is
 
