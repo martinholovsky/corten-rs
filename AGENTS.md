@@ -58,6 +58,28 @@ Distilled from the owner's decisions (spec section 8). Apply them to every new i
 - **Workspace conventions.** Edition 2024, toolchain pinned in `rust-toolchain.toml`, lints in the workspace `Cargo.toml` (`unsafe_code = "forbid"`, no `unwrap`/`expect`/`panic` outside tests, `#[expect]` with a reason instead of `#[allow]`). `cargo-corten` has no dependencies on purpose: it is part of the trusted base. Adding one needs a reason and must pass `deny.toml`.
 - **A test of a hostile configuration needs a control.** Show the configuration bypasses plain cargo before showing the checker stops it, and run cargo from the fixture's directory: cargo reads `.cargo/config.toml` from the working directory, not from `--manifest-path`.
 
+## Where project data lives
+
+Five tiers, the same in every project of this maintainer (set up 2026-11-23), so that a reboot loses nothing and moving `/Volumes/speedy` to another Mac loses only the machine-bound list below. The repository is `/Volumes/speedy/Github/corten-rs`; `~/Github` is a symlink to `/Volumes/speedy/Github`, so `~/Github/corten-rs` is the same folder, not a copy. Time Machine includes the repository, `.work/` and `~/.claude` (`tmutil isexcluded`, 2026-11-23).
+
+| Tier | What | Where in this project | Rule |
+| --- | --- | --- | --- |
+| 1 Tracked | Code, docs, the ledger, the corpus, the audit evidence, the generated docs, small reference results (`docs/gates/corpus-report.md`) | Everything `git ls-files` lists | Anything a doc, commit, handoff or committed result cites lives here, or its exact regenerate command is written beside the citation. CI runs are cited by their GitHub run number. No tracked file names a local absolute or temporary path (0 of 1,748 checked 2026-11-23; container paths and the `/tmp` paths in example programs are content, not citations) |
+| 2 Local-durable | Records worth keeping that are not committed | `evidence/` (today `evidence/field-reports/`, the SOTA-skills field reports) and `.claude-memory/` (Claude's memory; see below) | In the repository folder, ignored through `.git/info/exclude`, never deleted. New kinds go under `evidence/`, `runs/` or `results/` |
+| 3 Rebuildable | Build output, caches, scratch | `target/` (`cargo build`), `crates/corten-lints/target/` (`scripts/build-driver.sh`), `.work/` (agent scratch: probe logs, the corpus runner's `--work-dir` cache, local VM copies), `.ruff_cache/`, `.DS_Store`, `.claude/settings.local.json` (local agent permissions: re-grant with `/permissions`) | Delete freely. No secrets (none found 2026-11-23: no private key or token in 359 files under `.work/`). No gate or test may depend on a file here except the build output its documented command produces: the checker's tests need the driver from `scripts/build-driver.sh` |
+| 4 Ephemeral | Throwaway | The agent session scratchpad (`/Volumes/speedy/scratch/claude/...`), `/tmp`, `$TMPDIR`, the tests' own temporary directories | Copy anything worth keeping to tier 1 or 2 before a session ends; never cite a path here in a doc, commit or result |
+| 5 Outside by design | Kept outside the repository on purpose | None today. Podman images are pulled again by tag or digest (Keycloak 26.8.2 by digest in `scripts/gateway-keycloak-e2e.py`; the `gcc`, `eclipse-temurin`, `golang` and `python` images by digest in CI; `rust:1.99.1-slim-bookworm`); the podman volume `corten-rustup` is a cache | Must be on `/Volumes/speedy` and listed here by path |
+
+**Claude's memory.** `.claude-memory/` holds the files; `~/.claude/projects/-Volumes-speedy-Github-corten-rs/memory` is a symlink to it (since 2026-11-23; there is no second key for `~/Github/corten-rs`). Never commit it.
+
+**Machine-bound** (internal disk; does not travel with `/Volumes/speedy`): `~/.claude` (transcripts, settings and the memory symlink), podman's registration (`~/.config/containers`, `~/.local/share/containers`, whose `podman/machine/applehv` links to `/Volumes/speedy/podman-data`), rustup and cargo (`~/.rustup`, `~/.cargo`), `~/.gnupg` (the release signing key itself is on the maintainer's hardware key), `~/.ssh`, `gh` authentication (`~/.config/gh`), the Homebrew tools some steps use (`actionlint`, `zizmor`, `rsvg-convert` with the Archivo font for `scripts/language-docs.py`), and the `~/Github` symlink. On a new Mac:
+
+1. `ln -s /Volumes/speedy/Github ~/Github`.
+2. `mkdir -p ~/.claude/projects/-Volumes-speedy-Github-corten-rs && ln -s /Volumes/speedy/Github/corten-rs/.claude-memory ~/.claude/projects/-Volumes-speedy-Github-corten-rs/memory`, then list the memory through the link.
+3. Install rustup; the toolchain files install the pinned Rust and nightly on first use (`scripts/build-driver.sh` for the driver).
+4. `gh auth login`, the hardware key's GnuPG setup, and `podman machine init` with its disk on `/Volumes/speedy/podman-data`.
+5. `.git/info/exclude` travels with the repository (it lists `.work/`, `.claude-memory/` and `evidence/`); check `git status` is clean.
+
 ## Optional: SOTA engineering skills
 
 The maintainer builds and audits with the [SOTA-skills](https://github.com/martinholovsky/SOTA-skills) library. If you have it installed, route through its `sota` skill before building or auditing code, and load `sota-rust`, `sota-code-security` and `sota-testing` for most work here.
