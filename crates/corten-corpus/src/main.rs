@@ -65,6 +65,12 @@ struct Options {
     unpinned_driver: Option<PathBuf>,
 }
 
+/// `path` made absolute against the current directory, without requiring it
+/// to exist.
+fn absolute_dir(flag: &str, path: &Path) -> Result<PathBuf, String> {
+    std::path::absolute(path).map_err(|e| format!("{flag} {}: {e}", path.display()))
+}
+
 fn parse_args() -> Result<Options, String> {
     let mut args = env::args().skip(1);
     let mut checker = None;
@@ -105,6 +111,13 @@ fn parse_args() -> Result<Options, String> {
         .map(|d| {
             std::fs::canonicalize(&d).map_err(|e| format!("--unpinned-driver {}: {e}", d.display()))
         })
+        .transpose()?;
+    // The same for the work directory: a case's vendored fake dependencies
+    // are found through it from inside the case directory, so a relative
+    // `--work-dir` failed every fake-dependency case's control. It may not
+    // exist yet, so it is made absolute rather than canonicalised.
+    let work_dir = work_dir
+        .map(|d| absolute_dir("--work-dir", &d))
         .transpose()?;
     Ok(Options {
         checker,
@@ -407,7 +420,11 @@ impl Runner<'_> {
         Ok(None)
     }
 
-    fn run_case(&self, row: &ERow<'_>, target: &Path) -> io::Result<(Verdict, bool)> {
+    /// One case: its verdict, whether every bad variant is written in syntax
+    /// Rust does not have, and whether every bad variant was rejected for its
+    /// expected reason. Detection is recorded apart from the verdict, so a
+    /// case whose good program is falsely rejected still reports its misses.
+    fn run_case(&self, row: &ERow<'_>, target: &Path) -> io::Result<(Verdict, bool, bool)> {
         let case = self.opts.root.join(row.proof_test);
         let mut bad_files: Vec<PathBuf> = fs::read_dir(&case)?
             .filter_map(Result::ok)
@@ -436,6 +453,7 @@ impl Runner<'_> {
                 return Ok((
                     Verdict::Broken(format!("{name} has no //@ expect: line")),
                     false,
+                    false,
                 ));
             }
             absent_only &= d.absent;
@@ -446,23 +464,30 @@ impl Runner<'_> {
                 None => {}
                 Some(Verdict::NotDetected(why)) => missed.push(format!("{name}: {why}")),
                 Some(Verdict::ControlFailed(why)) => controls.push(format!("{name}: {why}")),
-                Some(other) => return Ok((other, false)),
+                Some(other) => return Ok((other, false, false)),
             }
         }
+        let detected = missed.is_empty() && controls.is_empty();
         let good_dir = work.join("good");
         self.write_crate(&good_dir, &good, &good_d)?;
         let accepted = self.corten(&good_dir, &dep_target(target, &good_d))?;
         if !accepted.ok() {
-            return Ok((Verdict::FalseRejection(excerpt(&accepted.output)), false));
+            let mut detail = vec![excerpt(&accepted.output)];
+            for (what, list) in [("not detected", &missed), ("control failed", &controls)] {
+                if !list.is_empty() {
+                    detail.push(format!("also {what}: {}", list.join(" ; ")));
+                }
+            }
+            return Ok((Verdict::FalseRejection(detail.join(" ; ")), false, detected));
         }
         if !controls.is_empty() {
-            return Ok((Verdict::ControlFailed(controls.join(" ; ")), false));
+            return Ok((Verdict::ControlFailed(controls.join(" ; ")), false, false));
         }
         if !missed.is_empty() {
-            return Ok((Verdict::NotDetected(missed.join(" ; ")), false));
+            return Ok((Verdict::NotDetected(missed.join(" ; ")), false, false));
         }
         fs::remove_dir_all(&work)?;
-        Ok((Verdict::Pass, absent_only))
+        Ok((Verdict::Pass, absent_only, true))
     }
 }
 
@@ -591,6 +616,9 @@ struct CaseResult {
     awaiting_review: bool,
     /// Every bad variant is written in syntax Rust does not have.
     absent_only: bool,
+    /// Every bad variant was rejected for its expected reason, whatever
+    /// happened to the good program.
+    detected: bool,
     /// The row's ledger status before this run.
     status: String,
 }
@@ -615,12 +643,9 @@ impl Summary {
         Self {
             total: results.len(),
             passed: count(&|c| c.verdict == Verdict::Pass),
-            detected: count(&|c| {
-                !matches!(
-                    c.verdict,
-                    Verdict::NotDetected(_) | Verdict::ControlFailed(_) | Verdict::Broken(_)
-                )
-            }),
+            // Recorded per case, not read from the verdict: a false rejection
+            // is reported as the verdict even when bad programs were missed too.
+            detected: count(&|c| c.detected),
             false_rejections: count(&|c| matches!(c.verdict, Verdict::FalseRejection(_))),
             controls_failed: count(&|c| matches!(c.verdict, Verdict::ControlFailed(_))),
             broken: count(&|c| matches!(c.verdict, Verdict::Broken(_))),
@@ -754,9 +779,9 @@ fn run_workers(
                     let next = queue.lock().ok().and_then(|mut q| q.pop());
                     let Some(row) = next else { break };
                     let start = Instant::now();
-                    let (verdict, absent_only) = runner
+                    let (verdict, absent_only, detected) = runner
                         .run_case(row, &target)
-                        .unwrap_or_else(|e| (Verdict::Broken(format!("I/O: {e}")), false));
+                        .unwrap_or_else(|e| (Verdict::Broken(format!("I/O: {e}")), false, false));
                     if let Ok(mut times) = case_times.lock() {
                         times.push(CaseTime {
                             case: row.id.to_owned(),
@@ -774,6 +799,7 @@ fn run_workers(
                                 verdict,
                                 awaiting_review: row.review == "required",
                                 absent_only,
+                                detected,
                                 status: row.status.to_owned(),
                             },
                         );
@@ -969,5 +995,51 @@ mod tests {
                 dep_policy: Vec::new(),
             }
         );
+    }
+
+    fn case(verdict: Verdict, detected: bool) -> CaseResult {
+        CaseResult {
+            kind: "checker".to_owned(),
+            verdict,
+            awaiting_review: false,
+            absent_only: false,
+            detected,
+            status: "verified".to_owned(),
+        }
+    }
+
+    /// Detection counts what happened to the bad programs, not the verdict: a
+    /// case whose good program is falsely rejected (the verdict) and whose bad
+    /// programs were missed too is not detected. Field-reported 2026-11-22: a
+    /// run where every checker call failed with a usage error reported
+    /// "Detection: 185 of 185" beside 185 false rejections.
+    #[test]
+    fn a_false_rejection_does_not_count_its_misses_as_detected() {
+        let mut results = Results::new();
+        results.insert("CWE-1".to_owned(), case(Verdict::Pass, true));
+        results.insert(
+            "CWE-2".to_owned(),
+            case(Verdict::FalseRejection("usage".to_owned()), false),
+        );
+        results.insert(
+            "CWE-3".to_owned(),
+            case(Verdict::FalseRejection("usage".to_owned()), true),
+        );
+        results.insert(
+            "CWE-4".to_owned(),
+            case(Verdict::NotDetected("missed".to_owned()), false),
+        );
+        let s = Summary::of(&results);
+        assert_eq!((s.total, s.detected, s.false_rejections), (4, 2, 2));
+    }
+
+    #[test]
+    fn a_relative_work_dir_becomes_absolute() {
+        let cwd = std::env::current_dir().unwrap();
+        let abs = absolute_dir("--work-dir", Path::new(".work/corpus-work")).unwrap();
+        assert!(abs.is_absolute(), "{}", abs.display());
+        assert_eq!(abs, cwd.join(".work/corpus-work"));
+        let given = Path::new("/already/absolute");
+        assert_eq!(absolute_dir("--work-dir", given).unwrap(), given);
     }
 }
