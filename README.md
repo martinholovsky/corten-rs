@@ -20,7 +20,7 @@ It's measured against all 944 weaknesses in MITRE's CWE catalogue. The target is
 
 - **Not a new language.** It's Rust with a stricter profile.
 - **Not "bulletproof".** It can enforce a wrong policy perfectly. Authorization rules, business logic and requirements are still your job.
-- **Not finished.** Phases 0 to 5 are implemented and Phase 6 is in progress; the Phase 1 to 3 gates are only partly passed, Phase 4's mechanisms back C rows only, and the only release is v0.1.0, a signed tag with no prebuilt binaries.
+- **Not finished.** Phases 0 to 5 are implemented and Phase 6 is in progress; the Phase 1 to 3 gates are only partly passed, Phase 4's mechanisms back C rows only, and releases are signed tags: v0.1.0 (no prebuilt binaries) and v0.2.0, which attaches prebuilt `corten-driver` binaries for Linux x86_64 and macOS (arm64 and x86_64) that `cargo-corten` pins by SHA-256.
 
 ## Why "Corten"
 
