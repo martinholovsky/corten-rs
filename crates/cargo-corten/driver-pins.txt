@@ -4,4 +4,8 @@
 # One line per target: TARGET SHA256-HEX. CI's release-driver workflow builds
 # the binaries and prints these lines; they land in the commit after that
 # build, which changes only this file, and the signed v* tag goes on that
-# commit (owner decision 2026-11-13). Empty until the first driver release.
+# commit (owner decision 2026-11-13). First pins: v0.2.0 (2026-11-25), built
+# from 7403a84 by the release-driver workflow.
+aarch64-apple-darwin 31557dd47d85d3a906c931e731c371113ac6a2bf6fceb138c862d79a99ac91ac
+x86_64-apple-darwin 3833fe66eda84e58beebde58a9bf95b91267aed9f747901a6550ed67df2e9e4c
+x86_64-unknown-linux-gnu c4ed2ccc68ee8afc7e1bb58ce7a6a4f1a7949750586ffc2ab1dcd3d2beef4841
