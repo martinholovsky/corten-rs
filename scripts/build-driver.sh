@@ -8,6 +8,11 @@
 # Usage: scripts/build-driver.sh [--release]
 set -euo pipefail
 cd "$(dirname "$0")/../crates/corten-lints"
+# Run from inside cargo (the checker's tests call this script when no driver is
+# built), rustup's RUSTUP_TOOLCHAIN and cargo's RUSTC/RUSTDOC name the outer
+# toolchain and override rust-toolchain.toml; the build then fails on stable
+# with "can't find crate for `rustc_driver`" (seen 2026-11-26).
+unset RUSTUP_TOOLCHAIN RUSTC RUSTDOC
 profile=debug
 for arg in "$@"; do
     [ "$arg" = --release ] && profile=release
