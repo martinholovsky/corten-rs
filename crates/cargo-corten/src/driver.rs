@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn the_shipped_pins_file_parses() {
-        // Empty until the first driver release; whatever it holds must parse.
+        // Pinned since v0.2.0; whatever it holds must parse.
         match check_against(PINS, "x86_64-unknown-linux-gnu", A) {
             Ok(()) | Err(PinError::NoPin { .. } | PinError::Mismatch { .. }) => {}
             Err(e) => panic!("{e}"),
