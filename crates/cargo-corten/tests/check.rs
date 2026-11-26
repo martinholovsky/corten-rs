@@ -99,18 +99,54 @@ fn outcome(cmd: &mut Command) -> io::Result<Outcome> {
 }
 
 /// The `corten-driver` the checker under test uses: `CORTEN_DRIVER`, or the
-/// one `scripts/build-driver.sh` builds. The checker requires it.
-fn driver() -> String {
-    if let Some(path) = std::env::var_os("CORTEN_DRIVER") {
-        return path.to_string_lossy().into_owned();
+/// one `scripts/build-driver.sh` builds. The checker requires it, so when no
+/// driver is built yet the tests run that script themselves: the suite passes
+/// from a fresh clone, with no build output present (`AGENTS.md`, "Where
+/// project data lives", class 3). A file lock serialises the build across
+/// test processes (nextest runs one per test).
+fn driver() -> io::Result<String> {
+    static DRIVER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    if let Some(found) = DRIVER.get() {
+        return Ok(found.clone());
     }
-    let built =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../corten-lints/target/debug/corten-driver");
-    assert!(
-        built.is_file(),
-        "corten-driver is not built: run scripts/build-driver.sh, or set CORTEN_DRIVER"
-    );
-    built.to_string_lossy().into_owned()
+    let found = find_or_build_driver()?;
+    Ok(DRIVER.get_or_init(|| found).clone())
+}
+
+fn find_or_build_driver() -> io::Result<String> {
+    if let Some(path) = std::env::var_os("CORTEN_DRIVER") {
+        return Ok(path.to_string_lossy().into_owned());
+    }
+    let lints = Path::new(env!("CARGO_MANIFEST_DIR")).join("../corten-lints");
+    // The same target directory scripts/build-driver.sh uses.
+    let built = std::env::var_os("CORTEN_LINTS_TARGET_DIR")
+        .map_or_else(|| lints.join("target"), PathBuf::from)
+        .join("debug/corten-driver");
+    if !built.is_file() {
+        let lock = fs::File::create(
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join("corten-driver-build.lock"),
+        )?;
+        lock.lock()?;
+        if !built.is_file() {
+            let status = Command::new("bash")
+                .arg(lints.join("../../scripts/build-driver.sh"))
+                .stdout(process::Stdio::null())
+                .status()?;
+            if !status.success() {
+                return Err(io::Error::other(format!(
+                    "scripts/build-driver.sh failed ({status}); build the driver with it, or set CORTEN_DRIVER"
+                )));
+            }
+        }
+    }
+    if built.is_file() {
+        Ok(built.to_string_lossy().into_owned())
+    } else {
+        Err(io::Error::other(format!(
+            "corten-driver is not at {}: run scripts/build-driver.sh, or set CORTEN_DRIVER",
+            built.display()
+        )))
+    }
 }
 
 /// The operator's dependency policy for a fixture, when a test wrote one.
@@ -122,7 +158,7 @@ fn operator_policy(fx: &Fixture) -> PathBuf {
 /// locally built driver through `--unpinned-driver` (no release pins it).
 /// The fixture's operator policy, if any, is passed with `CORTEN_DEP_POLICY`.
 fn corten(fx: &Fixture, env: &[(&str, &str)]) -> io::Result<Outcome> {
-    corten_with(fx, env, Some(&driver()))
+    corten_with(fx, env, Some(&driver()?))
 }
 
 /// [`corten`] with `unpinned` as `--unpinned-driver`, or without the flag.
@@ -680,7 +716,7 @@ fn missing_driver_is_an_error() {
 #[test]
 fn a_driver_no_release_pins_needs_the_explicit_flag() {
     let fx = Fixture::new("unpinned-driver", SAFE).unwrap();
-    let refused = corten_with(&fx, &[("CORTEN_DRIVER", &driver())], None).unwrap();
+    let refused = corten_with(&fx, &[("CORTEN_DRIVER", &driver().unwrap())], None).unwrap();
     assert_eq!(refused.code, Some(1), "{}", refused.stderr);
     assert!(
         refused
