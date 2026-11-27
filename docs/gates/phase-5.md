@@ -109,6 +109,11 @@ From the GitHub API and each project's own files on 2026-10-28. "Packages" count
 | Hard-coded credentials (CWE-798) | **Build in-house:** a `corten_secret_literal` lint refusing a `Secret` built from a literal | A narrow, sound check of Corten's own API; the row stays C (literals can still reach other sinks) |
 | Lint hosting (dylint) | **Not needed** | `corten-driver` already hosts Corten's lints |
 
+**Link review (2026-11-27, owner, the recommendation).** Three tools proposed by a cross-project triage on 2026-11-26, all skipped:
+- **Semgrep:** already rejected above; the proposal did not reopen that decision.
+- **osv-scanner** (Apache-2.0, Go): skipped. `cargo audit` (pre-push) and `cargo deny check advisories` (CI, also weekly) already read the RustSec database, which is the only Rust-specific source on OSV's data page (read 2026-11-27); that page does not say whether the GitHub Advisory Database adds crates.io entries, so any extra coverage is unmeasured. It would add a Go binary to the gates (principle 6). Revisit if an advisory is found in OSV and missing from RustSec.
+- **genTree** (`desultory/genTree`, GPL-2.0, last push 2025-06-07): skipped. It builds filesystem trees with Gentoo's portage from a stage3 seed; Corten's release builds run in an AlmaLinux 8 image pinned by digest, and a reproducible driver build is deferred as later hardening (`phase-6.md`, the prebuilt driver row).
+
 ### Part 4, step 3: execution
 
 1. Kani harnesses for the encoders' escaping functions (LDAP filter and DN, XPath and XQuery literals, CSV cell, HTML escaping, log escaping), run in a container on 0.68.0, with results recorded.
