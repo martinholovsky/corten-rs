@@ -4,6 +4,10 @@ Newest first. Releases are tags signed with the maintainer's OpenPGP key; verify
 
 ## Unreleased
 
+### Changed
+
+- **Link review recorded** (2026-11-27): Semgrep (already rejected), osv-scanner and genTree skipped, with reasons in `docs/gates/phase-5.md`, Part 4 step 2.
+
 ## v0.2.0 (2026-11-25)
 
 The first release with prebuilt `corten-driver` binaries: Linux x86_64 (built on glibc 2.28; it needs no symbol newer than `GLIBC_2.14`), macOS arm64 and macOS x86_64, attached to the release with `SHA256SUMS` and a GitHub build provenance attestation. The `cargo-corten` this tag signs pins each binary's SHA-256 in `crates/cargo-corten/driver-pins.txt` and runs it with the pinned nightly's libraries, which `rustup toolchain install nightly-2026-10-26 --profile minimal` installs. **Breaking:** a driver built locally with `scripts/build-driver.sh` must be passed as `--unpinned-driver PATH`. Also in this release: Landlock UDP, device-ioctl and UNIX-socket restrictions where the kernel has them, CWE-306 for request handlers, the Linux 7.3 sandbox job in CI, and the corpus runner's detection count. The workspace crates and the lint driver are versioned 0.2.0.
