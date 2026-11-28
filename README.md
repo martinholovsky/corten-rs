@@ -164,7 +164,7 @@ Phase 6 is under way; its open items, with what starts each one, are in [`docs/g
 - **The batches not started**: labels on errors and logs (strategy 9), resource budgets and safe deserialization (strategies 3 and 4), and web types, credentials and strict parsers (batch 6), each listed in [`docs/residual-mitigation.md`](docs/residual-mitigation.md).
 - **Corpus cases**: a program that exhibits a weakness Corten claims to eliminate and still builds is the most useful bug report there is ([`corpus/README.md`](corpus/README.md)).
 
-Read [`AGENTS.md`](AGENTS.md) first; commits run a gitleaks secret scan through pre-commit (`pre-commit install --hook-type pre-commit --hook-type pre-push`).
+Read [`AGENTS.md`](AGENTS.md) first; commits run a gitleaks secret scan and a zizmor audit of the CI config (zizmor 1.33.1 on `PATH`) through pre-commit (`pre-commit install --hook-type pre-commit --hook-type pre-push`).
 
 ## License
 

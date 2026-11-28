@@ -6,6 +6,7 @@ Newest first. Releases are tags signed with the maintainer's OpenPGP key; verify
 
 ### Changed
 
+- **zizmor runs as a blocking pre-commit hook** (2026-11-28, owner decision: locally, not as a CI job). `scripts/zizmor-gate.sh` pins zizmor 1.33.1 and fails closed when it is missing; it runs the offline audits on every commit and the online ones (impostor commits, known-vulnerable actions) when CI config is staged. zizmor 1.33.1 found 2 issues the earlier version did not report, now 0: the action wrote its tools directory to `$GITHUB_PATH`, so every later step of the caller's job inherited it (`github-env`); it now passes the directory to its own second step as an output and puts it on that step's `PATH` only. **Callers that ran `cargo corten` or `corten-sandbox` in a later step by bare name must call the action again or use the full path.** The CI self-test keeps `uses: ./`: zizmor's `self-repository` audit prefers `$/`, which actionlint 1.7.12 (the latest release) rejects; suppressed with that reason.
 - **Link review recorded** (2026-11-27): Semgrep (already rejected), osv-scanner and genTree skipped, with reasons in `docs/gates/phase-5.md`, Part 4 step 2.
 
 ## v0.2.0 (2026-11-25)
