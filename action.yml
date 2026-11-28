@@ -53,12 +53,16 @@ runs:
         # --unpinned-driver (owner decision 2026-11-22).
         driver=$(bash scripts/build-driver.sh --release)
         printf 'driver=%s\n' "$driver" >> "$GITHUB_OUTPUT"
-        printf '%s\n' "$TOOLS_TARGET/release" >> "$GITHUB_PATH"
+        # The tools directory goes to the next step as an output, not through
+        # $GITHUB_PATH, so the caller's later steps do not inherit it (zizmor
+        # github-env).
+        printf 'bin=%s\n' "$TOOLS_TARGET/release" >> "$GITHUB_OUTPUT"
     - name: Run cargo corten
       id: run
       shell: bash
       env:
         CORTEN_UNPINNED_DRIVER: ${{ steps.tools.outputs.driver }}
+        CORTEN_TOOLS_BIN: ${{ steps.tools.outputs.bin }}
         ACTION_PATH: ${{ github.action_path }}
         CORTEN_COMMAND: ${{ inputs.command }}
         CORTEN_MANIFEST: ${{ inputs.manifest-path }}
@@ -67,6 +71,7 @@ runs:
         CORTEN_OUT: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail
+        export PATH="$CORTEN_TOOLS_BIN:$PATH"   # cargo finds cargo-corten here
         # corten-sandbox refuses to start while a descriptor without
         # close-on-exec is open; the runner leaks some into every step.
         corten() { bash "$ACTION_PATH/scripts/close-leaked-fds.sh" cargo corten "$@" --unpinned-driver "$CORTEN_UNPINNED_DRIVER"; }

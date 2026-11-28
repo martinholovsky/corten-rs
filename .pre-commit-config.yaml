@@ -41,3 +41,16 @@ repos:
         always_run: true
         stages: [pre-push]
   # <<< sota-gates <<<
+  # Not managed by init-gates.sh. Workflow SAST: blocking zizmor over .github/ and
+  # action.yml (offline every commit; online audits, impostor commits and
+  # known-vulnerable actions, when CI config is staged, via `gh auth token`).
+  # zizmor 1.33.1 is pinned in the script and must be on PATH.
+  - repo: local
+    hooks:
+      - id: zizmor-gate
+        name: zizmor (CI config)
+        entry: scripts/zizmor-gate.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
